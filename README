@@ -1,0 +1,15 @@
+# Architectuur Planner
+
+## Frontend
+Vue + TypeScript + Pinia + Vue Flow
+
+## Backend
+Express + TypeScript + MongoDB
+
+## Run frontend
+cd frontend
+npm run dev
+
+## Run backend
+cd backend
+npm run dev
