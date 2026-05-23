@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import api from '../helpers/axios';
 
 export interface Application {
     id: string;
@@ -9,18 +10,29 @@ export interface Application {
 export const useApplicationStore = defineStore('application', () => {
     const applications = ref<Application[]>([]);
 
-    function addApplication(name: string) {
-        const newApplication : Application = {
-            id: crypto.randomUUID(),
+    function setApplications(apps: Application[]) {
+        applications.value = apps;
+    }
+
+    async function createApplication(name: string) {
+        const res = await api.post('/applications', {
             name: name
+        })
+        const newApplication : Application = {
+            id: res.data.id,
+            name: res.data.name
         }
 
         applications.value.push(newApplication);
+
+        return newApplication.id;
     }
 
-    function removeApplication(id: string){
-        applications.value = applications.value.filter((application) => application.id != id);
+    async function deleteApplication(id: string): Promise<string>{
+        const res = await api.delete(`/applications/${id}`);
+        applications.value = applications.value.filter((application) => application.id !== res.data.appId);
+        return res.data.appId;
     }
 
-    return { applications, addApplication, removeApplication }
-})
+    return { applications, setApplications, createApplication, deleteApplication }
+});

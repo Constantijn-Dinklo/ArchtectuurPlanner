@@ -1,17 +1,25 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
+
 import { useApplicationStore } from '../stores/application.store';
+import { useApplicationService } from '../services/application.service';
+
+const applicationService = useApplicationService();
 
 const applicationStore = useApplicationStore();
 
-const newApplicationName = ref('')
+const newApplicationName = ref('');
+
+onMounted(() => {
+    applicationService.fetchApplications();
+})
 
 function addApplication(){
-    applicationStore.addApplication(newApplicationName.value);
+    applicationService.addApplication(newApplicationName.value);
 }
 
 function removeApplication(id: string){
-    applicationStore.removeApplication(id);
+    applicationService.removeApplication(id);
 }
 
 </script>
