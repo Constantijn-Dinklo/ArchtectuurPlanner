@@ -1,12 +1,18 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
-export interface IConnection extends Document {
+export interface IApiConnection extends Document {
     sourceId: Types.ObjectId | null;
+    sourceUrlId: Types.ObjectId | null;
     targetId: Types.ObjectId | null;
 }
 
-const ConnectionSchema = new Schema<IConnection>({
+const ApiConnectionSchema = new Schema<IApiConnection>({
     sourceId: {
+        type: Schema.Types.ObjectId,
+        required: false,
+        default: null
+    },
+    sourceUrlId: {
         type: Schema.Types.ObjectId,
         required: false,
         default: null
@@ -33,6 +39,6 @@ const ConnectionSchema = new Schema<IConnection>({
     }
 });
 
-const Connection: Model<IConnection> = mongoose.model<IConnection>('Connection', ConnectionSchema);
+const ApiConnection: Model<IApiConnection> = mongoose.model<IApiConnection>('ApiConnection', ApiConnectionSchema);
 
-export default Connection;
+export default ApiConnection;

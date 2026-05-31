@@ -1,19 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-
 import LeftSidebar from './components/layout/LeftSidebar.vue';
 import CenterContent from "./components/layout/CenterContent.vue";
 import RightSidebar from "./components/layout/RightSidebar.vue";
-
-
-  const message = ref("");
-
-  onMounted(async () => {
-    const response = await fetch("/api/health");
-    const data = await response.json();
-
-    message.value = data.status;
-  });
 </script>
 
 <template>

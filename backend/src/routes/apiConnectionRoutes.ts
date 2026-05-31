@@ -1,12 +1,12 @@
 import express, { Router, Request, Response } from "express";
-import Connection from "../models/connection.model";
+import ApiConnection from "../models/apiConnection.model";
 
 const router: Router = express.Router();
 
 router.get('/', async (req: Request, res: Response) => {
     try {
-        const connections = await Connection.find();
-        res.json(connections);
+        const apiConnections = await ApiConnection.find();
+        res.json(apiConnections);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
@@ -15,17 +15,19 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.post('/', async (req: Request, res: Response) => {
     try {
-        const connectionBody = {
+        const apiConnectionBody = {
             sourceId: req.body.sourceId === '' ? null : req.body.sourceId,
+            sourceUrlId: req.body.sourceUrlId === '' ? null : req.body.sourceUrlId,
             targetId: req.body.targetId === '' ? null : req.body.targetId
         }
-        const connection = new Connection(connectionBody);
-        await connection.save();
+        const apiConnection = new ApiConnection(apiConnectionBody);
+        await apiConnection.save();
         
         res.status(201).json({
-            id: connection._id,
-            sourceId: connection.sourceId,
-            targetId: connection.targetId
+            id: apiConnection._id,
+            sourceId: apiConnection.sourceId,
+            sourceUrlId: apiConnection.sourceUrlId,
+            targetId: apiConnection.targetId
         });
     }
     catch(err: any) {
@@ -35,15 +37,25 @@ router.post('/', async (req: Request, res: Response) => {
 
 router.patch('/:id', async (req: Request, res: Response) => {
     try {
-        console.log(req.body);
-
-        const updated = await Connection.findOneAndUpdate(
+        const updated = await ApiConnection.findOneAndUpdate(
             {_id: req.params.id},
             { $set: req.body},
             { returnDocument: 'after'}
         );
-        console.log(updated);
         res.json(updated);
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+})
+
+router.delete('/:id', async (req: Request, res: Response) => {
+    try {
+        const deleted = await ApiConnection.findOneAndDelete(
+            {_id: req.params.id},
+            { returnDocument: 'after'}
+        )
+        res.json(deleted);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });

@@ -3,7 +3,9 @@ import cors from "cors";
 
 import connectDB from './config/db';
 import applicationRoutes from './routes/applicationRoutes';
-import connectionRoutes from './routes/connectionRoutes';
+import connectionRoutes from './routes/apiConnectionRoutes';
+import apiRoutes from './routes/apiRoutes';
+import scriptRoutes from './routes/scriptRoutes';
 
 const app = express();
 
@@ -19,16 +21,14 @@ app.use(
 );
 app.use(express.json());
 
-// app.use((req, res, next) => {
-//   console.log('Origin header:', req.headers.origin)
-//   next()
-// })
 
 app.get('/test', (req, res) => {
   res.send('HELLO FROM MY EXPRESS APP')
 })
 
 app.use('/applications', applicationRoutes);
-app.use('/connections', connectionRoutes);
+app.use('/apiConnections', connectionRoutes);
+app.use('/apis', apiRoutes);
+app.use('/scripts', scriptRoutes);
 
 export default app;

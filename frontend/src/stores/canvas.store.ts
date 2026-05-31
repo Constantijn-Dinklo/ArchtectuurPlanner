@@ -21,7 +21,8 @@ export interface CanvasEdge {
 export const useCanvasStore = defineStore("canvas", {
   state: () => ({
     nodes: [] as CanvasNode[],
-    edges: [] as CanvasEdge[],
+    apiEdges: [] as CanvasEdge[],
+    scriptEdges: new Map<string, CanvasEdge[]>() // {scriptId: [edges]}
   }),
 
   actions: {
@@ -37,26 +38,46 @@ export const useCanvasStore = defineStore("canvas", {
       });
     },
 
-    addEdge(edge: CanvasEdge) {
-      this.edges.push(edge);
-    },
-
-    updateEdge(id: string, updateEdge: CanvasEdge) {
-      const edge = this.edges.find(e => e.id === id);
-      if(!edge) return;
-      Object.assign(edge, updateEdge);
-    },
-
-    removeNode(nodeId: string) {
-      this.nodes = this.nodes.filter((n) => n.id !== nodeId);
-
-      this.edges = this.edges.filter(
-        (e) => e.source !== nodeId && e.target !== nodeId
-      );
-    },
-
     removeNodeApplicationId(applicationId: string){
       this.nodes = this.nodes.filter((node) => node.applicationId !== applicationId);
+    },
+
+    addApiEdge(edge: CanvasEdge) {
+      this.apiEdges.push(edge);
+    },
+
+    updateApiEdge(id: string, updateEdge: CanvasEdge) {
+      if(updateEdge.source === '' || updateEdge.target === '') return;
+
+      const edge = this.apiEdges.find(e => e.id === id);
+      if(edge) {
+        Object.assign(edge, updateEdge);
+      }
+      else {
+        this.apiEdges.push(updateEdge);
+      }
+    },
+
+    removeApiEdge(id: string) {
+      this.apiEdges = this.apiEdges.filter((apiEdge) => apiEdge.id !== id);
+    },
+
+    updateScriptEdges(scriptId: string, edges: CanvasEdge[]) {
+      this.scriptEdges.set(scriptId, edges);
+    },
+
+    removeScriptEdges(scriptId: string) {
+      this.scriptEdges.delete(scriptId);
     }
   },
+
+  getters: {
+    //Might be slow, but works for now
+    allEdges(state): CanvasEdge[] {
+      return [
+        ...state.apiEdges,
+        ...Array.from(this.scriptEdges.values()).flat()
+      ];
+    }
+  }
 });
