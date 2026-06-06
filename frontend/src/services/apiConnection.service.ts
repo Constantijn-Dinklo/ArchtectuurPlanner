@@ -1,6 +1,7 @@
 import api from "../helpers/axios";
-import { useCanvasStore, type CanvasEdge } from "../stores/canvas.store";
+import { useCanvasStore, type CanvasEdge } from "../stores/canvas/canvas.store";
 import { useApiConnectionStore, type ApiConnection } from "../stores/apiConnection.store";
+import { label } from "@primeuix/themes/aura/metergroup";
 
 
 export function useApiConnectionService() {
@@ -17,9 +18,9 @@ export function useApiConnectionService() {
             canvasStore.addApiEdge({
                 id: conn.id,
                 source: conn.sourceId,
-                target: conn.targetId
+                target: conn.targetId,
             })
-        })
+        });
     }
 
     async function updateApiConnection(id: string, patch: Partial<ApiConnection>) {
@@ -31,7 +32,7 @@ export function useApiConnectionService() {
         const updatedEdge: CanvasEdge = {
             id: updatedConnection.id,
             source: updatedConnection.sourceId,
-            target: updatedConnection.targetId
+            target: updatedConnection.targetId,
         }
         canvasStore.updateApiEdge(id, updatedEdge);
     }

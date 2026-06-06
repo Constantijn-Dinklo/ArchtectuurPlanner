@@ -5,12 +5,13 @@ import { Button, InputText, Menu, Select } from 'primevue'
 
 import { onMounted, ref, type Ref } from 'vue';
 import { useScriptStore, type Script } from '../stores/script.store';
-import { useApplicationStore } from '../stores/application.store';
 import { useScriptService } from '../services/script.service';
+import { useResourceService } from '../services/resource.service';
 
 const scriptStore = useScriptStore();
 const scriptService = useScriptService();
-const applicationStore = useApplicationStore();
+
+const resourceService = useResourceService();
 
 const menu = ref();
 const selectedRow: Ref<any, Script> = ref();
@@ -83,7 +84,7 @@ function deleteScript(scriptId: string) {
         <div v-for="(input, index) in data.inputIds" :key="index">
           <Select 
             v-model="data.inputIds[index]"
-            :options="applicationStore.applications"
+            :options="resourceService.getByType('application')"
             optionLabel="name"
             optionValue="id"
             placeholder="Select application"
@@ -98,7 +99,7 @@ function deleteScript(scriptId: string) {
         <div v-for="(input, index) in data.outputIds" :key="index">
           <Select 
             v-model="data.outputIds[index]"
-            :options="applicationStore.applications"
+            :options="resourceService.getByType('application')"
             optionLabel="name"
             optionValue="id"
             placeholder="Select application"

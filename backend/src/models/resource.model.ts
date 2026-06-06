@@ -1,13 +1,16 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
-export interface IScript extends Document {
+const RESOURCE_TYPES = ['application', 'database'] as const;
+
+export type ResourceType = typeof RESOURCE_TYPES[number];
+
+export interface IResource extends Document {
     organisationId: Types.ObjectId;
     name: string;
-    inputIds: Types.ObjectId[];
-    outputIds: Types.ObjectId[];
+    type: ResourceType;
 }
 
-const ScriptSchema = new Schema<IScript>({
+const ResourceSchema = new Schema<IResource>({
     organisationId: {
         type: Schema.Types.ObjectId,
         ref: 'Organisation',
@@ -18,16 +21,15 @@ const ScriptSchema = new Schema<IScript>({
         type: Schema.Types.String,
         required: true
     },
-    inputIds: [{
-        type: Schema.Types.ObjectId,
-    }],
-    outputIds: [{
-        type: Schema.Types.ObjectId
-    }]
+    type: {
+        type: Schema.Types.String,
+        required: true,
+        enum: RESOURCE_TYPES
+    }
 },
 {
     timestamps: true,
-    toJSON:  {
+    toJSON: {
         virtuals: true,
 
         transform(_, ret: any) {
@@ -36,11 +38,14 @@ const ScriptSchema = new Schema<IScript>({
             delete ret._id
             delete ret.__v
 
+            delete ret.createdAt
+            delete ret.updatedAt
+
             return ret
         },
     }
-})
+});
 
-const Script: Model<IScript> = mongoose.model<IScript>('Script', ScriptSchema);
+const Resource: Model<IResource> = mongoose.model<IResource>('Resource', ResourceSchema);
 
-export default Script;
+export default Resource;

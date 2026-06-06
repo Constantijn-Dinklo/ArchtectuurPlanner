@@ -1,18 +1,16 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue';
 
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import { Select, Menu, Button } from 'primevue'
 
-import { onMounted, ref } from 'vue';
-
-import { useApplicationStore } from '../stores/application.store';
 import { useApiConnectionStore } from '../stores/apiConnection.store';
 import { useApiConnectionService } from '../services/apiConnection.service';
 import { useApiStore } from '../stores/api.store';
+import { useResourceService } from '../services/resource.service';
 
-
-const applicationStore = useApplicationStore();
+const resourceService = useResourceService();
 const apiConnectionStore = useApiConnectionStore();
 const apiConnectionService = useApiConnectionService();
 const apiStore = useApiStore();
@@ -70,14 +68,14 @@ function deleteApiConnection(id: string) {
     <Column field="sourceId" header="From">
       <template #body="{ data }">
         {{
-            applicationStore.applications.find(a => a.id === data.sourceId)?.name || ''
+            resourceService.getByType('application').find(a => a.id === data.sourceId)?.name || ''
         }}
       </template>
       
       <template #editor="{ data, field }">
         <Select 
           v-model="data[field]"
-          :options="applicationStore.applications.filter((app) => app.id !== data.targetId)"
+          :options="resourceService.getByType('application').filter((app) => app.id !== data.targetId)"
           optionLabel="name"
           optionValue="id"
           placeholder="Select application"
@@ -103,14 +101,14 @@ function deleteApiConnection(id: string) {
     <Column field="targetId" header="to"> 
       <template #body="{ data }">
         {{
-            applicationStore.applications.find(a => a.id === data.targetId)?.name || ''
+            resourceService.getByType('application').find(a => a.id === data.targetId)?.name || ''
         }}
       </template>
       
       <template #editor="{ data, field }">
         <Select 
           v-model="data[field]"
-          :options="applicationStore.applications.filter((app) => app.id !== data.sourceId)"
+          :options="resourceService.getByType('application').filter((app) => app.id !== data.sourceId)"
           optionLabel="name"
           optionValue="id"
           placeholder="Select application"

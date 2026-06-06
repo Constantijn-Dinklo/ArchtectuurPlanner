@@ -2,11 +2,21 @@
 import LeftSidebar from './components/layout/LeftSidebar.vue';
 import CenterContent from "./components/layout/CenterContent.vue";
 import RightSidebar from "./components/layout/RightSidebar.vue";
+import { useAuthStore } from './stores/auth.store.ts';
+import Login from './components/login/Login.vue';
+import { onMounted } from 'vue';
+
+const authStore = useAuthStore();
+
+onMounted(() => {
+  authStore.getProfile();
+})
+
 </script>
 
 <template>
 
-  <div class="app-layout">
+  <div v-if="authStore.auth.isAuthenticated" class="app-layout">
     <div class="left-sidebar">
       <LeftSidebar />
     </div>
@@ -16,6 +26,10 @@ import RightSidebar from "./components/layout/RightSidebar.vue";
     <div class="right-sidebar">
       <RightSidebar />
     </div>
+  </div>
+
+  <div v-else>
+    <Login />
   </div>
 </template>
 

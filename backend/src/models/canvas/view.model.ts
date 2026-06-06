@@ -1,26 +1,21 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
-export interface IApi extends Document {
+
+export interface IView extends Document {
     organisationId: Types.ObjectId;
-    url: string;
-    applicationId: Types.ObjectId | null;
+    name: string;
 }
 
-const ApiSchema = new Schema<IApi>({
+const ViewSchema = new Schema<IView>({
     organisationId: {
         type: Schema.Types.ObjectId,
         ref: 'Organisation',
         required: true,
         index: true
     },
-    url: {
+    name: {
         type: Schema.Types.String,
         required: true,
-    },
-    applicationId: {
-        type: Schema.Types.ObjectId,
-        required: true,
-        ref: 'Resource'
     }
 },
 {
@@ -39,6 +34,6 @@ const ApiSchema = new Schema<IApi>({
     }
 });
 
-const Api: Model<IApi> = mongoose.model<IApi>('Api', ApiSchema);
+const View: Model<IView> = mongoose.model<IView>('View', ViewSchema);
 
-export default Api;
+export default View;

@@ -1,6 +1,6 @@
 import api from "../helpers/axios";
 
-import { useCanvasStore, type CanvasEdge } from "../stores/canvas.store";
+import { useCanvasStore, type CanvasEdge } from "../stores/canvas/canvas.store";
 import { useScriptStore, type Script } from "../stores/script.store";
 
 
@@ -36,7 +36,8 @@ export function useScriptService() {
     }
 
     function makeEdgesForScript(inputIds: string[], outputIds: string[]): CanvasEdge[] {
-        const edges: CanvasEdge[] = inputIds.flatMap(inputId => outputIds.map(outputId => {
+        const edges: (CanvasEdge | undefined)[] = inputIds.flatMap(inputId => outputIds.map(outputId => {
+            if(inputId === outputId) return;
             const edge: CanvasEdge = {
                 id: inputId + outputId,
                 source: inputId,
@@ -44,7 +45,8 @@ export function useScriptService() {
             }
             return edge
         }));
-        return edges;
+
+        return edges.filter((edge) => edge !== undefined);
     }
 
     return { fetchScripts, updateScript, deleteScript }

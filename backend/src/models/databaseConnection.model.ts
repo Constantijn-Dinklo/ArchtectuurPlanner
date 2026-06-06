@@ -1,34 +1,31 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
-export interface IApiConnection extends Document {
+
+export interface IDatabaseConnection extends Document {
     organisationId: Types.ObjectId;
-    sourceId: Types.ObjectId | null;
-    sourceUrlId: Types.ObjectId | null;
-    targetId: Types.ObjectId | null;
+    databaseId: Types.ObjectId;
+    targetId: Types.ObjectId;
 }
 
-const ApiConnectionSchema = new Schema<IApiConnection>({
+const DatabaseConnectionSchema = new Schema<IDatabaseConnection>({
     organisationId: {
         type: Schema.Types.ObjectId,
         ref: 'Organisation',
         required: true,
         index: true
     },
-    sourceId: {
+    databaseId: {
         type: Schema.Types.ObjectId,
-        required: false,
-        default: null
-    },
-    sourceUrlId: {
-        type: Schema.Types.ObjectId,
+        ref: 'Resource',
         required: false,
         default: null
     },
     targetId: {
         type: Schema.Types.ObjectId,
+        ref: 'Resource',
         required: false,
         default: null
-    }
+    },
 },
 {
     timestamps: true,
@@ -41,11 +38,15 @@ const ApiConnectionSchema = new Schema<IApiConnection>({
             delete ret._id
             delete ret.__v
 
+            delete ret.organisationId
+            delete ret.createdAt
+            delete ret.updatedAt
+
             return ret
         },
     }
 });
 
-const ApiConnection: Model<IApiConnection> = mongoose.model<IApiConnection>('ApiConnection', ApiConnectionSchema);
+const DatabaseConnection: Model<IDatabaseConnection> = mongoose.model<IDatabaseConnection>('DatabaseConnection', DatabaseConnectionSchema);
 
-export default ApiConnection;
+export default DatabaseConnection;

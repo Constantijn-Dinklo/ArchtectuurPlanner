@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 
-import { useApplicationStore } from '../stores/application.store';
-import { useApplicationService } from '../services/application.service';
 import { useApiStore } from '../stores/api.store';
+import { useResourceService } from '../services/resource.service';
 
-const applicationService = useApplicationService();
-const applicationStore = useApplicationStore();
+const resourceService = useResourceService();
 
 const apiStore = useApiStore();
 
@@ -15,16 +13,16 @@ const newApplicationName = ref('');
 const tempUrl = ref('');
 
 onMounted(() => {
-    applicationService.fetchApplications();
+    resourceService.fetchResources();
     apiStore.fetchApis();
 })
 
 function addApplication(){
-    applicationService.addApplication(newApplicationName.value);
+    resourceService.createResource(newApplicationName.value, 'application');
 }
 
 function removeApplication(id: string){
-    applicationService.removeApplication(id);
+    resourceService.removeResource(id);
 }
 
 async function addTempApi(applicationId: string) {
@@ -49,7 +47,7 @@ function deleteApi(id: string) {
     </div>
     <div>
         <ul>
-            <li v-for="application in applicationStore.applications">
+            <li v-for="application in resourceService.getByType('application')">
                 <button @click="addTempApi(application.id)">+</button>
                 {{ application.name }}
                 <button class="btn-primary" @click="removeApplication(application.id)">X</button>
@@ -70,5 +68,8 @@ function deleteApi(id: string) {
                 </ul>
             </li>
         </ul>
+    </div>
+    <div>
+        <button @click="apiStore.fetchApis()">Fetch Apis</button>
     </div>
 </template>

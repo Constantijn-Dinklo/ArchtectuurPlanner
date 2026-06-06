@@ -4,14 +4,18 @@
   import ConnectionTableScript from './ConnectionTableScript.vue';
   import { useApiConnectionService } from '../services/apiConnection.service.ts';
   import { useScriptService } from '../services/script.service.ts';
+import ConnectionTableDatabase from './ConnectionTableDatabase.vue';
+import { useDatabaseConnectionService } from '../services/databaseConnection.service.ts';
 
   const apiConnectionService = useApiConnectionService();
+  const databaseConnectionService = useDatabaseConnectionService();
   const scriptService = useScriptService();
 
-  const activeTable = ref<'api' | 'script'>('api');
+  const activeTable = ref<'api' | 'script' | 'database'>('api');
 
   onMounted(() => {
     apiConnectionService.fetchApiConnections();
+    databaseConnectionService.fetchDatabaseConnections();
     scriptService.fetchScripts();
   });
 
@@ -32,11 +36,19 @@
     >
       Scripts
     </button>
+    <button
+      @click="activeTable = 'database'"
+      :class="{ active: activeTable === 'database' }"
+    >
+      Database Connections
+    </button>
   </div>
   <div class="table-container">
     <ConnectionTableApi v-if="activeTable === 'api'" />
 
-    <ConnectionTableScript v-else />
+    <ConnectionTableScript v-else-if="activeTable === 'script'" />
+
+    <ConnectionTableDatabase v-else/>
   </div>
 </template>
 
