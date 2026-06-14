@@ -6,6 +6,7 @@ import connectDB from './config/db';
 
 import orgRoutes from './routes/organisationRoutes';
 import authRoutes from './routes/auth';
+import serverRoutes from './routes/serverRoutes';
 import resourceRoutes from './routes/resourceRoutes';
 import apiRoutes from './routes/apiRoutes';
 import apiConnectionRoutes from './routes/apiConnectionRoutes';
@@ -36,6 +37,7 @@ app.get('/test', (req, res) => {
 
 app.use('/org', orgRoutes);
 app.use('/auth', authRoutes);
+app.use('/servers', serverRoutes);
 app.use('/resources', resourceRoutes);
 app.use('/apis', apiRoutes);
 app.use('/apiConnections', apiConnectionRoutes);

@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import api from "../../helpers/axios";
 
-export type ViewNodeType = 'application' | 'database' | 'fileLocation';
+export type ViewNodeType = 'application' | 'database' | 'fileLocation' | 'server';
 
 export interface View {
     id: string;

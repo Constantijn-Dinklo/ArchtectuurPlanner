@@ -49,4 +49,8 @@ function onNodeDragStop(event: any){
   background: #22c55e;
 }
 
+.vue-flow__node.server {
+  background: yellow;
+}
+
 </style>

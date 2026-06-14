@@ -4,13 +4,15 @@ import { useViewStore, type ViewNode } from "../stores/canvas/view.store";
 import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useScriptStore } from "../stores/script.store";
-import type { CanvasNode } from "./types/canvasNode";
+import type { CanvasNode, NodeType } from "./types/canvasNode";
 import type { CanvasEdge } from "./types/canvasEdge";
+import { useServerService } from "../services/server.service";
 
 
 export function useCanvasProjection() {
     const viewStore = useViewStore();
     const { getResource } = useResourceService();
+    const { getServer } = useServerService();
 
     const apiConnectionStore = useApiConnectionStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
@@ -18,17 +20,38 @@ export function useCanvasProjection() {
 
     const flowNodes = computed(() => {
         return viewStore.viewNodes.map(vn => {
-            let entity;
+            let entity: { name: string; type: string } | undefined;
             if(vn.entityType === 'application' || vn.entityType === 'database' || vn.entityType === 'fileLocation'){
-                entity = getResource(vn.entityId);
+                const resource = getResource(vn.entityId);
+                if(resource){
+                    entity = {
+                        name: resource.name,
+                        type: resource.type
+                    } 
+                }
+            }
+            else if(vn.entityType === 'server'){
+                const server = getServer(vn.entityId);
+                if(server) {
+                    entity = {
+                        name: server.name,
+                        type: 'server'
+                    }
+                }
+            }
+
+            entity = {
+                name: entity ? entity.name : 'Unknown',
+                type: entity ? entity.type : "Unknown"
             }
 
             const node: CanvasNode = {
                 id: vn.id,
                 position: vn.position,
-                data: entity
-                    ? { label: entity.name, type: entity.type }
-                    : { label: 'Unknown', type: 'unknown' },
+                data: {
+                    label: entity?.name ?? 'Unknown',
+                    type: (entity?.type ?? 'unknown') as NodeType | 'unknown'
+                },
                 class: entity?.type
             };
             return node;

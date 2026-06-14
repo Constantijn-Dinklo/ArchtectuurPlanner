@@ -1,6 +1,6 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
-const VIEW_NODE_TYPES = ['application', 'database', 'fileLocation'] as const;
+const VIEW_NODE_TYPES = ['application', 'database', 'fileLocation', 'server'] as const;
 
 export type ViewNodeType = typeof VIEW_NODE_TYPES[number];
 
