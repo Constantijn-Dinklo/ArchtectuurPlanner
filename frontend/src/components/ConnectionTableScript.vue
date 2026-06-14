@@ -36,12 +36,19 @@ function addInput(script: Script) {
   scriptStore.addInput(script.id);
 }
 
+function removeInput(scriptId: string, index: number | string) {
+  scriptService.removeInput(scriptId, index as number);
+}
+
 function addOutput(script: Script) {
   scriptStore.addOutput(script.id);
 }
 
+function removeOutput(scriptId: string, index: number | string) {
+  scriptService.removeOutput(scriptId, index as number);
+}
+
 function updateInput(script: Script) {
-  console.log(script);
   scriptService.updateScript(script.id, script);
 }
 
@@ -84,12 +91,13 @@ function deleteScript(scriptId: string) {
         <div v-for="(input, index) in data.inputIds" :key="index">
           <Select 
             v-model="data.inputIds[index]"
-            :options="resourceService.getByType('application')"
+            :options="resourceService.getByType(['application', 'database'])"
             optionLabel="name"
             optionValue="id"
             placeholder="Select application"
             @change="updateInput(data)"
           />
+          <button @click="removeInput(data.id, index)">-</button>
         </div>
         <div @click="addInput(data)">+</div>
       </template>
@@ -99,12 +107,13 @@ function deleteScript(scriptId: string) {
         <div v-for="(input, index) in data.outputIds" :key="index">
           <Select 
             v-model="data.outputIds[index]"
-            :options="resourceService.getByType('application')"
+            :options="resourceService.getByType(['application', 'fileLocation'])"
             optionLabel="name"
             optionValue="id"
             placeholder="Select application"
             @change="updateInput(data)"
           />
+          <button @click="removeOutput(data.id, index)">-</button>
         </div>
         <div @click="addOutput(data)">+</div>
       </template>

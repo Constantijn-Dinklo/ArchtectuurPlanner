@@ -2,6 +2,8 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import api from "../../helpers/axios";
 
+export type ViewNodeType = 'application' | 'database' | 'fileLocation';
+
 export interface View {
     id: string;
     name: string;
@@ -11,7 +13,8 @@ export interface ViewNode {
     id: string;
     viewId: string;
 
-    resourceId: string;
+    entityId: string;
+    entityType: ViewNodeType;
     
     position: {
         x: number;
@@ -56,6 +59,10 @@ export const useViewStore = defineStore('view', () => {
         viewNodes.value.push(data);
     }
 
+    function addViewNode(data: ViewNode) {
+        viewNodes.value.push(data);
+    }
+
     async function updateViewNodePosition(nodeId: string, position: {x: number, y: number}) {
         const viewId = currentViewId;
         if(!viewId) return;
@@ -73,5 +80,5 @@ export const useViewStore = defineStore('view', () => {
         viewNodes.value = viewNodes.value.filter((node) => node.id !== id);
     }
 
-    return { viewNodes, fetchViews, fetchViewNodes, createViewNode, updateViewNodePosition, removeViewNode }
+    return { currentViewId, viewNodes, fetchViews, fetchViewNodes, createViewNode, addViewNode, updateViewNodePosition, removeViewNode }
 })

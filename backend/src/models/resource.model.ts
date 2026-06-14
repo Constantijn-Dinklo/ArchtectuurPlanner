@@ -1,6 +1,6 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
-const RESOURCE_TYPES = ['application', 'database'] as const;
+const RESOURCE_TYPES = ['application', 'database', 'fileLocation'] as const;
 
 export type ResourceType = typeof RESOURCE_TYPES[number];
 

@@ -34,29 +34,6 @@ router.get('/:viewId/nodes', authenticateToken, async (req: AuthenticatedRequest
     }
 });
 
-router.post('/:viewId/nodes', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
-    const user = getUser(req);
-    
-    try {
-        const nodeBody = {
-            organisationId: user.organisationId,
-            viewId: req.body.viewId,
-            resourceId: req.body.resourceId,
-            position: {
-                x: Math.random() * 400,
-                y: Math.random() * 400
-            }
-        }
-        const viewNode = new ViewNode(nodeBody);
-        await viewNode.save();
-
-        res.status(201).json(viewNode);
-    }
-    catch(err: any) {
-        res.status(400).json({ error: err.message });
-    }
-});
-
 router.patch('/:viewId/nodes/:nodeId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 

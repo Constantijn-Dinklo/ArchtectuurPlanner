@@ -1,5 +1,5 @@
 
-type NodeType = 'application' | 'database';
+type NodeType = 'application' | 'database' | 'fileLocation';
 
 export interface CanvasNode {
   id: string;

@@ -4,6 +4,7 @@ import Resource from "../models/resource.model";
 import ApiConnection from "../models/apiConnection.model";
 import DatabaseConnection from "../models/databaseConnection.model";
 import ViewNode from "../models/canvas/viewNode.model";
+import { createResource } from "../services/resource.service";
 
 const router: Router = express.Router();
 
@@ -25,15 +26,8 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
     const user = getUser(req);
 
     try {
-        const resourceBody = {
-            organisationId: user.organisationId,
-            name: req.body.name,
-            type: req.body.type
-        }
-        const resource = new Resource(resourceBody);
-        await resource.save();
-        
-        res.status(201).json(resource);
+        const result = await createResource(user, req.body.name, req.body.type, req.body.viewId);
+        res.status(201).json(result);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
@@ -43,6 +37,7 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
 router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
+    //Should be moved to resource.service.ts
     try {
         const resource = await Resource.findOne({
             _id: req.params.id,
@@ -91,7 +86,7 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
 
         const deletedNode = await ViewNode.findOneAndDelete({
             organisationId: user.organisationId,
-            resourceId: req.params.id
+            entityId: req.params.id
         });
 
         const deleted = await Resource.findOneAndDelete({

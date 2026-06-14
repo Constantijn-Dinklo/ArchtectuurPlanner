@@ -18,15 +18,18 @@ export function useCanvasProjection() {
 
     const flowNodes = computed(() => {
         return viewStore.viewNodes.map(vn => {
-            const resource = getResource(vn.resourceId);
+            let entity;
+            if(vn.entityType === 'application' || vn.entityType === 'database' || vn.entityType === 'fileLocation'){
+                entity = getResource(vn.entityId);
+            }
 
             const node: CanvasNode = {
                 id: vn.id,
                 position: vn.position,
-                data: resource
-                    ? { label: resource.name, type: resource.type }
+                data: entity
+                    ? { label: entity.name, type: entity.type }
                     : { label: 'Unknown', type: 'unknown' },
-                class: resource?.type
+                class: entity?.type
             };
             return node;
         });
@@ -35,7 +38,7 @@ export function useCanvasProjection() {
     const resourceIdToNodeMap = computed(() => {
         const map = new Map<string, ViewNode>();
         for(const node of viewStore.viewNodes){
-            map.set(node.resourceId, node);
+            map.set(node.entityId, node);
         }
         return map;
     })

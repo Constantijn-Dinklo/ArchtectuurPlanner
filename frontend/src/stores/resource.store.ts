@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import api from '../helpers/axios';
 import { useToast } from 'primevue';
 
-export type ResourceType = 'application' | 'database';
+export type ResourceType = 'application' | 'database' | 'fileLocation';
 
 export interface Resource {
     id: string;
@@ -21,18 +21,19 @@ export const useResourceStore = defineStore('resource', () => {
         resources.value = apps;
     }
 
-    async function createResource(name: string, type: ResourceType) {
+    async function createResource(name: string, type: ResourceType, viewId: string) {
         const res = await api.post('/resources', {
             name: name,
-            type: type
-        })
+            type: type,
+            viewId: viewId
+        });
         const newResource : Resource = {
-            id: res.data.id,
-            name: res.data.name,
-            type: res.data.type
+            id: res.data.resource.id,
+            name: res.data.resource.name,
+            type: res.data.resource.type
         }
         resources.value.push(newResource);
-        return newResource.id;
+        return res.data;
     }
 
     async function deleteResource(id: string) {

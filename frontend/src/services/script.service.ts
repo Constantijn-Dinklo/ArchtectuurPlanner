@@ -12,6 +12,24 @@ export function useScriptService() {
         scriptStore.setScripts(scripts);
     }
 
+    async function removeInput(scriptId: string, index: number) {
+        const script = scriptStore.scripts.find((script) => script.id === scriptId);
+        if(!script) return;
+        const updatedInputs = script.inputIds.filter((_, i) => i !== index);
+        await updateScript(scriptId, {
+            inputIds: updatedInputs
+        });
+    }
+
+    async function removeOutput(scriptId: string, index: number) {
+        const script = scriptStore.scripts.find((script) => script.id === scriptId);
+        if(!script) return;
+        const updateOutputs = script.outputIds.filter((_, i) => i !== index);
+        await updateScript(scriptId, {
+            outputIds: updateOutputs
+        });
+    }
+
     async function updateScript(scriptId: string, patch: Partial<Script>) {
         await scriptStore.updateScript(scriptId, patch);
     }
@@ -20,5 +38,5 @@ export function useScriptService() {
         await scriptStore.deleteScript(scriptId);
     }
 
-    return { fetchScripts, updateScript, deleteScript }
+    return { fetchScripts, removeInput, removeOutput, updateScript, deleteScript }
 }

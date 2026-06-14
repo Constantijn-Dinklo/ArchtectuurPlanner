@@ -24,8 +24,9 @@ export function useResourceService() {
     }
 
     async function createResource(name: string, type: ResourceType) {
-        const newResourceId = await resourceStore.createResource(name, type);
-        await viewStore.createViewNode(newResourceId);
+        const currentViewId = viewStore.currentViewId;
+        const res = await resourceStore.createResource(name, type, currentViewId);
+        viewStore.addViewNode(res.viewNode);
     }
 
     async function removeResource(resourceId: string) {
@@ -37,8 +38,12 @@ export function useResourceService() {
         return resourceMap.value.get(id);
     }
 
-    function getByType(type: ResourceType){
-        return resourceStore.resources.filter(resource => resource.type === type);
+    function getByType(type: ResourceType | ResourceType[]){
+        const types = Array.isArray(type) ? type : [type];
+
+        return resourceStore.resources.filter(resource =>
+            types.includes(resource.type)
+        );
     }
 
     return { fetchResources, createResource, removeResource, getResource, getByType }

@@ -1,10 +1,14 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
+const VIEW_NODE_TYPES = ['application', 'database', 'fileLocation'] as const;
+
+export type ViewNodeType = typeof VIEW_NODE_TYPES[number];
 
 export interface IViewNode extends Document {
     organisationId: Types.ObjectId;
     viewId: Types.ObjectId;
-    resourceId: Types.ObjectId;
+    entityId: Types.ObjectId;
+    entityType: ViewNodeType,
     position: {
         x: number;
         y: number;   
@@ -23,9 +27,14 @@ const ViewNodeSchema = new Schema<IViewNode>({
         required: true,
         ref: 'View'
     },
-    resourceId: {
+    entityId: {
         type: Schema.Types.ObjectId,
         required: true,
+    },
+    entityType: {
+        type: Schema.Types.String,
+        required: true,
+        enum: VIEW_NODE_TYPES
     },
     position:{
         x: {

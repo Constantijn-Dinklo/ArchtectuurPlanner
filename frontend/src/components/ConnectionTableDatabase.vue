@@ -33,9 +33,6 @@ function onCellEditComplete(event: any){
     <button @click="addDBConnection">
         Add DB Connection
     </button>
-    <div>
-        {{ databaseConnectionStore.databaseConnections }}
-    </div>
     <DataTable
         :value="databaseConnectionStore.databaseConnections"
         editMode="cell"
