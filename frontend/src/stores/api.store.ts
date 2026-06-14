@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import api from "../helpers/axios";
+import { useToast } from "primevue";
 
 
 export interface Api {
@@ -11,6 +12,8 @@ export interface Api {
 
 export const useApiStore = defineStore('api', () => {
     const apis = ref<Api[]>([]);
+
+    const toast = useToast();
 
     async function fetchApis() {
         const res = await api.get('/apis');
@@ -47,9 +50,20 @@ export const useApiStore = defineStore('api', () => {
 
     
     async function deleteApi(id: string) {
-        const res = await api.delete(`/apis/${id}`);
-        if(!res) return;
-        apis.value = apis.value.filter((api) => api.id !== id);
+        try {
+            const res = await api.delete(`/apis/${id}`);
+            if(!res) return;
+            apis.value = apis.value.filter((api) => api.id !== id);   
+        }
+        catch(error: any) {
+            if(error.response?.status === 409){
+                toast.add({
+                    severity: 'warn',
+                    summary: error.response.data.message,
+                    life: 3000
+                })
+            }
+        }
     }
 
     function getApplicationApis(applicationId: string) {

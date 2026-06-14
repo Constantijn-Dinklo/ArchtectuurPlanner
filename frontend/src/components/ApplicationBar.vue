@@ -69,7 +69,4 @@ function deleteApi(id: string) {
             </li>
         </ul>
     </div>
-    <div>
-        <button @click="apiStore.fetchApis()">Fetch Apis</button>
-    </div>
 </template>

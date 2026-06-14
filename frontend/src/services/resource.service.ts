@@ -1,14 +1,12 @@
 import api from "../helpers/axios";
 
 import { useResourceStore, type Resource, type ResourceType } from "../stores/resource.store";
-import { useCanvasStore } from "../stores/canvas/canvas.store";
 import { useViewStore } from "../stores/canvas/view.store";
 import { computed } from "vue";
 
 export function useResourceService() {
     const resourceStore = useResourceStore();
     const viewStore = useViewStore();
-    const canvasStore = useCanvasStore();
 
     const resourceMap = computed(() => {
         const map = new Map<string, Resource>();
@@ -31,8 +29,8 @@ export function useResourceService() {
     }
 
     async function removeResource(resourceId: string) {
-        const deletedResourceID = await resourceStore.deleteResource(resourceId);
-        canvasStore.removeNode(deletedResourceID);
+        const res = await resourceStore.deleteResource(resourceId);
+        viewStore.removeViewNode(res.viewNodeId);
     }
 
     function getResource(id: string): Resource | undefined {

@@ -69,5 +69,9 @@ export const useViewStore = defineStore('view', () => {
         });
     }
 
-    return { viewNodes, fetchViews, fetchViewNodes, createViewNode, updateViewNodePosition }
+    function removeViewNode(id: string) {
+        viewNodes.value = viewNodes.value.filter((node) => node.id !== id);
+    }
+
+    return { viewNodes, fetchViews, fetchViewNodes, createViewNode, updateViewNodePosition, removeViewNode }
 })

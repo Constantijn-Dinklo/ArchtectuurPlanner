@@ -5,17 +5,15 @@ import { Background } from "@vue-flow/background";
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
 
-import { useCanvasStore } from "../../stores/canvas/canvas.store";
-import { computed, onMounted } from "vue";
+import { onMounted } from "vue";
 import { useViewStore } from "../../stores/canvas/view.store";
 import { useCanvasProjection } from "../../projections/canvas.projection";
 
 const viewStore = useViewStore();
-const canvasStore = useCanvasStore();
 
 
 const flowNodes = useCanvasProjection().flowNodes;
-const allEdges = computed(() => canvasStore.allEdges);
+const flowEdges = useCanvasProjection().flowEdges;
 
 onMounted(() => {
   viewStore.fetchViews();
@@ -32,7 +30,7 @@ function onNodeDragStop(event: any){
   <div style="width: 100%; height: 100%">
     <VueFlow
       :nodes="flowNodes"
-      :edges="allEdges"
+      :edges="flowEdges"
       fit-view-on-init
       @node-drag-stop="onNodeDragStop"
     >

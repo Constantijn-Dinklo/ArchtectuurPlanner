@@ -6,6 +6,8 @@ import { useAuthStore } from './stores/auth.store.ts';
 import Login from './components/login/Login.vue';
 import { onMounted } from 'vue';
 
+import Toast from 'primevue/toast';
+
 const authStore = useAuthStore();
 
 onMounted(() => {
@@ -15,7 +17,7 @@ onMounted(() => {
 </script>
 
 <template>
-
+  <Toast />
   <div v-if="authStore.auth.isAuthenticated" class="app-layout">
     <div class="left-sidebar">
       <LeftSidebar />

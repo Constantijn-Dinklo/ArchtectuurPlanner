@@ -14,6 +14,10 @@ function addDatabase() {
     resourceService.createResource(newDatabaseName.value, 'database');
 }
 
+function removeDatabase(id: string) {
+    resourceService.removeResource(id);
+}
+
 </script>
 
 <template>
@@ -26,6 +30,7 @@ function addDatabase() {
         <ul>
             <li v-for="database in resourceService.getByType('database')">
                 {{ database.name }}
+                <button class="btn-primary" @click="removeDatabase(database.id)">X</button>
             </li>
         </ul>
     </div>

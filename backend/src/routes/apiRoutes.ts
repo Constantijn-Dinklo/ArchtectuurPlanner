@@ -1,6 +1,7 @@
 import express, { Router, Response } from "express";
 import Api from "../models/api.model";
 import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
+import ApiConnection from "../models/apiConnection.model";
 
 const router: Router = express.Router();
 
@@ -42,6 +43,24 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
     const user = getUser(req);
 
     try {
+        const apiConnections = await ApiConnection.find({
+            organisationId: user.organisationId,
+            sourceUrlId: req.params.id,
+        });
+        
+        if(apiConnections.length > 0){
+            res.status(409).json({
+                success: false,
+                message: "Cannot delete API because it is still being used",
+                dependencies: {
+                    apiConnections: apiConnections.map(connection => {
+                        id: connection._id
+                    })
+                }
+            });
+            return;
+        }
+
         const deleted = await Api.findOneAndDelete(
             {
                 _id: req.params.id,
