@@ -56,4 +56,22 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
     }
 });
 
+router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    const user = getUser(req);
+
+    try {
+        const updated = await DatabaseConnection.findOneAndDelete(
+            {
+                _id: req.params.id,
+                organisationId: user.organisationId
+            },
+            { returnDocument: 'after' }
+        );
+        res.json(updated);
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
 export default router;

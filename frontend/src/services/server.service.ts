@@ -20,13 +20,17 @@ export function useServerService() {
     async function createServer(name: string) {
         const currentViewId = viewStore.currentViewId;
         const res = await serverStore.createServer(name, currentViewId);
-        console.log(res);
         viewStore.addViewNode(res.viewNode);
+    }
+
+    async function removeServer(serverId: string) {
+        const res = await serverStore.deleteServer(serverId);
+        viewStore.removeViewNode(res.viewNodeId);
     }
 
     function getServer(id: string): Server | undefined {
         return serverMap.value.get(id);
     }
 
-    return { createServer, getServer }
+    return { createServer, removeServer, getServer }
 }

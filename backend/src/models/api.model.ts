@@ -34,6 +34,10 @@ const ApiSchema = new Schema<IApi>({
             delete ret._id
             delete ret.__v
 
+            delete ret.organisationId
+            delete ret.createdAt
+            delete ret.updatedAt
+
             return ret
         },
     }

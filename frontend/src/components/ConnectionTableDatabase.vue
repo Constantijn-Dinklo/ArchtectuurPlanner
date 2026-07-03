@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -14,6 +14,21 @@ const databaseConnectionStore = useDatabaseConnectionStore();
 
 const resourceService = useResourceService();
 
+const menu = ref();
+const selectedRow = ref();
+
+const menuItems = ref([
+  {
+    label: 'Delete',
+    icon: 'pi pi-trash',
+    command: () => {
+      if (selectedRow.value) {
+        deleteDatabaseConnection(selectedRow.value.id);
+      }
+    }
+  }
+]);
+
 onMounted(() => {
   databaseConnectionService.fetchDatabaseConnections();
 });
@@ -26,6 +41,15 @@ function onCellEditComplete(event: any){
   const { data, newValue, field } = event;
   //TODO: add in a check to make sure that the sourceId an targetId are not equal
   databaseConnectionService.updateDatabaseConnection(data.id, { [field]: newValue })
+}
+
+function toggleMenu(event: Event, row: any) {
+  selectedRow.value = row;
+  menu.value.toggle(event);
+}
+
+function deleteDatabaseConnection(id: string) {
+  databaseConnectionService.deleteDatabaseConnection(id);
 }
 </script>
 
@@ -74,5 +98,19 @@ function onCellEditComplete(event: any){
                 />
             </template>
         </Column>
+        <Column>
+            <template #body="{ data }">
+                <Button
+                icon="pi pi-ellipsis-v"
+                text
+                @click="toggleMenu($event, data)"
+                />
+            </template>
+        </Column>
+        <Menu
+            ref="menu"
+            :model="menuItems"
+            popup
+        />
     </DataTable>
 </template>

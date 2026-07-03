@@ -48,7 +48,6 @@ export const useApiStore = defineStore('api', () => {
         apiToCommit.url = url;
     }
 
-    
     async function deleteApi(id: string) {
         try {
             const res = await api.delete(`/apis/${id}`);
@@ -66,9 +65,13 @@ export const useApiStore = defineStore('api', () => {
         }
     }
 
+    function getApi(id: string): Api | undefined{
+        return apis.value.find((api) => api.id === id);
+    }
+
     function getApplicationApis(applicationId: string) {
         return apis.value.filter((api) => api.applicationId === applicationId);
     }
 
-    return { apis, fetchApis, createTempApi, commitTempApi, deleteApi, getApplicationApis  }
+    return { apis, fetchApis, createTempApi, commitTempApi, deleteApi, getApi, getApplicationApis  }
 })

@@ -6,9 +6,11 @@ export interface CanvasEdge {
     source: string;
     target: string;
 
-    apiIds: string[];
-    databaseConnectionIds: string[];
-    scriptIds: string[];
+    data: {
+        apiIds: string[];
+        databaseConnectionIds: string[];
+        scriptIds: string[];
+    };
 
     label?: string;
 }

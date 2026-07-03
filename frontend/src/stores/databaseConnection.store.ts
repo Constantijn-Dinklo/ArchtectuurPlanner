@@ -39,5 +39,12 @@ export const useDatabaseConnectionStore = defineStore('databaseConnection', () =
         return result;
     }
 
-    return { databaseConnections, setDatabaseConnections, createDatabaseConnection, updateDatabaseConnection }
+    async function deleteDatabaseConnection(id: string) {
+        const res = await api.delete(`/databaseConnections/${id}`);
+        const data = res.data as DatabaseConnection;
+        databaseConnections.value = databaseConnections.value.filter((conn) => conn.id !== id);
+        return data;
+    }
+
+    return { databaseConnections, setDatabaseConnections, createDatabaseConnection, updateDatabaseConnection, deleteDatabaseConnection }
 })

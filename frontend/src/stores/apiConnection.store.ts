@@ -8,8 +8,6 @@ export interface ApiConnection {
   sourceId: string;
   sourceUrlId: string;
   targetId: string;
-  
-  api: string;
 }
 
 export const useApiConnectionStore = defineStore('apiConnection', () => {
@@ -24,14 +22,12 @@ export const useApiConnectionStore = defineStore('apiConnection', () => {
             sourceId,
             sourceUrlId,
             targetId,
-            api: apiString
         });
         const newApiConnection: ApiConnection = {
             id: res.data.id,
             sourceId: res.data.sourceId,
             sourceUrlId: res.data.sourceUrlId,
             targetId: res.data.targetId,
-            api: apiString
         }
 
         apiConnections.value.push(newApiConnection);

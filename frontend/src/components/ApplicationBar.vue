@@ -25,7 +25,7 @@ function removeApplication(id: string){
     resourceService.removeResource(id);
 }
 
-async function addTempApi(applicationId: string) {
+function addTempApi(applicationId: string) {
     apiStore.createTempApi(applicationId);
 }
 

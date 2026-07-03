@@ -1,10 +1,13 @@
 import api from "../helpers/axios";
+import { useApiStore } from "../stores/api.store";
 import { useApiConnectionStore, type ApiConnection } from "../stores/apiConnection.store";
-import { label } from "@primeuix/themes/aura/metergroup";
+import { useResourceService } from "./resource.service";
 
 
 export function useApiConnectionService() {
     const apiConnectionStore = useApiConnectionStore();
+    const apiStore = useApiStore();
+    const resourceService = useResourceService();
 
     async function fetchApiConnections() {
         const res = await api.get('/apiConnections');
@@ -21,5 +24,17 @@ export function useApiConnectionService() {
         if(!deletedApiConnection) return;
     }
 
-    return { fetchApiConnections, updateApiConnection, deleteApiConnection }
+    function resolveConnection(connection: ApiConnection){
+        const source = resourceService.getResource(connection.sourceId);
+        const target = resourceService.getResource(connection.targetId);
+        const api = apiStore.getApi(connection.sourceUrlId);
+        return {
+            ...connection,
+            source,
+            target,
+            api
+        }
+    }
+
+    return { fetchApiConnections, updateApiConnection, deleteApiConnection, resolveConnection }
 }

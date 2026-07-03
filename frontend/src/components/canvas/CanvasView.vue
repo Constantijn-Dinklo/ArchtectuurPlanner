@@ -8,9 +8,10 @@ import "@vue-flow/core/dist/theme-default.css";
 import { onMounted } from "vue";
 import { useViewStore } from "../../stores/canvas/view.store";
 import { useCanvasProjection } from "../../projections/canvas.projection";
+import { useUIStore } from "../../stores/canvas/ui.store";
 
 const viewStore = useViewStore();
-
+const UIStore = useUIStore();
 
 const flowNodes = useCanvasProjection().flowNodes;
 const flowEdges = useCanvasProjection().flowEdges;
@@ -19,9 +20,17 @@ onMounted(() => {
   viewStore.fetchViews();
 })
 
+function onNodeClick(event: any) {
+  UIStore.setSelectedEntity(event.node.id, 'resource');
+}
+
 function onNodeDragStop(event: any){
   const node = event.node;
   viewStore.updateViewNodePosition(node.id, node.position);
+}
+
+function onEdgeClick(event: any) {
+  UIStore.setSelectedEntity(event.edge.id, 'edge');
 }
 
 </script>
@@ -32,7 +41,9 @@ function onNodeDragStop(event: any){
       :nodes="flowNodes"
       :edges="flowEdges"
       fit-view-on-init
+      @node-click="onNodeClick"
       @node-drag-stop="onNodeDragStop"
+      @edge-click="onEdgeClick"
     >
       <Background />
     </VueFlow>

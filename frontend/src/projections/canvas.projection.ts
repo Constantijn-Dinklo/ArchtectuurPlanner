@@ -4,9 +4,10 @@ import { useViewStore, type ViewNode } from "../stores/canvas/view.store";
 import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useScriptStore } from "../stores/script.store";
-import type { CanvasNode, NodeType } from "./types/canvasNode";
+import type { CanvasNode } from "./types/canvasNode";
 import type { CanvasEdge } from "./types/canvasEdge";
 import { useServerService } from "../services/server.service";
+import type { Server } from "../stores/server.store";
 
 
 export function useCanvasProjection() {
@@ -18,53 +19,52 @@ export function useCanvasProjection() {
     const databaseConnectionStore = useDatabaseConnectionStore();
     const scriptStore = useScriptStore();
 
-    const flowNodes = computed(() => {
-        return viewStore.viewNodes.map(vn => {
-            let entity: { name: string; type: string } | undefined;
-            if(vn.entityType === 'application' || vn.entityType === 'database' || vn.entityType === 'fileLocation'){
-                const resource = getResource(vn.entityId);
-                if(resource){
-                    entity = {
-                        name: resource.name,
-                        type: resource.type
-                    } 
-                }
-            }
-            else if(vn.entityType === 'server'){
-                const server = getServer(vn.entityId);
-                if(server) {
-                    entity = {
-                        name: server.name,
-                        type: 'server'
-                    }
-                }
-            }
-
-            entity = {
-                name: entity ? entity.name : 'Unknown',
-                type: entity ? entity.type : "Unknown"
-            }
-
-            const node: CanvasNode = {
-                id: vn.id,
-                position: vn.position,
-                data: {
-                    label: entity?.name ?? 'Unknown',
-                    type: (entity?.type ?? 'unknown') as NodeType | 'unknown'
-                },
-                class: entity?.type
-            };
-            return node;
-        });
-    });
-
-    const resourceIdToNodeMap = computed(() => {
+    const entityIdToNodeMap = computed(() => {
         const map = new Map<string, ViewNode>();
         for(const node of viewStore.viewNodes){
             map.set(node.entityId, node);
         }
         return map;
-    })
+    });
+
+    const flowNodes = computed(() => {
+
+        const serverViewNodes = getServerViewNodes(viewStore.viewNodes);
+        const serverCanvasNodes = getServerCanvasNodes(serverViewNodes);
+
+        const serverNodeIds = new Set(
+            serverCanvasNodes.map(node => node.id)
+        );
+
+        const remainingNodes = viewStore.viewNodes.filter(
+            node => !serverNodeIds.has(node.id)
+        );
+
+        const viewNodes = remainingNodes.map(viewNode => {
+            if(viewNode.entityType === 'server') { return; }
+
+            const resource = getResource(viewNode.entityId);
+            if(!resource){ return; }
+
+            const node: CanvasNode = {
+                id: viewNode.id,
+                position: viewNode.position,
+                data: {
+                    label: resource?.name ?? 'Unknown',
+                    type: resource?.type ?? 'unknown'
+                },
+                class: resource?.type
+            };
+            return node;
+        }).filter(node => node !== undefined);
+        
+        const nodes = [
+            ...serverCanvasNodes,
+            ...viewNodes
+        ];
+
+        return nodes;
+    });
 
     const flowEdges = computed(() => {
         const edges: Map<string, CanvasEdge> = new Map<string, CanvasEdge>();
@@ -78,27 +78,29 @@ export function useCanvasProjection() {
                 id,
                 source,
                 target,
-                apiIds: [],
-                databaseConnectionIds: [],
-                scriptIds: [],
+                data: {
+                    apiIds: [],
+                    databaseConnectionIds: [],
+                    scriptIds: [],
+                },
                 label: ''
             };
         }
 
         function createlabel(edge: CanvasEdge){
             let apiLabel = ''
-            if(edge.apiIds.length > 0){
-                apiLabel = edge.apiIds.length + " API's"
+            if(edge.data.apiIds.length > 0){
+                apiLabel = edge.data.apiIds.length + " API's"
             }
 
             let dbLabel = ''
-            if(edge.databaseConnectionIds.length > 0){
-                dbLabel = edge.databaseConnectionIds.length + " DB's"
+            if(edge.data.databaseConnectionIds.length > 0){
+                dbLabel = edge.data.databaseConnectionIds.length + " DB's"
             }
 
             let scriptLabel = ''
-            if(edge.scriptIds.length > 0){
-                scriptLabel = edge.scriptIds.length + " scripts"
+            if(edge.data.scriptIds.length > 0){
+                scriptLabel = edge.data.scriptIds.length + " scripts"
             }
 
             return apiLabel + dbLabel + scriptLabel
@@ -109,25 +111,25 @@ export function useCanvasProjection() {
             targetResourceId: string,
             connectionId: string,
             field: keyof Pick<
-            CanvasEdge,
+            CanvasEdge["data"],
             'apiIds' | 'databaseConnectionIds' | 'scriptIds'
             >
         ) {
-            const sourceId = resourceIdToNodeMap.value.get(sourceResourceId)?.id;
-            const targetId = resourceIdToNodeMap.value.get(targetResourceId)?.id;
+            const sourceViewNodeId = entityIdToNodeMap.value.get(sourceResourceId)?.id;
+            const targetViewNodeId = entityIdToNodeMap.value.get(targetResourceId)?.id;
 
-            if (!sourceId || !targetId) return;
+            if (!sourceViewNodeId || !targetViewNodeId) return;
 
-            const edgeId = `${sourceId}-${targetId}`;
+            const edgeId = `${sourceViewNodeId}-${targetViewNodeId}`;
 
             let edge = edges.get(edgeId);
 
             if (!edge) {
-                edge = createEdge(edgeId, sourceId, targetId);
+                edge = createEdge(edgeId, sourceViewNodeId, targetViewNodeId);
                 edges.set(edgeId, edge);
             }
 
-            edge[field].push(connectionId);
+            edge.data[field].push(connectionId);
             edge.label = createlabel(edge);
         }
         
@@ -159,6 +161,60 @@ export function useCanvasProjection() {
 
         return Array.from(edges.values());
     });
+
+    function getServerViewNodes(viewNodes: ViewNode[]): ViewNode[] {
+        return viewNodes.filter((viewNode) => {
+            return viewNode.entityType === 'server'
+        });
+    }
+
+    function getServerCanvasNodes(viewNodes: ViewNode[]): CanvasNode[] {
+        const serverCanvasNodes: CanvasNode[] = [];
+
+        for(const viewNode of viewNodes){
+            const server = getServer(viewNode.entityId);
+            const node: CanvasNode = {
+                id: viewNode.id,
+                position: viewNode.position,
+                style: {
+                    width: '300px',
+                    height: '200px'
+                },
+                data: {
+                    label: server?.name ?? 'Unknown',
+                    type: 'server'
+                },
+                class: 'server'
+            }
+            serverCanvasNodes.push(node);
+            if(server){
+                const childNodes = getServerChildNodes(server, node);
+                childNodes.forEach((childNode) => serverCanvasNodes.push(childNode));
+            }
+        }
+        return serverCanvasNodes;       
+    }
+
+    function getServerChildNodes(server: Server, serverCanvasNode: CanvasNode): CanvasNode[] {
+        const childNodes = server.entityIds.map((entityId) => {
+            const entity = getResource(entityId);
+            const entityNode = entityIdToNodeMap.value.get(entityId);
+            if(!entity || !entityNode) return;
+            const node: CanvasNode = {
+                id: entityNode.id,
+                position: entityNode.position,
+                parentNode: serverCanvasNode.id,
+                extent: 'parent',
+                data: {
+                    label: entity.name, 
+                    type: entityNode.entityType,
+                },
+                class: entityNode.entityType
+            }
+            return node;
+        }).filter((entityNode) => entityNode !== undefined);
+        return childNodes;
+    }
 
     return {
         flowNodes,
