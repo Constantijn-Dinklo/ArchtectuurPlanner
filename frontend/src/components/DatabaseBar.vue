@@ -1,21 +1,24 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { useResourceService } from '../services/resource.service';
+import { useDatabaseStore } from '../stores/database.store';
+import { useDatabaseService } from '../services/database.service';
 
-const resourceService = useResourceService();
+const databaseStore = useDatabaseStore();
+const databaseService = useDatabaseService();
 
 const newDatabaseName = ref('');
 
 onMounted(() => {
-    resourceService.fetchResources();
+    databaseStore.fetchDatabases();
 });
 
 function addDatabase() {
-    resourceService.createResource(newDatabaseName.value, 'database');
+    databaseService.createDatabase(newDatabaseName.value);
 }
 
 function removeDatabase(id: string) {
-    resourceService.removeResource(id);
+    databaseService.deleteDatabase(id);
+    newDatabaseName.value = ''
 }
 
 </script>
@@ -28,7 +31,7 @@ function removeDatabase(id: string) {
     </div>
     <div>
         <ul>
-            <li v-for="database in resourceService.getByType('database')">
+            <li v-for="database in databaseStore.databases">
                 {{ database.name }}
                 <button class="btn-primary" @click="removeDatabase(database.id)">X</button>
             </li>

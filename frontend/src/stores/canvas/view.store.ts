@@ -59,8 +59,8 @@ export const useViewStore = defineStore('view', () => {
         viewNodes.value.push(data);
     }
 
-    function addViewNode(data: ViewNode) {
-        viewNodes.value.push(data);
+    function addViewNode(viewNode: ViewNode){
+        viewNodes.value.push(viewNode);
     }
 
     async function updateViewNodePosition(nodeId: string, position: {x: number, y: number}) {
@@ -80,5 +80,9 @@ export const useViewStore = defineStore('view', () => {
         viewNodes.value = viewNodes.value.filter((node) => node.id !== id);
     }
 
-    return { currentViewId, viewNodes, fetchViews, fetchViewNodes, createViewNode, addViewNode, updateViewNodePosition, removeViewNode }
+    function getViewNode(id: string){
+        return viewNodes.value.find((viewNode) => viewNode.id === id);
+    }
+
+    return { currentViewId, viewNodes, fetchViews, fetchViewNodes, createViewNode, addViewNode, updateViewNodePosition, removeViewNode, getViewNode }
 })

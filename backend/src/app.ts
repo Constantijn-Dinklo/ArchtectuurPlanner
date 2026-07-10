@@ -7,11 +7,13 @@ import connectDB from './config/db';
 import orgRoutes from './routes/organisationRoutes';
 import authRoutes from './routes/auth';
 import serverRoutes from './routes/serverRoutes';
-import resourceRoutes from './routes/resourceRoutes';
 import apiRoutes from './routes/apiRoutes';
 import apiConnectionRoutes from './routes/apiConnectionRoutes';
 import databaseConnectionRoutes from './routes/databaseConnectionRoutes';
 import scriptRoutes from './routes/scriptRoutes';
+import databaseRoutes from './routes/databaseRoutes';
+import applicationRoutes from './routes/applicationRoutes';
+import fileLocationsRoutes from './routes/fileLocationRoutes';
 
 import viewRoutes from './routes/canvas/viewRoutes';
 
@@ -37,12 +39,20 @@ app.get('/test', (req, res) => {
 
 app.use('/org', orgRoutes);
 app.use('/auth', authRoutes);
+
+// ** Resources ** //
+app.use('/applications', applicationRoutes);
+app.use('/databases', databaseRoutes);
+app.use('/fileLocations', fileLocationsRoutes);
 app.use('/servers', serverRoutes);
-app.use('/resources', resourceRoutes);
+
 app.use('/apis', apiRoutes);
+
+// ** Connections ** //
 app.use('/apiConnections', apiConnectionRoutes);
 app.use('/databaseConnections', databaseConnectionRoutes);
 app.use('/scripts', scriptRoutes);
+
 
 app.use('/views', viewRoutes);
 

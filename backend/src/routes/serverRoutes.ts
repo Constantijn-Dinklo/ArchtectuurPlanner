@@ -1,4 +1,4 @@
-import express, { Router, Request, Response } from "express";
+import express, { Router, Response } from "express";
 import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
 import Server from "../models/server.model";
 import { addEntity, createServer, updateServerEntityIds } from "../services/server.service";
@@ -26,6 +26,25 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
     try {
         const result = await createServer(user, req.body.name, req.body.viewId);
         res.status(201).json(result);
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    const user = getUser(req);
+
+    try {
+        const updated = await Server.findOneAndUpdate(
+            {
+                _id: req.params.id,
+                organisationId: user.organisationId
+            },
+            { $set: req.body },
+            { returnDocument: 'after'}
+        );        
+        res.status(201).json(updated);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });

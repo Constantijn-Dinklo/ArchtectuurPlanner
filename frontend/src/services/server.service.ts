@@ -15,7 +15,7 @@ export function useServerService() {
         }
 
         return map;
-    })
+    });
 
     async function createServer(name: string) {
         const currentViewId = viewStore.currentViewId;

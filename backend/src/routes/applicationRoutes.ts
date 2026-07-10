@@ -1,7 +1,8 @@
 import express, { Router, Response } from "express";
 import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
-import Resource from "../models/resource.model";
-import { createResource, deleteResource } from "../services/resource.service";
+import Application from "../models/application.model";
+import { createAppliction, deleteApplication } from "../services/application.service";
+
 
 const router: Router = express.Router();
 
@@ -9,10 +10,10 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
     const user = getUser(req);
 
     try {
-        const resources = await Resource.find({
+        const applications = await Application.find({
             organisationId: user.organisationId
         });
-        res.json(resources);
+        res.json(applications);
     }
     catch(err: any){
         res.status(400).json({ error: err.message });
@@ -23,7 +24,7 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
     const user = getUser(req);
 
     try {
-        const result = await createResource(user, req.body.name, req.body.type, req.body.viewId);
+        const result = await createAppliction(user, req.body.name, req.body.viewId);
         res.status(201).json(result);
     }
     catch(err: any) {
@@ -35,8 +36,7 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
     const user = getUser(req);
 
     try {
-        const result = await deleteResource(user, req.params.id as string);
-        console.log(result);
+        const result = await deleteApplication(user, req.params.id as string);
         res.status(result.status).json(result);
     }
     catch(err: any) {

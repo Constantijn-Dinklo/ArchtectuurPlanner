@@ -1,3 +1,4 @@
+import type { CoordinateExtent, CoordinateExtentRange } from "@vue-flow/core";
 
 export type NodeType = 'application' | 'database' | 'fileLocation' | 'server';
 
@@ -10,7 +11,7 @@ export interface CanvasNode {
   }
 
   parentNode?: string;
-  extent?: string;
+  extent?: 'parent' | CoordinateExtent | CoordinateExtentRange;
 
   position: {
     x: number;

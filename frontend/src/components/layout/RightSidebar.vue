@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAuthStore } from '../../stores/auth.store';
-import DetailInfo from '../DetailInfo.vue';
+import DetailInfo from '../details/DetailInfo.vue';
 
 const authStore = useAuthStore();
 </script>

@@ -21,7 +21,7 @@ onMounted(() => {
 })
 
 function onNodeClick(event: any) {
-  UIStore.setSelectedEntity(event.node.id, 'resource');
+  UIStore.setSelectedEntity(event.node.id, 'node');
 }
 
 function onNodeDragStop(event: any){

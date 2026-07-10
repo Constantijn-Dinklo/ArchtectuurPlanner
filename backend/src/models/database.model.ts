@@ -1,19 +1,12 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
-
-export interface IServer extends Document {
-    // resourceId: Types.ObjectId;
+export interface IDatabase extends Document {
     organisationId: Types.ObjectId;
     name: string;
-    ip: string;
-    entityIds: Types.ObjectId[];
+    engine: string;
 }
 
-const ServerSchema = new Schema<IServer>({
-    // resourceId: {
-    //     type: Schema.Types.ObjectId,
-    //     ref: 'Resource'
-    // },
+const DatabaseSchema = new Schema<IDatabase>({
     organisationId: {
         type: Schema.Types.ObjectId,
         ref: 'Organisation',
@@ -24,13 +17,10 @@ const ServerSchema = new Schema<IServer>({
         type: Schema.Types.String,
         required: true
     },
-    ip: {
+    engine: {
         type: Schema.Types.String,
-    },
-    entityIds: [{
-        type: Schema.Types.ObjectId,
-    }]
-},
+    }
+}, 
 {
     timestamps: true,
     toJSON:  {
@@ -42,15 +32,14 @@ const ServerSchema = new Schema<IServer>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
             delete ret.createdAt
             delete ret.updatedAt
 
             return ret
         },
     }
-})
+});
 
-const Server: Model<IServer> = mongoose.model<IServer>('Server', ServerSchema);
+const Database: Model<IDatabase> = mongoose.model<IDatabase>('Database', DatabaseSchema);
 
-export default Server;
+export default Database;

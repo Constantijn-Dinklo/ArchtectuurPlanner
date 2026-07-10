@@ -13,4 +13,6 @@ export interface CanvasEdge {
     };
 
     label?: string;
+
+    zIndex: number;
 }

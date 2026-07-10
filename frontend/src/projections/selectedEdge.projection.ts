@@ -20,7 +20,11 @@ export function useSelectedEdgeProjection() {
     const apiConnectionService = useApiConnectionService();
     const databaseConnectionService = useDatabaseConnectionService();
 
-    function getSelectedEdge(){
+    function isEdgeSelected() {
+        return UIStore.selectedEntityType === 'edge'
+    }
+    
+    function getSelectedEdgeId(){
         if(UIStore.selectedEntityType !== 'edge') { return }
         return UIStore.selectedEntityId;
     }
@@ -87,7 +91,7 @@ export function useSelectedEdgeProjection() {
     }
 
     const connectionsInfo = computed(() => {
-        const selectedEdgeId = getSelectedEdge();
+        const selectedEdgeId = getSelectedEdgeId();
         if(!selectedEdgeId) { return }
 
         const entityIds = getSelectedEdgeEntityIds(selectedEdgeId);
@@ -107,5 +111,5 @@ export function useSelectedEdgeProjection() {
         }
     });
 
-    return { getSelectedEdge, connectionsInfo }
+    return { isEdgeSelected, connectionsInfo }
 }

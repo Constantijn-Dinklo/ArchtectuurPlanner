@@ -1,21 +1,23 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { useResourceService } from '../services/resource.service';
+import { useFileLocationStore } from '../stores/fileLocation.store';
+import { useFileLocationService } from '../services/fileLocation.service';
 
-const resourceService = useResourceService();
+const fileLocationStore = useFileLocationStore();
+const fileLocationService = useFileLocationService();
 
 const newFileLocation = ref('');
 
 onMounted(() => {
-    resourceService.fetchResources();
+    fileLocationStore.fetchFileLocations();
 });
 
 function addFileLocation() {
-    resourceService.createResource(newFileLocation.value, 'fileLocation');
+    fileLocationService.createFileLocation(newFileLocation.value);
 }
 
 function removeFileLocation(id: string) {
-    resourceService.removeResource(id);
+    fileLocationService.deleteFileLocation(id);
 }
 
 </script>
@@ -28,7 +30,7 @@ function removeFileLocation(id: string) {
     </div>
     <div>
         <ul>
-            <li v-for="fileLocation in resourceService.getByType('fileLocation')">
+            <li v-for="fileLocation in fileLocationStore.fileLocations">
                 {{ fileLocation.name }}
                 <button class="btn-primary" @click="removeFileLocation(fileLocation.id)">X</button>
             </li>

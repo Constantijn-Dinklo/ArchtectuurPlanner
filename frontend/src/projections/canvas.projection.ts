@@ -1,5 +1,5 @@
 import { computed } from "vue";
-import { useResourceService } from "../services/resource.service";
+import { useResourceService, type Resource } from "../services/resource.service";
 import { useViewStore, type ViewNode } from "../stores/canvas/view.store";
 import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
@@ -12,7 +12,7 @@ import type { Server } from "../stores/server.store";
 
 export function useCanvasProjection() {
     const viewStore = useViewStore();
-    const { getResource } = useResourceService();
+    const resourceService = useResourceService();
     const { getServer } = useServerService();
 
     const apiConnectionStore = useApiConnectionStore();
@@ -43,15 +43,17 @@ export function useCanvasProjection() {
         const viewNodes = remainingNodes.map(viewNode => {
             if(viewNode.entityType === 'server') { return; }
 
-            const resource = getResource(viewNode.entityId);
+            const resource = resourceService.getResource(viewNode.entityId);
             if(!resource){ return; }
+
+            const label = getResourceLabel(resource);
 
             const node: CanvasNode = {
                 id: viewNode.id,
                 position: viewNode.position,
                 data: {
-                    label: resource?.name ?? 'Unknown',
-                    type: resource?.type ?? 'unknown'
+                    label: label,
+                    type: resource.type
                 },
                 class: resource?.type
             };
@@ -83,7 +85,8 @@ export function useCanvasProjection() {
                     databaseConnectionIds: [],
                     scriptIds: [],
                 },
-                label: ''
+                label: '',
+                zIndex: 10,
             };
         }
 
@@ -197,16 +200,19 @@ export function useCanvasProjection() {
 
     function getServerChildNodes(server: Server, serverCanvasNode: CanvasNode): CanvasNode[] {
         const childNodes = server.entityIds.map((entityId) => {
-            const entity = getResource(entityId);
+            const entity = resourceService.getResource(entityId);
             const entityNode = entityIdToNodeMap.value.get(entityId);
             if(!entity || !entityNode) return;
+
+            const label = getResourceLabel(entity);
+
             const node: CanvasNode = {
                 id: entityNode.id,
                 position: entityNode.position,
                 parentNode: serverCanvasNode.id,
                 extent: 'parent',
                 data: {
-                    label: entity.name, 
+                    label: label, 
                     type: entityNode.entityType,
                 },
                 class: entityNode.entityType
@@ -214,6 +220,19 @@ export function useCanvasProjection() {
             return node;
         }).filter((entityNode) => entityNode !== undefined);
         return childNodes;
+    }
+
+    function getResourceLabel(resource: Resource): string {
+        let label = resource.name;
+
+        switch (resource.type) {
+            case 'database':
+                if(resource.engine){
+                    label += ' (' + resource.engine + ')'
+                }
+        }
+
+        return label;
     }
 
     return {

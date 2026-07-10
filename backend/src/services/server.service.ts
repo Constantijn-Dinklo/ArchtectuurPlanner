@@ -9,7 +9,7 @@ export async function createServer(user: UserJwtPayload, name: string, viewId: s
         const serverBody = {
             organisationId: user.organisationId,
             name: name,
-            IP: '',
+            ip: '',
             entityIds: []
         }
 

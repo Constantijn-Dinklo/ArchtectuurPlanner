@@ -1,19 +1,11 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
-
-export interface IServer extends Document {
-    // resourceId: Types.ObjectId;
+export interface IFileLocation extends Document {
     organisationId: Types.ObjectId;
     name: string;
-    ip: string;
-    entityIds: Types.ObjectId[];
 }
 
-const ServerSchema = new Schema<IServer>({
-    // resourceId: {
-    //     type: Schema.Types.ObjectId,
-    //     ref: 'Resource'
-    // },
+const FileLocationSchema = new Schema<IFileLocation>({
     organisationId: {
         type: Schema.Types.ObjectId,
         ref: 'Organisation',
@@ -23,14 +15,8 @@ const ServerSchema = new Schema<IServer>({
     name: {
         type: Schema.Types.String,
         required: true
-    },
-    ip: {
-        type: Schema.Types.String,
-    },
-    entityIds: [{
-        type: Schema.Types.ObjectId,
-    }]
-},
+    }
+}, 
 {
     timestamps: true,
     toJSON:  {
@@ -42,15 +28,14 @@ const ServerSchema = new Schema<IServer>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
             delete ret.createdAt
             delete ret.updatedAt
 
             return ret
         },
     }
-})
+});
 
-const Server: Model<IServer> = mongoose.model<IServer>('Server', ServerSchema);
+const FileLocation: Model<IFileLocation> = mongoose.model<IFileLocation>('FileLocation', FileLocationSchema);
 
-export default Server;
+export default FileLocation;

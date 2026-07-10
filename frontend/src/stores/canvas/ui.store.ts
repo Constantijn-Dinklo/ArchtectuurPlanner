@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
-export type EntityType = 'resource' | 'edge';
+export type EntityType = 'node' | 'edge';
 
 export const useUIStore = defineStore('UI', () => {
     const selectedEntityId = ref<string>('');

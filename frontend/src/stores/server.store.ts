@@ -2,11 +2,11 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import api from "../helpers/axios";
 import { useToast } from "primevue";
+import type { BaseResource } from "../types/resource.type";
 
-export interface Server {
-    id: string;
-    name: string;
-    IP?: string;
+export interface Server extends BaseResource {
+    type: 'server';
+    ip?: string;
     entityIds: string[];
 }
 
@@ -18,7 +18,10 @@ export const useServerStore = defineStore('server', () => {
     async function fetchServers() {
         const res = await api.get('/servers');
         const data = res.data as Server[];
-        servers.value = data;
+        servers.value = data.map((d) => ({ 
+            ...d,
+            type: 'server'
+        }));;
     }
 
     async function createServer(name: string, viewId: string) {
@@ -29,11 +32,20 @@ export const useServerStore = defineStore('server', () => {
         const newServer: Server = {
             id: res.data.server.id,
             name: res.data.server.name,
-            IP: res.data.server.IP,
+            type: 'server',
+            ip: res.data.server.ip,
             entityIds: res.data.server.entityIds,
         }
         servers.value.push(newServer);
         return res.data;
+    }
+
+    async function updateServer(id: string, patch: Partial<Server>) {
+        const res = await api.patch(`/servers/${id}`, patch);
+        const server = servers.value.find(s => s.id === id);
+        if(!server) return;
+        const result: Server = Object.assign(server, res.data);
+        return result;
     }
 
     async function deleteServer(serverId: string) {
@@ -82,5 +94,5 @@ export const useServerStore = defineStore('server', () => {
     }
 
 
-    return { servers, fetchServers, createServer, deleteServer, addServerEntityId, updateServerEntityIds, removeServerEntityIds }
+    return { servers, fetchServers, createServer, updateServer, deleteServer, addServerEntityId, updateServerEntityIds, removeServerEntityIds }
 });

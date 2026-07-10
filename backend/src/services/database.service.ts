@@ -1,25 +1,24 @@
 import { UserJwtPayload } from "../middelware";
-import ApiConnection from "../models/apiConnection.model";
 import ViewNode from "../models/canvas/viewNode.model";
+import Database from "../models/database.model";
 import DatabaseConnection from "../models/databaseConnection.model";
-import Resource, { ResourceType } from "../models/resource.model";
 import Server from "../models/server.model";
 
-export async function createResource(user: UserJwtPayload, name: string, resourceType: ResourceType, viewId: string) {
+
+export async function createDatabase(user: UserJwtPayload, name: string, viewId: string) {
     try {
-        const resourceBody = {
+        const databaseBody = {
             organisationId: user.organisationId,
             name: name,
-            type: resourceType
         }
-        const resource = new Resource(resourceBody);
-        await resource.save();
+        const database = new Database(databaseBody);
+        await database.save();
 
         const nodeBody = {
             organisationId: user.organisationId,
             viewId: viewId,
-            entityId: resource._id,
-            entityType: resourceType,
+            entityId: database._id,
+            entityType: 'database',
             position: {
                 x: Math.random() * 400,
                 y: Math.random() * 400
@@ -29,7 +28,7 @@ export async function createResource(user: UserJwtPayload, name: string, resourc
         await viewNode.save();
 
         return {
-            resource,
+            database,
             viewNode
         };
     }
@@ -38,29 +37,18 @@ export async function createResource(user: UserJwtPayload, name: string, resourc
     }
 }
 
-export async function deleteResource(user: UserJwtPayload, resourceId: string) {
+export async function deleteDatabase(user: UserJwtPayload, resourceId: string) {
     
     try {
-        const resource = await Resource.findOne({
-            _id: resourceId,
-            organisationId: user.organisationId
-        });
-
-        if(resource && resource.type === 'application'){
-            const result = await canApplicationBeRemoved(user, resourceId);
-            if(!result.success) return result;
-        }
-        else if(resource && resource.type === 'database'){
-           const result = await canDatabaseBeRemoved(user, resourceId);
-           if(!result.success) return result;
-        }
+        const result = await canDatabaseBeRemoved(user, resourceId);
+        if(!result.success) return result;
 
         const deletedNode = await ViewNode.findOneAndDelete({
             organisationId: user.organisationId,
             entityId: resourceId
         });
 
-        const deleted = await Resource.findOneAndDelete({
+        const deleted = await Database.findOneAndDelete({
             _id: resourceId,
             organisationId: user.organisationId
         });
@@ -85,36 +73,10 @@ export async function deleteResource(user: UserJwtPayload, resourceId: string) {
     }
 }
 
-async function canApplicationBeRemoved(user: UserJwtPayload, resourceId: string) {
-    const apiConnections = await ApiConnection.find({
-        organisationId: user.organisationId,
-        $or: [ 
-            { sourceId: resourceId },
-            { targetId: resourceId }
-        ]
-    });
-    if(apiConnections.length > 0){
-        return {
-            status: 409,
-            success: false,
-            message: "Cannot delete Application because it is still being used",
-            dependencies: {
-                apiConnections: apiConnections.map(connection => {
-                    id: connection._id
-                })
-            }
-        }
-    }
-    return {
-        status: 200,
-        success: true
-    }
-}
-
-async function canDatabaseBeRemoved(user: UserJwtPayload, resourceId: string) {
+async function canDatabaseBeRemoved(user: UserJwtPayload, databaseId: string) {
     const databaseConnections = await DatabaseConnection.find({
         organisationId: user.organisationId,
-        databaseId: resourceId
+        databaseId: databaseId
     });
     if(databaseConnections.length > 0){
         return {
@@ -132,7 +94,7 @@ async function canDatabaseBeRemoved(user: UserJwtPayload, resourceId: string) {
     const servers = await Server.find({
         organisationId: user.organisationId,
         entityIds: {
-            $in: [resourceId]
+            $in: [databaseId]
         }
     });
     if(servers.length > 0){

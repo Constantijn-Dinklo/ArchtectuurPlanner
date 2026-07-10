@@ -10,7 +10,7 @@ import { useResourceService } from "../services/resource.service";
 
 
 
-export function useSelectedResourceProjection() {
+export function useSelectedNodeProjection() {
     const UIStore = useUIStore();
     const viewStore = useViewStore();
 
@@ -23,8 +23,12 @@ export function useSelectedResourceProjection() {
     const apiConnectionService = useApiConnectionService();
     const databaseConnectionService = useDatabaseConnectionService();
 
-    function getSelectedResourceId() {
-        if(UIStore.selectedEntityType !== 'resource') { return }
+    function isNodeSelected() {
+        return UIStore.selectedEntityType === 'node'
+    }
+    
+    function getSelectedEntityId() {
+        if(UIStore.selectedEntityType !== 'node') { return }
         const viewNode = viewStore.viewNodes.find(viewNode => viewNode.id === UIStore.selectedEntityId);
         if(!viewNode) { return }
 
@@ -72,20 +76,19 @@ export function useSelectedResourceProjection() {
         return resolvedDatabaseConnections;
     }
 
+    const nodeInfo = computed(() => {
+        const selectedEntityId = getSelectedEntityId();
+        if(!selectedEntityId) { return }
 
-    const resourceInfo = computed(() => {
-        const selectedResourceId = getSelectedResourceId();
-        if(!selectedResourceId) { return }
-
-        const resource = resourceService.getResource(selectedResourceId);
-        if(!resource) { return }
+        const node = resourceService.getResource(selectedEntityId);
+        if(!node) { return }
         
-        const apiConnections = getResourceApiConnections(selectedResourceId);
-        const scripts = getResourceScripts(selectedResourceId)
-        const databaseConnections = getResourceDatabaseConnections(selectedResourceId);
+        const apiConnections = getResourceApiConnections(selectedEntityId);
+        const scripts = getResourceScripts(selectedEntityId)
+        const databaseConnections = getResourceDatabaseConnections(selectedEntityId);
 
         return {
-            resource,
+            node,
             connections: {
                 apiConnections,
                 scripts,
@@ -94,5 +97,5 @@ export function useSelectedResourceProjection() {
         };
     });
 
-    return { getSelectedResourceId, resourceInfo }
+    return { isNodeSelected, nodeInfo }
 }

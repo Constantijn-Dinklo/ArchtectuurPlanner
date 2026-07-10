@@ -22,30 +22,19 @@ export const useApiStore = defineStore('api', () => {
         apis.value = data;
     }
 
-    function createTempApi(applicationId: string) {
-        apis.value.push({
-            id: '-1',
-            url: '',
-            applicationId: applicationId
-        })
-    }
-
-    async function commitTempApi(url: string){
-        const apiToCommit = apis.value.find(api => api.id === '-1');
-        if(!apiToCommit) return;
-
-        //Remove the tempapi since the url is empty (user didn't fill in a url which is invalid)
-        if(!url) {
-            apis.value = apis.value.filter((api) => api.id !== '-1')
-            return;
-        }
+    async function commitApi(applicationId: string, url: string){
+        if(!url) { return; }
 
         const res = await api.post('/apis', {
             url: url,
-            applicationId: apiToCommit.applicationId
+            applicationId: applicationId
         });
-        apiToCommit.id = res.data.id;
-        apiToCommit.url = url;
+        apis.value.push({
+            id: res.data.id,
+            url: res.data.url,
+            applicationId: res.data.applicationId
+        });
+
     }
 
     async function deleteApi(id: string) {
@@ -73,5 +62,5 @@ export const useApiStore = defineStore('api', () => {
         return apis.value.filter((api) => api.applicationId === applicationId);
     }
 
-    return { apis, fetchApis, createTempApi, commitTempApi, deleteApi, getApi, getApplicationApis  }
+    return { apis, fetchApis, commitApi, deleteApi, getApi, getApplicationApis  }
 })

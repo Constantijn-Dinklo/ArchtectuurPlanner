@@ -2,36 +2,44 @@
 import { onMounted, ref } from 'vue';
 
 import { useApiStore } from '../stores/api.store';
-import { useResourceService } from '../services/resource.service';
+import { useApplicationStore } from '../stores/application.store';
+import { useApplicationService } from '../services/application.service';
 
-const resourceService = useResourceService();
+const applicationStore = useApplicationStore();
+const applicationService = useApplicationService();
 
 const apiStore = useApiStore();
 
 const newApplicationName = ref('');
 
-const tempUrl = ref('');
+const tempApplicationId = ref<string | null>(null);
+const tempUrl = ref<string | null>(null);
 
 onMounted(() => {
-    resourceService.fetchResources();
+    applicationStore.fetchApplications();
     apiStore.fetchApis();
 })
 
 function addApplication(){
-    resourceService.createResource(newApplicationName.value, 'application');
+    applicationService.createAppliction(newApplicationName.value);
+    newApplicationName.value = ''
 }
 
 function removeApplication(id: string){
-    resourceService.removeResource(id);
+    applicationService.deleteApplication(id);
 }
 
 function addTempApi(applicationId: string) {
-    apiStore.createTempApi(applicationId);
+    tempApplicationId.value = applicationId;
+    tempUrl.value = '';
 }
 
-function commitTempApi() {
-    apiStore.commitTempApi(tempUrl.value);
-    tempUrl.value = ''
+function commitApi() {
+    if(tempApplicationId.value && tempUrl.value) { 
+        apiStore.commitApi(tempApplicationId.value, tempUrl.value);    
+    }
+    tempApplicationId.value = null;
+    tempUrl.value = null;
 }
 
 function deleteApi(id: string) {
@@ -41,29 +49,30 @@ function deleteApi(id: string) {
 </script>
 
 <template>
+    Applications
     <div>
         <input type="text" v-model="newApplicationName" placeholder="Application name"/>
         <button @click="addApplication">Add</button>
     </div>
     <div>
         <ul>
-            <li v-for="application in resourceService.getByType('application')">
+            <li v-for="application in applicationStore.applications">
                 <button @click="addTempApi(application.id)">+</button>
                 {{ application.name }}
                 <button class="btn-primary" @click="removeApplication(application.id)">X</button>
                 <ul>
                     <li v-for="api in apiStore.getApplicationApis(application.id)" :key="api.id">
-                        <input
-                            v-if="!api.url"
-                            :value="tempUrl"
-                            @input="tempUrl = $event.target ? ($event.target as HTMLInputElement).value : ''"
-                            @blur="commitTempApi()"
-                            placeholder="Enter url"
-                        />
-                        <span v-else>
+                        <span>
                             {{ api.url }}
                             <button @click="deleteApi(api.id)">X</button>
                         </span>
+                    </li>
+                    <li v-if="tempApplicationId === application.id">
+                        <input
+                            v-model="tempUrl"
+                            @blur="commitApi()"
+                            placeholder="Enter url"
+                        />
                     </li>
                 </ul>
             </li>
