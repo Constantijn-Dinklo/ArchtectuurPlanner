@@ -3,9 +3,9 @@ import { onMounted, ref } from 'vue';
 
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
-import { Select, Menu, Button } from 'primevue'
+import { Checkbox, Select, Menu, Button } from 'primevue'
 
-import { useDatabaseConnectionStore } from '../stores/databaseConnection.store';
+import { useDatabaseConnectionStore, type DatabaseConnection, type DatabaseOperation } from '../stores/databaseConnection.store';
 import { useDatabaseConnectionService } from '../services/databaseConnection.service';
 import { useResourceService } from '../services/resource.service';
 
@@ -30,7 +30,7 @@ const menuItems = ref([
 ]);
 
 onMounted(() => {
-  databaseConnectionService.fetchDatabaseConnections();
+  databaseConnectionStore.fetchDatabaseConnections();
 });
 
 function addDBConnection() {
@@ -41,6 +41,26 @@ function onCellEditComplete(event: any){
   const { data, newValue, field } = event;
   //TODO: add in a check to make sure that the sourceId an targetId are not equal
   databaseConnectionService.updateDatabaseConnection(data.id, { [field]: newValue })
+}
+
+function hasOperation(data: DatabaseConnection, operation: DatabaseOperation) {
+    return data.operation.includes(operation);
+}
+
+function toggleOperation(data: DatabaseConnection, operation: DatabaseOperation, checked: boolean) {
+    let operations = [...data.operation];
+
+    if (checked) {
+        if (!operations.includes(operation)) {
+            operations.push(operation);
+        }
+    } else {
+        operations = operations.filter(op => op !== operation);
+    }
+
+    databaseConnectionService.updateDatabaseConnection(data.id, {
+        operation: operations
+    });
 }
 
 function toggleMenu(event: Event, row: any) {
@@ -81,10 +101,10 @@ function deleteDatabaseConnection(id: string) {
                 />
             </template>
         </Column>
-        <Column field="targetId" header="Target">
+        <Column field="entityId" header="Entity">
             <template #body="{ data }">
                 {{
-                    resourceService.getByType('application').find(target => target.id === data.targetId)?.name || ''
+                    resourceService.getByType('application').find(entity => entity.id === data.entityId)?.name || ''
                 }}
             </template>
             
@@ -95,6 +115,24 @@ function deleteDatabaseConnection(id: string) {
                     optionLabel="name"
                     optionValue="id"
                     placeholder="Select application"
+                />
+            </template>
+        </Column>
+        <Column field="operation" header="Read">
+            <template #body="{ data }">
+                <Checkbox
+                    binary
+                    :modelValue="hasOperation(data, 'read')"
+                    @update:modelValue="checked => toggleOperation(data, 'read', checked)"
+                />
+            </template>
+        </Column>
+        <Column field="operation" header="Write">
+            <template #body="{ data }">
+                <Checkbox
+                    binary
+                    :modelValue="hasOperation(data, 'write')"
+                    @update:modelValue="checked => toggleOperation(data, 'write', checked)"
                 />
             </template>
         </Column>

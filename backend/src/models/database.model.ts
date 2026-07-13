@@ -20,7 +20,7 @@ const DatabaseSchema = new Schema<IDatabase>({
     engine: {
         type: Schema.Types.String,
     }
-}, 
+},
 {
     timestamps: true,
     toJSON:  {

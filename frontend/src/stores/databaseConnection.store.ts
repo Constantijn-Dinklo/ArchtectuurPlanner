@@ -2,29 +2,37 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import api from "../helpers/axios";
 
+export type DatabaseOperation = 'read' | 'write';
+
 export interface DatabaseConnection {
     id: string;
 
     databaseId: string;
-    targetId: string;
+    entityId: string;
+
+    operation: DatabaseOperation[];
 }
 
 export const useDatabaseConnectionStore = defineStore('databaseConnection', () => {
     const databaseConnections = ref<DatabaseConnection[]>([]);
 
-    function setDatabaseConnections(connects: DatabaseConnection[]) {
-        databaseConnections.value = connects;
+    async function fetchDatabaseConnections() {
+        const res = await api.get('/databaseConnections');
+        const data = res.data as DatabaseConnection[];
+        databaseConnections.value = data;
     }
 
-    async function createDatabaseConnection(databaseId: string, targetId: string) {
+    async function createDatabaseConnection(databaseId: string, entityId: string) {
         const res = await api.post('/databaseConnections', {
             databaseId,
-            targetId
+            entityId
         });
+        console.log(res);
         const newDatabaseConnection: DatabaseConnection = {
             id: res.data.id,
             databaseId: res.data.databaseId,
-            targetId: res.data.targetId
+            entityId: res.data.entityId,
+            operation: res.data.operation
         }
 
         databaseConnections.value.push(newDatabaseConnection);
@@ -46,5 +54,5 @@ export const useDatabaseConnectionStore = defineStore('databaseConnection', () =
         return data;
     }
 
-    return { databaseConnections, setDatabaseConnections, createDatabaseConnection, updateDatabaseConnection, deleteDatabaseConnection }
+    return { databaseConnections, fetchDatabaseConnections, createDatabaseConnection, updateDatabaseConnection, deleteDatabaseConnection }
 })

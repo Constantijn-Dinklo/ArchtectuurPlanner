@@ -2,8 +2,10 @@ import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
 export interface IApi extends Document {
     organisationId: Types.ObjectId;
-    url: string;
     applicationId: Types.ObjectId | null;
+    
+    url: string;
+    hasAuthentication: boolean;
 }
 
 const ApiSchema = new Schema<IApi>({
@@ -13,14 +15,18 @@ const ApiSchema = new Schema<IApi>({
         required: true,
         index: true
     },
-    url: {
-        type: Schema.Types.String,
-        required: true,
-    },
     applicationId: {
         type: Schema.Types.ObjectId,
         required: true,
         ref: 'Resource'
+    },
+    url: {
+        type: Schema.Types.String,
+        required: true,
+    },
+    hasAuthentication: {
+        type: Schema.Types.Boolean,
+        default: false
     }
 },
 {

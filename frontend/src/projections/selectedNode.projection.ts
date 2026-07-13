@@ -65,7 +65,7 @@ export function useSelectedNodeProjection() {
         const databaseConnections = databaseConnectionStore.databaseConnections.filter((databaseConnection) => {
             return (
                 databaseConnection.databaseId === resourceId ||
-                databaseConnection.targetId === resourceId
+                databaseConnection.entityId === resourceId
             )
         });
 

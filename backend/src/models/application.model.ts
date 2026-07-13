@@ -3,6 +3,7 @@ import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 export interface IApplication extends Document {
     organisationId: Types.ObjectId;
     name: string;
+    version: string;
 }
 
 const ApplicationSchema = new Schema<IApplication>({
@@ -15,6 +16,9 @@ const ApplicationSchema = new Schema<IApplication>({
     name: {
         type: Schema.Types.String,
         required: true
+    },
+    version: {
+        type: Schema.Types.String
     }
 }, 
 {
@@ -28,6 +32,7 @@ const ApplicationSchema = new Schema<IApplication>({
             delete ret._id
             delete ret.__v
 
+            delete ret.organisationId
             delete ret.createdAt
             delete ret.updatedAt
 

@@ -79,7 +79,7 @@ export function useSelectedEdgeProjection() {
         const databaseConnections = databaseConnectionStore.databaseConnections.filter((databaseConnection) => {
             return (
                 databaseConnection.databaseId === inputEntityId &&
-                databaseConnection.targetId === outputEntityId
+                databaseConnection.entityId === outputEntityId
             )
         });
 

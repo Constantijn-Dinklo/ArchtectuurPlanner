@@ -25,7 +25,8 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
         const databaseConnectionBody = {
             organisationId: user.organisationId,
             databaseId: req.body.databaseId === '' ? null : req.body.databaseId,
-            targetId: req.body.targetId === '' ? null : req.body.targetId
+            entityId: req.body.entityId === '' ? null : req.body.entityId,
+            operation: ['read']
         }
         const databaseConnection = new DatabaseConnection(databaseConnectionBody);
         await databaseConnection.save();

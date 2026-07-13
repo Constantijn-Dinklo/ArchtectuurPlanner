@@ -8,6 +8,7 @@ export interface Application {
     id: string;
     name: string;
     type: 'application';
+    version?: string;
 }
 
 export const useApplicationStore = defineStore('application', () => {
@@ -33,10 +34,18 @@ export const useApplicationStore = defineStore('application', () => {
         const newApplication: Application = {
             id: res.data.application.id,
             name: res.data.application.name,
-            type: 'application'
+            type: 'application',
         }
         applications.value.push(newApplication);
         return res.data;
+    }
+
+    async function updateApplication(id: string, patch: Partial<Application>) {
+        const res = await api.patch(`/applications/${id}`, patch);
+        const application = applications.value.find(a => a.id === id);
+        if(!application) return;
+        const result: Application = Object.assign(application, res.data);
+        return result; 
     }
 
     async function deleteApplication(id: string) {
@@ -56,5 +65,5 @@ export const useApplicationStore = defineStore('application', () => {
         }
     }
 
-    return { applications, fetchApplications, createAppliction, deleteApplication }
+    return { applications, fetchApplications, createAppliction, updateApplication, deleteApplication }
 })

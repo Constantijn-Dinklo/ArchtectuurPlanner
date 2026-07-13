@@ -26,13 +26,33 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
         const apiBody = {
             organisationId: user.organisationId,
             url: req.body.url,
-            applicationId: req.body.applicationId
+            applicationId: req.body.applicationId,
+            hasAuthentication: false
         }
 
         const api = new Api(apiBody);
         await api.save();
 
         res.status(201).json(api);
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    const user = getUser(req);
+
+    try {
+        const updated = await Api.findOneAndUpdate(
+            {
+                _id: req.params.id,
+                organisationId: user.organisationId
+            },
+            { $set: req.body },
+            { returnDocument: 'after'}
+        );        
+        res.status(201).json(updated);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });

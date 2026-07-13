@@ -17,9 +17,9 @@
         databaseConnections: {
             id: string;
             databaseId: string;
-            targetId: string;
+            entityId: string;
             database?: Resource;
-            target?: Resource
+            entity?: Resource
         }[]
     }
 

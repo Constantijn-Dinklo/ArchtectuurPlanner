@@ -4,18 +4,18 @@
   import ConnectionTableScript from './ConnectionTableScript.vue';
   import { useApiConnectionService } from '../services/apiConnection.service.ts';
   import { useScriptService } from '../services/script.service.ts';
-import ConnectionTableDatabase from './ConnectionTableDatabase.vue';
-import { useDatabaseConnectionService } from '../services/databaseConnection.service.ts';
+  import ConnectionTableDatabase from './ConnectionTableDatabase.vue';
+  import { useDatabaseConnectionStore } from '../stores/databaseConnection.store.ts';
 
   const apiConnectionService = useApiConnectionService();
-  const databaseConnectionService = useDatabaseConnectionService();
+  const databaseConnectionStore = useDatabaseConnectionStore();
   const scriptService = useScriptService();
 
   const activeTable = ref<'api' | 'script' | 'database'>('api');
 
   onMounted(() => {
     apiConnectionService.fetchApiConnections();
-    databaseConnectionService.fetchDatabaseConnections();
+    databaseConnectionStore.fetchDatabaseConnections();
     scriptService.fetchScripts();
   });
 

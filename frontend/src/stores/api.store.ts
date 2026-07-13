@@ -6,8 +6,9 @@ import { useToast } from "primevue";
 
 export interface Api {
     id: string;
-    url: string;
     applicationId: string;
+    url: string;
+    hasAuthentication: boolean;
 }
 
 export const useApiStore = defineStore('api', () => {
@@ -29,12 +30,15 @@ export const useApiStore = defineStore('api', () => {
             url: url,
             applicationId: applicationId
         });
-        apis.value.push({
-            id: res.data.id,
-            url: res.data.url,
-            applicationId: res.data.applicationId
-        });
+        apis.value.push(res.data);
+    }
 
+    async function updateApi(id: string, patch: Partial<Api>) {
+        const res = await api.patch(`/apis/${id}`, patch);
+        const apiUpdate = apis.value.find(a => a.id === id);
+        if(!apiUpdate) return;
+        const result: Api = Object.assign(apiUpdate, res.data);
+        return result;
     }
 
     async function deleteApi(id: string) {
@@ -62,5 +66,5 @@ export const useApiStore = defineStore('api', () => {
         return apis.value.filter((api) => api.applicationId === applicationId);
     }
 
-    return { apis, fetchApis, commitApi, deleteApi, getApi, getApplicationApis  }
+    return { apis, fetchApis, commitApi, updateApi, deleteApi, getApi, getApplicationApis  }
 })

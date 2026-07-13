@@ -51,7 +51,7 @@ function removeEntity(serverId: string, index: number) {
 <template>
     Servers
     <div>
-        <input type="text" v-model="newServerName" placeholder="Server name"/>
+        <input type="text" v-model="newServerName" placeholder="Server name" @keyup.enter="addServer"/>
         <button @click="addServer">Add</button>
     </div>
     <div>

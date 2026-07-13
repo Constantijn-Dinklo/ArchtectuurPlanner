@@ -148,7 +148,7 @@ export function useCanvasProjection() {
         for(const dbConnection of databaseConnectionStore.databaseConnections){
             addConnection(
                 dbConnection.databaseId,
-                dbConnection.targetId,
+                dbConnection.entityId,
                 dbConnection.id,
                 'databaseConnectionIds'
             );
@@ -226,10 +226,16 @@ export function useCanvasProjection() {
         let label = resource.name;
 
         switch (resource.type) {
+            case 'application':
+                if(resource.version){
+                    label += ' (' + resource.version + ')'
+                }
+                break;
             case 'database':
                 if(resource.engine){
                     label += ' (' + resource.engine + ')'
                 }
+                break;
         }
 
         return label;

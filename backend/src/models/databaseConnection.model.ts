@@ -4,7 +4,8 @@ import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 export interface IDatabaseConnection extends Document {
     organisationId: Types.ObjectId;
     databaseId: Types.ObjectId;
-    targetId: Types.ObjectId;
+    entityId: Types.ObjectId;
+    operation: string[];
 }
 
 const DatabaseConnectionSchema = new Schema<IDatabaseConnection>({
@@ -16,16 +17,19 @@ const DatabaseConnectionSchema = new Schema<IDatabaseConnection>({
     },
     databaseId: {
         type: Schema.Types.ObjectId,
-        ref: 'Resource',
         required: false,
         default: null
     },
-    targetId: {
+    entityId: {
         type: Schema.Types.ObjectId,
-        ref: 'Resource',
         required: false,
         default: null
     },
+    operation: {
+        type: [Schema.Types.String],
+        enum: ['read', 'write'],
+        required: true,
+    }
 },
 {
     timestamps: true,

@@ -32,6 +32,27 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
     }
 });
 
+router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    const user = getUser(req);
+
+    try {
+        const updated = await Application.findOneAndUpdate(
+            {
+                _id: req.params.id,
+                organisationId: user.organisationId
+            },
+            { $set: req.body },
+            { returnDocument: 'after'}
+        );        
+        res.status(201).json(updated);
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+
+
 router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
