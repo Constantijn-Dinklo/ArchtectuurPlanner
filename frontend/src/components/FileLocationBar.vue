@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { useFileLocationStore } from '../stores/fileLocation.store';
-import { useFileLocationService } from '../services/fileLocation.service';
+import { useFileLocationStore } from '../stores/resources/fileLocation.store';
+import { useFileLocationService } from '../services/resources/fileLocation.service';
 
 const fileLocationStore = useFileLocationStore();
 const fileLocationService = useFileLocationService();

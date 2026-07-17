@@ -7,7 +7,7 @@ import { Checkbox, Select, Menu, Button } from 'primevue'
 
 import { useDatabaseConnectionStore, type DatabaseConnection, type DatabaseOperation } from '../stores/databaseConnection.store';
 import { useDatabaseConnectionService } from '../services/databaseConnection.service';
-import { useResourceService } from '../services/resource.service';
+import { useResourceService } from '../services/resources/resource.service';
 
 const databaseConnectionService = useDatabaseConnectionService();
 const databaseConnectionStore = useDatabaseConnectionStore();

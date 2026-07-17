@@ -1,6 +1,6 @@
 import type { CoordinateExtent, CoordinateExtentRange } from "@vue-flow/core";
 
-export type NodeType = 'application' | 'database' | 'fileLocation' | 'server';
+export type NodeType = 'application' | 'database' | 'fileLocation' | 'server' | 'table';
 
 export interface CanvasNode {
   id: string;

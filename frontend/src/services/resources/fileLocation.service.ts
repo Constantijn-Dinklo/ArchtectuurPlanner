@@ -1,5 +1,5 @@
-import { useViewStore } from "../stores/canvas/view.store";
-import { useFileLocationStore } from "../stores/fileLocation.store";
+import { useViewStore } from "../../stores/canvas/view.store";
+import { useFileLocationStore } from "../../stores/resources/fileLocation.store";
 
 export function useFileLocationService() {
     const fileLocationStore = useFileLocationStore();

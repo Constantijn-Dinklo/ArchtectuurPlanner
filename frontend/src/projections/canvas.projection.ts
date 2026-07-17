@@ -1,13 +1,13 @@
 import { computed } from "vue";
-import { useResourceService, type Resource } from "../services/resource.service";
+import { useResourceService, type Resource } from "../services/resources/resource.service";
 import { useViewStore, type ViewNode } from "../stores/canvas/view.store";
 import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useScriptStore } from "../stores/script.store";
 import type { CanvasNode } from "./types/canvasNode";
 import type { CanvasEdge } from "./types/canvasEdge";
-import { useServerService } from "../services/server.service";
-import type { Server } from "../stores/server.store";
+import { useServerService } from "../services/resources/server.service";
+import type { Server } from "../stores/resources/server.store";
 
 
 export function useCanvasProjection() {

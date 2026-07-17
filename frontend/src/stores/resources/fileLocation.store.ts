@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useToast } from 'primevue';
 
-import api from "../helpers/axios";
+import api from "../../helpers/axios";
 
 export interface FileLocation {
     id: string;

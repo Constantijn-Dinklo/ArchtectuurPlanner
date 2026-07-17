@@ -2,8 +2,8 @@
 import { onMounted, ref } from 'vue';
 import { Menu, Button } from 'primevue'
 
-import { useDatabaseStore } from '../stores/database.store';
-import { useDatabaseService } from '../services/database.service';
+import { useDatabaseStore } from '../stores/resources/database.store';
+import { useDatabaseService } from '../services/resources/database.service';
 import { exportToCsv } from '../helpers/export';
 
 const databaseStore = useDatabaseStore();

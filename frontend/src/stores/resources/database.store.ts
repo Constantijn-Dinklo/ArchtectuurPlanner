@@ -2,8 +2,8 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useToast } from 'primevue';
 
-import api from "../helpers/axios";
-import type { BaseResource } from "../types/resource.type";
+import api from "../../helpers/axios";
+import type { BaseResource } from "../../types/resource.type";
 
 export interface Database extends BaseResource {
     type: 'database';

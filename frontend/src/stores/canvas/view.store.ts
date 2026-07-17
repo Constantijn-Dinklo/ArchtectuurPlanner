@@ -43,6 +43,7 @@ export const useViewStore = defineStore('view', () => {
         const res = await api.get(`/views/${viewId}/nodes`);
         const data = res.data;
 
+        console.log(data);
         data.map((viewNode: any) => {
             if(viewNodes.value.find((v) => v.id === viewNode.id)) return;
             viewNodes.value.push(viewNode);

@@ -1,5 +1,5 @@
-import { useViewStore } from "../stores/canvas/view.store";
-import { useDatabaseStore } from "../stores/database.store";
+import { useViewStore } from "../../stores/canvas/view.store";
+import { useDatabaseStore } from "../../stores/resources/database.store";
 
 export function useDatabaseService() {
     const databaseStore = useDatabaseStore();

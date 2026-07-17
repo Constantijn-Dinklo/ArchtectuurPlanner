@@ -1,6 +1,6 @@
 import { computed } from "vue";
-import { useViewStore } from "../stores/canvas/view.store";
-import { useServerStore, type Server } from "../stores/server.store";
+import { useViewStore } from "../../stores/canvas/view.store";
+import { useServerStore, type Server } from "../../stores/resources/server.store";
 
 
 export function useServerService() {

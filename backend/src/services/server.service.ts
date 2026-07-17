@@ -1,6 +1,6 @@
 import { UserJwtPayload } from "../middelware";
 import ViewNode from "../models/canvas/viewNode.model";
-import Server from "../models/server.model";
+import Server from "../models/resources/server.model";
 
 
 export async function createServer(user: UserJwtPayload, name: string, viewId: string) {

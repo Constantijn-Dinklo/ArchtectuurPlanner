@@ -6,14 +6,16 @@ import connectDB from './config/db';
 
 import orgRoutes from './routes/organisationRoutes';
 import authRoutes from './routes/auth';
-import serverRoutes from './routes/serverRoutes';
+import applicationRoutes from './routes/resources/applicationRoutes';
+import databaseRoutes from './routes/resources/databaseRoutes';
+import fileLocationsRoutes from './routes/resources/fileLocationRoutes';
+import serverRoutes from './routes/resources/serverRoutes';
+import tableRoutes from './routes/resources/tableRoutes';
 import apiRoutes from './routes/apiRoutes';
 import apiConnectionRoutes from './routes/apiConnectionRoutes';
 import databaseConnectionRoutes from './routes/databaseConnectionRoutes';
 import scriptRoutes from './routes/scriptRoutes';
-import databaseRoutes from './routes/databaseRoutes';
-import applicationRoutes from './routes/applicationRoutes';
-import fileLocationsRoutes from './routes/fileLocationRoutes';
+
 
 import viewRoutes from './routes/canvas/viewRoutes';
 
@@ -45,6 +47,7 @@ app.use('/applications', applicationRoutes);
 app.use('/databases', databaseRoutes);
 app.use('/fileLocations', fileLocationsRoutes);
 app.use('/servers', serverRoutes);
+app.use('/tables', tableRoutes);
 
 app.use('/apis', apiRoutes);
 

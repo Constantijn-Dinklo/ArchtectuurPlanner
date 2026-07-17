@@ -1,21 +1,21 @@
 import express, { Router, Response } from "express";
-import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
-import Database from "../models/database.model";
-import { createDatabase, deleteDatabase } from "../services/database.service";
 
+import Table from "../../models/resources/table.model";
+import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
+import { createTable } from "../../services/table.service";
 
 const router: Router = express.Router();
 
 router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
-
+    
     try {
-        const databases = await Database.find({
+        const tables = await Table.find({
             organisationId: user.organisationId
         });
-        res.json(databases);
+        res.json(tables);
     }
-    catch(err: any){
+    catch(err: any) {
         res.status(400).json({ error: err.message });
     }
 });
@@ -24,7 +24,7 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
     const user = getUser(req);
 
     try {
-        const result = await createDatabase(user, req.body.name, req.body.viewId);
+        const result = await createTable(user, req.body.name, req.body.databaseId, req.body.viewId);
         res.status(201).json(result);
     }
     catch(err: any) {
@@ -36,15 +36,15 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
     const user = getUser(req);
 
     try {
-        const updated = await Database.findOneAndUpdate(
+        const updated = await Table.findOneAndUpdate(
             {
                 _id: req.params.id,
                 organisationId: user.organisationId
             },
             { $set: req.body },
             { returnDocument: 'after'}
-        );        
-        res.status(201).json(updated);
+        );
+        res.json(updated)
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
@@ -53,14 +53,20 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
 
 router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
-
+    
     try {
-        const result = await deleteDatabase(user, req.params.id as string);
-        res.status(result.status).json(result);
+        const deleted = await Table.findOneAndDelete(
+            {
+                _id: req.params.id,
+                organisationId: user.organisationId
+            },
+            { returnDocument: 'after' }
+        );
+        res.json(deleted);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
     }
-});
+})
 
 export default router;

@@ -1,19 +1,21 @@
 import express, { Router, Response } from "express";
-import Script from "../models/script.model";
-import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
+import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
+import Database from "../../models/resources/database.model";
+import { createDatabase, deleteDatabase } from "../../services/database.service";
+
 
 const router: Router = express.Router();
 
 router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
-    
+
     try {
-        const scripts = await Script.find({
+        const databases = await Database.find({
             organisationId: user.organisationId
         });
-        res.json(scripts);
+        res.json(databases);
     }
-    catch(err: any) {
+    catch(err: any){
         res.status(400).json({ error: err.message });
     }
 });
@@ -22,17 +24,8 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
     const user = getUser(req);
 
     try {
-        const scriptBody = {
-            organisationId: user.organisationId,
-            name: req.body.name,
-            inputIds: req.body.inputIds,
-            outputIds: req.body.outputIds
-        }
-
-        const script = new Script(scriptBody);
-        await script.save();
-
-        res.status(201).json(script);
+        const result = await createDatabase(user, req.body.name, req.body.viewId);
+        res.status(201).json(result);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
@@ -43,15 +36,15 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
     const user = getUser(req);
 
     try {
-        const updated = await Script.findOneAndUpdate(
+        const updated = await Database.findOneAndUpdate(
             {
                 _id: req.params.id,
                 organisationId: user.organisationId
             },
             { $set: req.body },
             { returnDocument: 'after'}
-        );
-        res.json(updated)
+        );        
+        res.status(201).json(updated);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
@@ -60,20 +53,14 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
 
 router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
-    
+
     try {
-        const deleted = await Script.findOneAndDelete(
-            {
-                _id: req.params.id,
-                organisationId: user.organisationId
-            },
-            { returnDocument: 'after' }
-        );
-        res.json(deleted);
+        const result = await deleteDatabase(user, req.params.id as string);
+        res.status(result.status).json(result);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
     }
-})
+});
 
 export default router;

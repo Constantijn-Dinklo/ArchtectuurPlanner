@@ -1,5 +1,5 @@
-import { useApplicationStore } from "../stores/application.store";
-import { useViewStore } from "../stores/canvas/view.store";
+import { useApplicationStore } from "../../stores/resources/application.store";
+import { useViewStore } from "../../stores/canvas/view.store";
 
 export function useApplicationService() {
     const applicationStore = useApplicationStore();

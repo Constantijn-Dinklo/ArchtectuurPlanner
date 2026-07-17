@@ -1,4 +1,4 @@
-export type ResourceType = 'application' | 'database' | 'fileLocation' | 'server';
+export type ResourceType = 'application' | 'database' | 'fileLocation' | 'server' | 'table';
 
 export interface BaseResource {
     id: string;

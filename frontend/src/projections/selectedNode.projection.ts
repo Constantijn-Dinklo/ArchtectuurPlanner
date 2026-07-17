@@ -6,7 +6,7 @@ import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useScriptStore } from "../stores/script.store";
 import { useApiConnectionService } from "../services/apiConnection.service";
 import { useDatabaseConnectionService } from "../services/databaseConnection.service";
-import { useResourceService } from "../services/resource.service";
+import { useResourceService } from "../services/resources/resource.service";
 
 
 

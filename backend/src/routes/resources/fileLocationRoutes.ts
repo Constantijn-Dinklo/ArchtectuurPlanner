@@ -1,7 +1,7 @@
 import express, { Router, Response } from "express";
-import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
-import FileLocation from "../models/fileLocation.model";
-import { createFileLocation, deleteFileLocation } from "../services/fileLocation.service";
+import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
+import FileLocation from "../../models/resources/fileLocation.model";
+import { createFileLocation, deleteFileLocation } from "../../services/fileLocation.service";
 
 
 const router: Router = express.Router();

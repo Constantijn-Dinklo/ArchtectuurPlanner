@@ -1,5 +1,5 @@
 import { useDatabaseConnectionStore, type DatabaseConnection } from "../stores/databaseConnection.store";
-import { useResourceService } from "./resource.service";
+import { useResourceService } from "./resources/resource.service";
 
 
 export function useDatabaseConnectionService() {

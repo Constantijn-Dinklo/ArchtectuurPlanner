@@ -3,8 +3,8 @@ import { onMounted, ref } from 'vue';
 import { Menu, Button } from 'primevue'
 
 import { useApiStore, type Api } from '../stores/api.store';
-import { useApplicationStore } from '../stores/application.store';
-import { useApplicationService } from '../services/application.service';
+import { useApplicationStore } from '../stores/resources/application.store';
+import { useApplicationService } from '../services/resources/application.service';
 import { exportToCsv } from '../helpers/export';
 
 const applicationStore = useApplicationStore();

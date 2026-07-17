@@ -2,7 +2,7 @@
     import { computed } from 'vue';
     import { useSelectedNodeProjection } from '../../projections/selectedNode.projection';
     import ConnectionsDetail from '../ConnectionsDetail.vue';
-    import { useApplicationStore, type Application } from '../../stores/application.store.ts';
+    import { useApplicationStore, type Application } from '../../stores/resources/application.store.ts';
 
     const selectedNodeProjection = useSelectedNodeProjection();
     const applicationStore = useApplicationStore();

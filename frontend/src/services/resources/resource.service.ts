@@ -1,52 +1,49 @@
 
 import { computed } from "vue";
 
-import { useDatabaseStore, type Database } from "../stores/database.store";
-import { useApplicationStore, type Application } from "../stores/application.store";
-import { useFileLocationStore, type FileLocation } from "../stores/fileLocation.store";
-import { useServerStore, type Server } from "../stores/server.store";
-import type { ResourceType } from "../types/resource.type";
+import { useDatabaseStore, type Database } from "../../stores/resources/database.store";
+import { useApplicationStore, type Application } from "../../stores/resources/application.store";
+import { useFileLocationStore, type FileLocation } from "../../stores/resources/fileLocation.store";
+import { useServerStore, type Server } from "../../stores/resources/server.store";
+import type { ResourceType } from "../../types/resource.type";
+import { useTableStore, type Table } from "../../stores/resources/table.store";
 
-export type Resource = Application | Database | FileLocation | Server;
+export type Resource = Application | Database | FileLocation | Server | Table;
 
 export function useResourceService() {
     const applicationStore = useApplicationStore();
     const databaseStore = useDatabaseStore();
     const fileLocationStore = useFileLocationStore();
     const serverStore = useServerStore();
+    const tableStore = useTableStore();
 
     const resources = computed(() => {
         return [
             ...applicationStore.applications,
             ...databaseStore.databases,
             ...fileLocationStore.fileLocations,
-            ...serverStore.servers
+            ...serverStore.servers,
+            ...tableStore.tables
         ]
     })
 
     const resourceMap = computed(() => {
         const map = new Map<string, Resource>();
 
-        for(const r of databaseStore.databases) {
-            map.set(r.id, {
-                ...r,
-                type: 'database'
-            });
+        for(const database of databaseStore.databases) {
+            map.set(database.id, database);
         }
         for(const app of applicationStore.applications) {
-            map.set(app.id, {
-                ...app,
-                type: 'application'
-            });
+            map.set(app.id, app);
         }
         for(const file of fileLocationStore.fileLocations){
-            map.set(file.id, {
-                ...file,
-                type: 'fileLocation'
-            });
+            map.set(file.id, file);
         }
         for(const server of serverStore.servers){
             map.set(server.id, server);
+        }
+        for(const table of tableStore.tables){
+            map.set(table.id, table);
         }
         return map;
     });

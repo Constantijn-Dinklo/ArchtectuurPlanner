@@ -1,8 +1,8 @@
 import express, { Router, Response } from "express";
-import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
-import Server from "../models/server.model";
-import { addEntity, createServer, updateServerEntityIds } from "../services/server.service";
-import ViewNode from "../models/canvas/viewNode.model";
+import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
+import Server from "../../models/resources/server.model";
+import { addEntity, createServer, updateServerEntityIds } from "../../services/server.service";
+import ViewNode from "../../models/canvas/viewNode.model";
 
 const router: Router = express.Router();
 

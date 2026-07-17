@@ -1,7 +1,7 @@
 <script setup lang="ts">
     import { computed } from 'vue';
     import { useSelectedNodeProjection } from '../../projections/selectedNode.projection';
-    import { useServerStore, type Server } from '../../stores/server.store';
+    import { useServerStore, type Server } from '../../stores/resources/server.store';
 
     const selectedNodeProjection = useSelectedNodeProjection();
     const serverStore = useServerStore();

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { useServerService } from '../services/server.service';
-import { useServerStore } from '../stores/server.store';
-import { useResourceService } from '../services/resource.service';
+import { useServerService } from '../services/resources/server.service';
+import { useServerStore } from '../stores/resources/server.store';
+import { useResourceService } from '../services/resources/resource.service';
 
 const serverService = useServerService();
 const serverStore = useServerStore();

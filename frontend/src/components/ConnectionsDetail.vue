@@ -1,6 +1,6 @@
 <script setup lang="ts">
     import type { Api } from '../stores/api.store';
-    import type { Resource } from '../services/resource.service';
+    import type { Resource } from '../services/resources/resource.service';
     import type { Script } from '../stores/script.store';
 
     interface ConnectionsInfo {

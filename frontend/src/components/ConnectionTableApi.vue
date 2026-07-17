@@ -8,7 +8,7 @@ import { Select, Menu, Button } from 'primevue'
 import { useApiConnectionStore } from '../stores/apiConnection.store';
 import { useApiConnectionService } from '../services/apiConnection.service';
 import { useApiStore } from '../stores/api.store';
-import { useResourceService } from '../services/resource.service';
+import { useResourceService } from '../services/resources/resource.service';
 
 const resourceService = useResourceService();
 const apiConnectionStore = useApiConnectionStore();

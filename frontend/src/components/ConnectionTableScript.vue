@@ -6,7 +6,7 @@ import { Button, InputText, Menu, Select } from 'primevue'
 import { onMounted, ref, type Ref } from 'vue';
 import { useScriptStore, type Script } from '../stores/script.store';
 import { useScriptService } from '../services/script.service';
-import { useResourceService } from '../services/resource.service';
+import { useResourceService } from '../services/resources/resource.service';
 
 const scriptStore = useScriptStore();
 const scriptService = useScriptService();

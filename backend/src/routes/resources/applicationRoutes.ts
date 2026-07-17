@@ -1,7 +1,7 @@
 import express, { Router, Response } from "express";
-import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
-import Application from "../models/application.model";
-import { createAppliction, deleteApplication } from "../services/application.service";
+import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
+import Application from "../../models/resources/application.model";
+import { createAppliction, deleteApplication } from "../../services/application.service";
 
 
 const router: Router = express.Router();

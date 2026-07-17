@@ -1,7 +1,7 @@
 import api from "../helpers/axios";
 import { useApiStore } from "../stores/api.store";
 import { useApiConnectionStore, type ApiConnection } from "../stores/apiConnection.store";
-import { useResourceService } from "./resource.service";
+import { useResourceService } from "./resources/resource.service";
 
 
 export function useApiConnectionService() {

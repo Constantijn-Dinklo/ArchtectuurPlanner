@@ -1,6 +1,6 @@
 import { UserJwtPayload } from "../middelware";
 import ApiConnection from "../models/apiConnection.model";
-import Application from "../models/application.model";
+import Application from "../models/resources/application.model";
 import ViewNode from "../models/canvas/viewNode.model";
 
 

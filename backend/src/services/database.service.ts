@@ -1,8 +1,8 @@
 import { UserJwtPayload } from "../middelware";
 import ViewNode from "../models/canvas/viewNode.model";
-import Database from "../models/database.model";
+import Database from "../models/resources/database.model";
 import DatabaseConnection from "../models/databaseConnection.model";
-import Server from "../models/server.model";
+import Server from "../models/resources/server.model";
 
 
 export async function createDatabase(user: UserJwtPayload, name: string, viewId: string) {
