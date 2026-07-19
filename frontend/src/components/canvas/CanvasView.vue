@@ -10,9 +10,11 @@ import { onMounted, watch } from "vue";
 import { useViewStore } from "../../stores/canvas/view.store";
 import { useCanvasProjection } from "../../projections/canvas.projection";
 import { useUIStore } from "../../stores/canvas/ui.store";
+import { useArchitectureViewService } from "../../services/architectureView.service";
 
 const viewStore = useViewStore();
 const UIStore = useUIStore();
+const architectureViewService = useArchitectureViewService()
 
 const flowNodes = useCanvasProjection().flowNodes;
 const flowEdges = useCanvasProjection().flowEdges;
@@ -39,7 +41,13 @@ const { viewport } = useVueFlow()
 watch(
   () => viewport.value.zoom,
   (newZoom, oldZoom) => {
-    console.log(`Zoom ${oldZoom} -> ${newZoom}`)
+    // console.log(`Zoom ${oldZoom} -> ${newZoom}`)
+    if(newZoom > 0.7) {
+      architectureViewService.changeLevelOfDetail('database');
+    }
+    else if (newZoom < 0.7) {
+      architectureViewService.changeLevelOfDetail('application');
+    }
   }
 )
 

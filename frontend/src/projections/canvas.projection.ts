@@ -8,9 +8,12 @@ import type { CanvasNode } from "./types/canvasNode";
 import type { CanvasEdge } from "./types/canvasEdge";
 import { useServerService } from "../services/resources/server.service";
 import type { Server } from "../stores/resources/server.store";
+import { useUIStore } from "../stores/canvas/ui.store";
+import { getVisibleResourceTypes, type LevelOfDetail } from "../types/levelOfDetail";
 
 
 export function useCanvasProjection() {
+    const UIStore = useUIStore();
     const viewStore = useViewStore();
     const resourceService = useResourceService();
     const { getServer } = useServerService();
@@ -29,39 +32,46 @@ export function useCanvasProjection() {
 
     const flowNodes = computed(() => {
 
-        const serverViewNodes = getServerViewNodes(viewStore.viewNodes);
-        const serverCanvasNodes = getServerCanvasNodes(serverViewNodes);
+        const visibleNodes = getVisibleNodes(UIStore.levelOfDetail, viewStore.viewNodes);
 
-        const serverNodeIds = new Set(
-            serverCanvasNodes.map(node => node.id)
-        );
+        // const serverViewNodes = getServerViewNodes(visibleNodes);
+        // const serverCanvasNodes = getServerCanvasNodes(serverViewNodes);
 
-        const remainingNodes = viewStore.viewNodes.filter(
-            node => !serverNodeIds.has(node.id)
-        );
+        // const serverNodeIds = new Set(
+        //     serverCanvasNodes.map(node => node.id)
+        // );
 
-        const viewNodes = remainingNodes.map(viewNode => {
-            if(viewNode.entityType === 'server') { return; }
+        // const remainingNodes = visibleNodes.filter(
+        //     node => !serverNodeIds.has(node.id)
+        // );
 
-            const resource = resourceService.getResource(viewNode.entityId);
-            if(!resource){ return; }
+        // const viewNodes = remainingNodes.map(viewNode => {
+        //     if(viewNode.entityType === 'server') { return; }
 
-            const label = getResourceLabel(resource);
+        //     const resource = resourceService.getResource(viewNode.entityId);
+        //     if(!resource){ return; }
 
-            const node: CanvasNode = {
-                id: viewNode.id,
-                position: viewNode.position,
-                data: {
-                    label: label,
-                    type: resource.type
-                },
-                class: resource?.type
-            };
-            return node;
-        }).filter(node => node !== undefined);
-        
+        //     const label = getResourceLabel(resource);
+
+        //     const node: CanvasNode = {
+        //         id: viewNode.id,
+        //         position: viewNode.position,
+        //         data: {
+        //             label: label,
+        //             type: resource.type
+        //         },
+        //         class: resource?.type
+        //     };
+        //     return node;
+        // }).filter(node => node !== undefined);
+
+        const viewNodes = visibleNodes.map((viewNode) => resolveViewNode(viewNode)).filter(node => node !== undefined);
+        //TODO:
+        //Add children and parents
+
+
         const nodes = [
-            ...serverCanvasNodes,
+            // ...serverCanvasNodes,
             ...viewNodes
         ];
 
@@ -165,6 +175,12 @@ export function useCanvasProjection() {
         return Array.from(edges.values());
     });
 
+    function getVisibleNodes(levelOfDetail: LevelOfDetail, viewNodes: ViewNode[]): ViewNode[]{
+        const visibleResourceTypes = getVisibleResourceTypes(levelOfDetail);
+        const visibleNodes = viewNodes.filter((viewNode) => visibleResourceTypes.includes(viewNode.entityType));
+        return visibleNodes;
+    }
+
     function getServerViewNodes(viewNodes: ViewNode[]): ViewNode[] {
         return viewNodes.filter((viewNode) => {
             return viewNode.entityType === 'server'
@@ -222,6 +238,25 @@ export function useCanvasProjection() {
         return childNodes;
     }
 
+    function resolveViewNode(viewNode: ViewNode): CanvasNode | undefined {
+        const resource = resourceService.getResource(viewNode.entityId);
+        if(!resource) { return; }
+        const label = getResourceLabel(resource);
+        const style = getResourceStyle(resource);
+
+        const node: CanvasNode = {
+            id: viewNode.id,
+            position: viewNode.position,
+            style: style,
+            data: {
+                label: label,
+                type: resource.type
+            },
+            class: resource.type
+        }
+        return node;
+    }
+
     function getResourceLabel(resource: Resource): string {
         let label = resource.name;
 
@@ -239,6 +274,16 @@ export function useCanvasProjection() {
         }
 
         return label;
+    }
+
+    function getResourceStyle(resource: Resource): any {
+        if(resource.type === 'server') {
+            return {
+                    width: '300px',
+                    height: '200px'
+            }
+        }
+        return undefined;
     }
 
     return {

@@ -27,7 +27,6 @@ export const useDatabaseConnectionStore = defineStore('databaseConnection', () =
             databaseId,
             entityId
         });
-        console.log(res);
         const newDatabaseConnection: DatabaseConnection = {
             id: res.data.id,
             databaseId: res.data.databaseId,

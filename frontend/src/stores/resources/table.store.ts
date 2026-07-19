@@ -16,7 +16,6 @@ export const useTableStore = defineStore('table', () => {
         const res = await api.get('/tables');
         const data = res.data as Table[];
 
-        console.log(data);
         tables.value = data.map((t) => ({
             ...t,
             type: 'table'
