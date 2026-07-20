@@ -6,8 +6,7 @@ import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useScriptStore } from "../stores/script.store";
 import type { CanvasNode } from "./types/canvasNode";
 import type { CanvasEdge } from "./types/canvasEdge";
-import { useServerService } from "../services/resources/server.service";
-import type { Server } from "../stores/resources/server.store";
+import { useServerStore } from "../stores/resources/server.store";
 import { useUIStore } from "../stores/canvas/ui.store";
 import { getVisibleResourceTypes, type LevelOfDetail } from "../types/levelOfDetail";
 
@@ -16,7 +15,7 @@ export function useCanvasProjection() {
     const UIStore = useUIStore();
     const viewStore = useViewStore();
     const resourceService = useResourceService();
-    const { getServer } = useServerService();
+    const serverStore = useServerStore();
 
     const apiConnectionStore = useApiConnectionStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
@@ -31,51 +30,9 @@ export function useCanvasProjection() {
     });
 
     const flowNodes = computed(() => {
-
         const visibleNodes = getVisibleNodes(UIStore.levelOfDetail, viewStore.viewNodes);
-
-        // const serverViewNodes = getServerViewNodes(visibleNodes);
-        // const serverCanvasNodes = getServerCanvasNodes(serverViewNodes);
-
-        // const serverNodeIds = new Set(
-        //     serverCanvasNodes.map(node => node.id)
-        // );
-
-        // const remainingNodes = visibleNodes.filter(
-        //     node => !serverNodeIds.has(node.id)
-        // );
-
-        // const viewNodes = remainingNodes.map(viewNode => {
-        //     if(viewNode.entityType === 'server') { return; }
-
-        //     const resource = resourceService.getResource(viewNode.entityId);
-        //     if(!resource){ return; }
-
-        //     const label = getResourceLabel(resource);
-
-        //     const node: CanvasNode = {
-        //         id: viewNode.id,
-        //         position: viewNode.position,
-        //         data: {
-        //             label: label,
-        //             type: resource.type
-        //         },
-        //         class: resource?.type
-        //     };
-        //     return node;
-        // }).filter(node => node !== undefined);
-
         const viewNodes = visibleNodes.map((viewNode) => resolveViewNode(viewNode)).filter(node => node !== undefined);
-        //TODO:
-        //Add children and parents
-
-
-        const nodes = [
-            // ...serverCanvasNodes,
-            ...viewNodes
-        ];
-
-        return nodes;
+        return viewNodes;
     });
 
     const flowEdges = computed(() => {
@@ -181,73 +138,19 @@ export function useCanvasProjection() {
         return visibleNodes;
     }
 
-    function getServerViewNodes(viewNodes: ViewNode[]): ViewNode[] {
-        return viewNodes.filter((viewNode) => {
-            return viewNode.entityType === 'server'
-        });
-    }
-
-    function getServerCanvasNodes(viewNodes: ViewNode[]): CanvasNode[] {
-        const serverCanvasNodes: CanvasNode[] = [];
-
-        for(const viewNode of viewNodes){
-            const server = getServer(viewNode.entityId);
-            const node: CanvasNode = {
-                id: viewNode.id,
-                position: viewNode.position,
-                style: {
-                    width: '300px',
-                    height: '200px'
-                },
-                data: {
-                    label: server?.name ?? 'Unknown',
-                    type: 'server'
-                },
-                class: 'server'
-            }
-            serverCanvasNodes.push(node);
-            if(server){
-                const childNodes = getServerChildNodes(server, node);
-                childNodes.forEach((childNode) => serverCanvasNodes.push(childNode));
-            }
-        }
-        return serverCanvasNodes;       
-    }
-
-    function getServerChildNodes(server: Server, serverCanvasNode: CanvasNode): CanvasNode[] {
-        const childNodes = server.entityIds.map((entityId) => {
-            const entity = resourceService.getResource(entityId);
-            const entityNode = entityIdToNodeMap.value.get(entityId);
-            if(!entity || !entityNode) return;
-
-            const label = getResourceLabel(entity);
-
-            const node: CanvasNode = {
-                id: entityNode.id,
-                position: entityNode.position,
-                parentNode: serverCanvasNode.id,
-                extent: 'parent',
-                data: {
-                    label: label, 
-                    type: entityNode.entityType,
-                },
-                class: entityNode.entityType
-            }
-            return node;
-        }).filter((entityNode) => entityNode !== undefined);
-        return childNodes;
-    }
-
     function resolveViewNode(viewNode: ViewNode): CanvasNode | undefined {
         const resource = resourceService.getResource(viewNode.entityId);
         if(!resource) { return; }
         const label = getResourceLabel(resource);
         const style = getResourceStyle(resource);
+        const parent = getResourceParent(resource);
 
         const node: CanvasNode = {
             id: viewNode.id,
             position: viewNode.position,
             style: style,
+            parentNode: parent,
+            extent: parent ? 'parent' : undefined,
             data: {
                 label: label,
                 type: resource.type
@@ -277,13 +180,44 @@ export function useCanvasProjection() {
     }
 
     function getResourceStyle(resource: Resource): any {
-        if(resource.type === 'server') {
-            return {
+        
+        switch (resource.type) {
+            case 'server':
+                return {
                     width: '300px',
                     height: '200px'
             }
+            case 'table':
+                return {
+                    width: '100px',
+                    height: '10px'
+                }
         }
         return undefined;
+    }
+
+    function getResourceParent(resource: Resource): string | undefined {
+        
+        switch (resource.type) {
+            case 'database':
+                const serverId = getDatabaseServer(resource);
+                if(!serverId) { return undefined; }
+                return entityIdToNodeMap.value.get(serverId)?.id;
+            case 'table':
+                return entityIdToNodeMap.value.get(resource.databaseId)?.id;
+        }
+        
+        return undefined;
+    }
+
+    function getDatabaseServer(resource: Resource): string | undefined {
+        if(resource.type !== 'database') return;
+        
+        for(const server of serverStore.servers){
+            if(server.entityIds.includes(resource.id)){
+                return server.id
+            }
+        }
     }
 
     return {
