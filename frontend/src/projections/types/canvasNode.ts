@@ -8,6 +8,10 @@ export interface CanvasNode {
   data: {
     label: string;
     type: NodeType | 'unknown'; //Change to 'type' when rendering each type seperately
+    parentPosition?: {
+      x: number,
+      y: number
+    }
   }
 
   parentNode?: string;

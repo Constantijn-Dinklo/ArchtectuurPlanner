@@ -1,6 +1,6 @@
 import { computed } from "vue";
 import { useResourceService, type Resource } from "../services/resources/resource.service";
-import { useViewStore, type ViewNode } from "../stores/canvas/view.store";
+import { useViewStore, type View, type ViewNode } from "../stores/canvas/view.store";
 import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useScriptStore } from "../stores/script.store";
@@ -8,7 +8,7 @@ import type { CanvasNode } from "./types/canvasNode";
 import type { CanvasEdge } from "./types/canvasEdge";
 import { useServerStore } from "../stores/resources/server.store";
 import { useUIStore } from "../stores/canvas/ui.store";
-import { getVisibleResourceTypes, type LevelOfDetail } from "../types/levelOfDetail";
+import { getVisibleResourceTypes, isResourceTypeVisible, type LevelOfDetail } from "../types/levelOfDetail";
 
 
 export function useCanvasProjection() {
@@ -145,15 +145,19 @@ export function useCanvasProjection() {
         const style = getResourceStyle(resource);
         const parent = getResourceParent(resource);
 
+        const hasVisibleParent = parent && isResourceTypeVisible(UIStore.levelOfDetail, parent.entityType)
+        const position = hasVisibleParent ? calculateChildPosition(parent, viewNode) : viewNode.position
+
         const node: CanvasNode = {
             id: viewNode.id,
-            position: viewNode.position,
+            position: position,
             style: style,
-            parentNode: parent,
+            parentNode: parent?.id,
             extent: parent ? 'parent' : undefined,
             data: {
                 label: label,
-                type: resource.type
+                type: resource.type,
+                parentPosition: parent ? parent.position : undefined
             },
             class: resource.type
         }
@@ -182,29 +186,36 @@ export function useCanvasProjection() {
     function getResourceStyle(resource: Resource): any {
         
         switch (resource.type) {
+            case 'database':
+                return {
+                    width: '200px',
+                    height: '100px'
+                }
             case 'server':
                 return {
-                    width: '300px',
-                    height: '200px'
+                    width: '600px',
+                    height: '300px'
             }
             case 'table':
                 return {
                     width: '100px',
-                    height: '10px'
+                    height: '10px',
+                    'font-size': '4px',
+                    'line-height': '1px'
                 }
         }
         return undefined;
     }
 
-    function getResourceParent(resource: Resource): string | undefined {
+    function getResourceParent(resource: Resource): ViewNode | undefined {
         
         switch (resource.type) {
             case 'database':
                 const serverId = getDatabaseServer(resource);
                 if(!serverId) { return undefined; }
-                return entityIdToNodeMap.value.get(serverId)?.id;
+                return entityIdToNodeMap.value.get(serverId);
             case 'table':
-                return entityIdToNodeMap.value.get(resource.databaseId)?.id;
+                return entityIdToNodeMap.value.get(resource.databaseId);
         }
         
         return undefined;
@@ -217,6 +228,13 @@ export function useCanvasProjection() {
             if(server.entityIds.includes(resource.id)){
                 return server.id
             }
+        }
+    }
+
+    function calculateChildPosition(parent: ViewNode, child: ViewNode) {
+        return {
+            x: child.position.x - parent.position.x,
+            y: child.position.y - parent.position.y
         }
     }
 

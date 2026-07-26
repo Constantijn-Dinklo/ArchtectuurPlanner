@@ -46,7 +46,6 @@ const ViewNodeSchema = new Schema<IViewNode>({
             required: true,
         }
     }
-
 },
 {
     timestamps: true,

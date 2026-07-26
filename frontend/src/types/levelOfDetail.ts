@@ -76,3 +76,10 @@ export function getVisibleResourceTypes(level: LevelOfDetail): ResourceType[] {
     .filter(([, rule]) => rule.visible)
     .map(([resourceType]) => resourceType as ResourceType)
 }
+
+export function isResourceTypeVisible(
+  level: LevelOfDetail,
+  resourceType: ResourceType
+): boolean {
+  return LevelOfDetailConfig[level][resourceType]?.visible ?? false
+}

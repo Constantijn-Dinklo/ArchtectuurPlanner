@@ -14,7 +14,10 @@ import { useArchitectureViewService } from "../../services/architectureView.serv
 
 const viewStore = useViewStore();
 const UIStore = useUIStore();
-const architectureViewService = useArchitectureViewService()
+const architectureViewService = useArchitectureViewService();
+
+const { getNodes } = useVueFlow()
+
 
 const flowNodes = useCanvasProjection().flowNodes;
 const flowEdges = useCanvasProjection().flowEdges;
@@ -29,7 +32,20 @@ function onNodeClick(event: any) {
 
 function onNodeDragStop(event: any){
   const node = event.node;
-  viewStore.updateViewNodePosition(node.id, node.position);
+  let newPosition = node.position;
+  if(node.parentNode) {
+    newPosition = {
+      x: node.data.parentPosition.x + node.position.x,
+      y: node.data.parentPosition.y + node.position.y
+    }
+  }
+  viewStore.updateViewNodePosition(node.id, newPosition);
+
+  for (const childNode of getNodes.value) {
+    if(childNode.parentNode === node.id){
+      viewStore.updateViewNodePosition(childNode.id, childNode.computedPosition)
+    }
+  }
 }
 
 function onEdgeClick(event: any) {
@@ -41,7 +57,6 @@ const { viewport } = useVueFlow()
 watch(
   () => viewport.value.zoom,
   (newZoom, oldZoom) => {
-    // console.log(`Zoom ${oldZoom} -> ${newZoom}`)
     if(newZoom > 0.7) {
       architectureViewService.changeLevelOfDetail('database');
     }
