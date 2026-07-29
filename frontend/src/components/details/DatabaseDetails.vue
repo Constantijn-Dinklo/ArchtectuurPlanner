@@ -31,6 +31,10 @@
         tableService.createTable(newTableName.value, databaseId);
     }
 
+    function deleteTable(tableId: string) {
+        tableService.deleteTable(tableId);
+    }
+
 </script>
 
 <template>
@@ -54,6 +58,7 @@
             </div>
             <div v-for="table in tableStore.getTables(database.id)">
                 {{ table.name }}
+                <button @click="deleteTable(table.id)">X</button>
             </div>
         </div>
          <div v-if="selectedNodeProjection.nodeInfo.value">

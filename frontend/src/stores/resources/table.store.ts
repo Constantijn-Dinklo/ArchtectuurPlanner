@@ -39,9 +39,15 @@ export const useTableStore = defineStore('table', () => {
         return res.data;
     }
 
+    async function deleteTable(tableId: string) {
+        const res = await api.delete(`/tables/${tableId}`);
+        tables.value = tables.value.filter((table) => table.id !== res.data.resourceId);
+        return res.data;
+    }
+
     function getTables(databaseId: string) {
         return tables.value.filter((table) => table.databaseId === databaseId)
     }
 
-    return { tables, fetchTables, createTable, getTables }
+    return { tables, fetchTables, createTable, deleteTable, getTables }
 });

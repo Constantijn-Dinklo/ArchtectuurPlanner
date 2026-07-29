@@ -152,7 +152,7 @@ export function useCanvasProjection() {
             id: viewNode.id,
             position: position,
             style: style,
-            parentNode: parent?.id,
+            parentNode: hasVisibleParent ? parent.id : undefined,
             extent: parent ? 'parent' : undefined,
             data: {
                 label: label,

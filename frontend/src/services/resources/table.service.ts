@@ -12,5 +12,10 @@ export function useTableService() {
         viewStore.addViewNode(res.viewNode);
     }
 
-    return { createTable }
+    async function deleteTable(tableId: string) {
+        const res = await tableStore.deleteTable(tableId);
+        viewStore.removeViewNode(res.viewNodeId);
+    }
+
+    return { createTable, deleteTable }
 }

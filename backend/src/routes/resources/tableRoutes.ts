@@ -3,6 +3,7 @@ import express, { Router, Response } from "express";
 import Table from "../../models/resources/table.model";
 import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
 import { createTable } from "../../services/table.service";
+import ViewNode from "../../models/canvas/viewNode.model";
 
 const router: Router = express.Router();
 
@@ -62,7 +63,27 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
             },
             { returnDocument: 'after' }
         );
-        res.json(deleted);
+
+        const deletedNode = await ViewNode.findOneAndDelete({
+            organisationId: user.organisationId,
+            entityId: req.params.id
+        });
+
+        if (!deleted || !deletedNode) {
+            res.json({
+                status: 403,
+                success: false,
+                message: 'The Table was not deleted correctly.',
+            });
+        }
+
+        res.json({
+            status: 200,
+            success: true,
+            message: 'Table deleted successfully',
+            resourceId: deleted?._id,
+            viewNodeId: deletedNode?._id
+        });
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
