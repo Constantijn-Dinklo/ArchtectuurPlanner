@@ -13,6 +13,7 @@
 
     function onVersionChange() {
         if(!application.value) { return }
+        console.log("Version change")
         applicationStore.updateApplication(application.value.id, application.value);
     }
 </script>

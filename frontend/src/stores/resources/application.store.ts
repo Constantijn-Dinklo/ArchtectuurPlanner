@@ -40,6 +40,7 @@ export const useApplicationStore = defineStore('application', () => {
     }
 
     async function updateApplication(id: string, patch: Partial<Application>) {
+        console.log(patch);
         const res = await api.patch(`/applications/${id}`, patch);
         const application = applications.value.find(a => a.id === id);
         if(!application) return;

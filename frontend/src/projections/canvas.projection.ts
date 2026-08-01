@@ -141,6 +141,7 @@ export function useCanvasProjection() {
     function resolveViewNode(viewNode: ViewNode): CanvasNode | undefined {
         const resource = resourceService.getResource(viewNode.entityId);
         if(!resource) { return; }
+        const nodeType = getNodeType(resource);
         const label = getResourceLabel(resource);
         const style = getResourceStyle(resource);
         const parent = getResourceParent(resource);
@@ -150,18 +151,29 @@ export function useCanvasProjection() {
 
         const node: CanvasNode = {
             id: viewNode.id,
+            type: nodeType,
             position: position,
             style: style,
             parentNode: hasVisibleParent ? parent.id : undefined,
             extent: parent ? 'parent' : undefined,
             data: {
                 label: label,
-                type: resource.type,
+                // type: resource.type,
+                resourceId: viewNode.entityId,
                 parentPosition: parent ? parent.position : undefined
             },
             class: resource.type
         }
         return node;
+    }
+
+    function getNodeType(resource: Resource): string {
+        switch (resource.type) {
+            case 'table':
+                return 'table'
+        }
+
+        return 'default';
     }
 
     function getResourceLabel(resource: Resource): string {
@@ -189,7 +201,7 @@ export function useCanvasProjection() {
             case 'database':
                 return {
                     width: '200px',
-                    height: '100px'
+                    height: '150px'
                 }
             case 'server':
                 return {
@@ -198,8 +210,8 @@ export function useCanvasProjection() {
             }
             case 'table':
                 return {
-                    width: '100px',
-                    height: '10px',
+                    width: '50px',
+                    height: '100px',
                     'font-size': '4px',
                     'line-height': '1px'
                 }

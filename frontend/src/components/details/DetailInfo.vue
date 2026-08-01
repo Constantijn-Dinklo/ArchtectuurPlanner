@@ -3,9 +3,10 @@
     import { useSelectedEdgeProjection } from '../../projections/selectedEdge.projection.ts';
     import { useSelectedNodeProjection } from '../../projections/selectedNode.projection.ts';
     import ConnectionsDetail from '../ConnectionsDetail.vue';
-import ApplicationDetails from './ApplicationDetails.vue';
+    import ApplicationDetails from './ApplicationDetails.vue';
     import DatabaseDetails from './DatabaseDetails.vue';
     import ServerDetails from './ServerDetails.vue';
+    import TableDetails from './TableDetails.vue';
 
     const selectedNodeProjection = useSelectedNodeProjection();
     const selectedEdgeProjection = useSelectedEdgeProjection();
@@ -22,6 +23,9 @@ import ApplicationDetails from './ApplicationDetails.vue';
         </div>
         <div v-else-if="selectedNodeProjection.nodeInfo.value.node.type === 'server'">
             <ServerDetails />
+        </div>
+        <div v-else-if="selectedNodeProjection.nodeInfo.value.node.type === 'table'">
+            <TableDetails />
         </div>
         <div v-else>
             {{ selectedNodeProjection.nodeInfo.value.node.name }}

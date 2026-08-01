@@ -6,18 +6,21 @@ import { Background } from "@vue-flow/background";
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
 
-import { onMounted, watch } from "vue";
+import { markRaw, onMounted, watch } from "vue";
 import { useViewStore } from "../../stores/canvas/view.store";
 import { useCanvasProjection } from "../../projections/canvas.projection";
 import { useUIStore } from "../../stores/canvas/ui.store";
 import { useArchitectureViewService } from "../../services/architectureView.service";
+import TableNode from "../nodes/TableNode.vue";
 
 const viewStore = useViewStore();
 const UIStore = useUIStore();
 const architectureViewService = useArchitectureViewService();
 
-const { getNodes } = useVueFlow()
-
+const { getNodes } = useVueFlow();
+const nodeTypes = {
+  table: markRaw(TableNode)
+}
 
 const flowNodes = useCanvasProjection().flowNodes;
 const flowEdges = useCanvasProjection().flowEdges;
@@ -75,6 +78,7 @@ watch(
       :max-zoom="200"
       :nodes="flowNodes"
       :edges="flowEdges"
+      :node-types="nodeTypes"
       fit-view-on-init
       @node-click="onNodeClick"
       @node-drag-stop="onNodeDragStop"

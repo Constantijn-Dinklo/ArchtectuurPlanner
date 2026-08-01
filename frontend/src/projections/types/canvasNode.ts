@@ -4,10 +4,13 @@ export type NodeType = 'application' | 'database' | 'fileLocation' | 'server' | 
 
 export interface CanvasNode {
   id: string;
+
+  type: string;
   
   data: {
     label: string;
-    type: NodeType | 'unknown'; //Change to 'type' when rendering each type seperately
+    // type: NodeType | 'unknown'; //Change to 'type' when rendering each type seperately
+    resourceId: string;
     parentPosition?: {
       x: number,
       y: number
