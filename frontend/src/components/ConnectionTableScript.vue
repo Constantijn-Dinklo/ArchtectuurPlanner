@@ -107,7 +107,7 @@ function deleteScript(scriptId: string) {
         <div v-for="(input, index) in data.outputIds" :key="index">
           <Select 
             v-model="data.outputIds[index]"
-            :options="resourceService.getByType(['application', 'fileLocation'])"
+            :options="resourceService.getByType(['application', 'database', 'fileLocation'])"
             optionLabel="name"
             optionValue="id"
             placeholder="Select application"

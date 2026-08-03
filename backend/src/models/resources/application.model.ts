@@ -20,7 +20,7 @@ const ApplicationSchema = new Schema<IApplication>({
     version: {
         type: Schema.Types.String
     }
-}, 
+},
 {
     timestamps: true,
     toJSON:  {

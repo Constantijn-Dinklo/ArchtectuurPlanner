@@ -33,8 +33,8 @@
                 <button @click="createColumn(table.id)">Add</button>
             </div>
             <div v-for="column in table.columns">
-                {{ column }}
-                <button @click="deleteColumn(table.id, column)">X</button>
+                {{ column.fieldName }}
+                <button @click="deleteColumn(table.id, column.id)">X</button>
             </div>
         </div>
     </div>

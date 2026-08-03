@@ -4,6 +4,7 @@ import Table from "../../models/resources/table.model";
 import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
 import { createTable } from "../../services/table.service";
 import ViewNode from "../../models/canvas/viewNode.model";
+import InformationField from "../../models/informationField.model";
 
 const router: Router = express.Router();
 
@@ -13,7 +14,7 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
     try {
         const tables = await Table.find({
             organisationId: user.organisationId
-        });
+        }).populate('columns');
         res.json(tables);
     }
     catch(err: any) {
@@ -35,6 +36,8 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
 
 router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
+
+    console.log(req.body);
 
     try {
         const updated = await Table.findOneAndUpdate(
@@ -89,5 +92,34 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
         res.status(400).json({ error: err.message });
     }
 })
+
+router.post('/:id/column', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    const user = getUser(req);
+
+    try {
+        const newInformationField = await new InformationField({
+            organisationId: user.organisationId,
+            fieldName: req.body.fieldName
+        });
+        await newInformationField.save();
+
+        await Table.findOneAndUpdate(
+            {
+                _id: req.body.tableId,
+                organisationId: user.organisationId
+            },
+            {
+                $push: {
+                    columns: newInformationField._id
+                }
+            }
+        );
+
+        res.status(201).json(newInformationField);
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
 
 export default router;

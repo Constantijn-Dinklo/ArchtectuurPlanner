@@ -2,11 +2,12 @@ import { defineStore } from "pinia";
 import type { BaseResource } from "../../types/resource.type";
 import { ref } from "vue";
 import api from "../../helpers/axios";
+import type { InformationField } from "../../types/informationField.type";
 
 export interface Table extends BaseResource {
     type: 'table',
     databaseId: string;
-    columns: string[];
+    columns: InformationField[];
 }
 
 export const useTableStore = defineStore('table', () => {
@@ -15,6 +16,7 @@ export const useTableStore = defineStore('table', () => {
     async function fetchTables() {
         const res = await api.get('/tables');
         const data = res.data as Table[];
+        console.log(data);
 
         tables.value = data.map((t) => ({
             ...t,
@@ -52,19 +54,20 @@ export const useTableStore = defineStore('table', () => {
     async function createColumn(tableId: string, columnName: string) {
         const table = tables.value.find(t => t.id === tableId);
         if(!table) return;
-        table.columns.push(columnName);
-        const res = await api.patch(`/tables/${tableId}`, table);
-        
-        //Remove column if the backend had an error
-        if(res.status === 200) { return; }
-        table.columns.pop();
+        const res = await api.post(`/tables/${tableId}/column`, {
+            tableId,
+            fieldName: columnName
+        });
+
+        table.columns.push(res.data);
     }
 
-    async function deleteColumn(tableId: string, columnName: string) {
+    async function deleteColumn(tableId: string, fieldId: string) {
         const table = tables.value.find(t => t.id === tableId);
         if(!table) return;
         const oldColumns = table.columns;
-        table.columns = table.columns.filter(column => column !== columnName);
+        table.columns = table.columns.filter(column => column.id !== fieldId);
+        console.log(table);
         const res = await api.patch(`/tables/${tableId}`, table);
         
         if(res.status === 200) { return; }

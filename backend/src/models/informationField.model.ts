@@ -1,34 +1,21 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
-
-export interface ITable extends Document {
+export interface IInformationField extends Document {
     organisationId: Types.ObjectId;
-    databaseId: Types.ObjectId;
-    name: string;
-    columns: [Types.ObjectId];
+    fieldName: string;
 }
 
-const TableSchema = new Schema<ITable>({
+const InformationFieldSchema = new Schema<IInformationField>({
     organisationId: {
         type: Schema.Types.ObjectId,
         ref: 'Organisation',
         required: true,
         index: true
     },
-    databaseId: {
-        type: Schema.Types.ObjectId,
-        ref: 'Database',
-        required: true,
-        index: true
-    },
-    name: {
+    fieldName: {
         type: Schema.Types.String,
-        required: true
-    },
-    columns: [{
-        type: Schema.Types.ObjectId,
-        ref: 'InformationField'
-    }]
+        required: true,
+    }
 },
 {
     timestamps: true,
@@ -50,6 +37,6 @@ const TableSchema = new Schema<ITable>({
     }
 });
 
-const Table: Model<ITable> = mongoose.model<ITable>('Table', TableSchema);
+const InformationField: Model<IInformationField> = mongoose.model<IInformationField>('InformationField', InformationFieldSchema);
 
-export default Table;
+export default InformationField;
