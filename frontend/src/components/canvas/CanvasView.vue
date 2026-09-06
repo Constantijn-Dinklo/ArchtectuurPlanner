@@ -12,6 +12,7 @@ import { useCanvasProjection } from "../../projections/canvas.projection";
 import { useUIStore } from "../../stores/canvas/ui.store";
 import { useArchitectureViewService } from "../../services/architectureView.service";
 import TableNode from "../nodes/TableNode.vue";
+import ApplicationNode from "../nodes/ApplicationNode.vue";
 
 const viewStore = useViewStore();
 const UIStore = useUIStore();
@@ -19,6 +20,7 @@ const architectureViewService = useArchitectureViewService();
 
 const { getNodes } = useVueFlow();
 const nodeTypes = {
+  application: markRaw(ApplicationNode),
   table: markRaw(TableNode)
 }
 
@@ -38,8 +40,8 @@ function onNodeDragStop(event: any){
   let newPosition = node.position;
   if(node.parentNode) {
     newPosition = {
-      x: node.data.parentPosition.x + node.position.x,
-      y: node.data.parentPosition.y + node.position.y
+      x: node.parentPosition.x + node.position.x,
+      y: node.parentPosition.y + node.position.y
     }
   }
   viewStore.updateViewNodePosition(node.id, newPosition);

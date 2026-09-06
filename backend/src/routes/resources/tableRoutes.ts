@@ -2,9 +2,9 @@ import express, { Router, Response } from "express";
 
 import Table from "../../models/resources/table.model";
 import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
-import { createTable } from "../../services/table.service";
+import { createTable, addTableColumn, removeTableColumn } from "../../services/table.service";
 import ViewNode from "../../models/canvas/viewNode.model";
-import InformationField from "../../models/informationField.model";
+import { IResourceFieldExpanded, resolveResourceField } from "../../models/resources/resourceField.model";
 
 const router: Router = express.Router();
 
@@ -14,10 +14,17 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
     try {
         const tables = await Table.find({
             organisationId: user.organisationId
-        }).populate('columns');
-        res.json(tables);
+        }).populate<{ columns: IResourceFieldExpanded[] }>('columns.informationFieldId');
+
+        const result = tables.map(table => ({
+            ...table.toJSON(),
+            columns: table.columns.map(resolveResourceField)
+        }));
+
+        res.json(result);
     }
     catch(err: any) {
+        console.log("Error");
         res.status(400).json({ error: err.message });
     }
 });
@@ -37,8 +44,6 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
 router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
-    console.log(req.body);
-
     try {
         const updated = await Table.findOneAndUpdate(
             {
@@ -48,7 +53,7 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
             { $set: req.body },
             { returnDocument: 'after'}
         );
-        res.json(updated)
+        res.json(updated);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
@@ -93,29 +98,24 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
     }
 })
 
-router.post('/:id/column', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/columns', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
-        const newInformationField = await new InformationField({
-            organisationId: user.organisationId,
-            fieldName: req.body.fieldName
-        });
-        await newInformationField.save();
+        const resultTable = await addTableColumn(user, req.body.tableId, req.body.informationField);
+        res.status(201).json(resultTable);
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
 
-        await Table.findOneAndUpdate(
-            {
-                _id: req.body.tableId,
-                organisationId: user.organisationId
-            },
-            {
-                $push: {
-                    columns: newInformationField._id
-                }
-            }
-        );
+router.patch('/:id/columns', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+    const user = getUser(req);
 
-        res.status(201).json(newInformationField);
+    try {
+        const resultTable = await removeTableColumn(user, req.params.id as string, req.body.informationFieldId);
+        res.status(201).json(resultTable);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });

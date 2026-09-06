@@ -18,7 +18,7 @@ export const LevelOfDetailConfig: Record<LevelOfDetail, LevelOfDetailConfig> = {
         application: {
             visible: true,
             expandable: true,
-            expanded: true,
+            expanded: false,
         },
         database: {
             visible: true,
@@ -82,4 +82,11 @@ export function isResourceTypeVisible(
   resourceType: ResourceType
 ): boolean {
   return LevelOfDetailConfig[level][resourceType]?.visible ?? false
+}
+
+export function isResourceTypeExpanded(
+  level: LevelOfDetail,
+  resourceType: ResourceType
+): boolean {
+  return LevelOfDetailConfig[level][resourceType]?.expanded ?? false
 }

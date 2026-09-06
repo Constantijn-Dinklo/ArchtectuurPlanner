@@ -9,8 +9,8 @@ import { useDatabaseConnectionStore, type DatabaseConnection, type DatabaseOpera
 import { useDatabaseConnectionService } from '../services/databaseConnection.service';
 import { useResourceService } from '../services/resources/resource.service';
 
-const databaseConnectionService = useDatabaseConnectionService();
 const databaseConnectionStore = useDatabaseConnectionStore();
+const databaseConnectionService = useDatabaseConnectionService();
 
 const resourceService = useResourceService();
 
@@ -40,7 +40,7 @@ function addDBConnection() {
 function onCellEditComplete(event: any){
   const { data, newValue, field } = event;
   //TODO: add in a check to make sure that the sourceId an targetId are not equal
-  databaseConnectionService.updateDatabaseConnection(data.id, { [field]: newValue })
+  databaseConnectionStore.updateDatabaseConnection(data.id, { [field]: newValue })
 }
 
 function hasOperation(data: DatabaseConnection, operation: DatabaseOperation) {
@@ -58,7 +58,7 @@ function toggleOperation(data: DatabaseConnection, operation: DatabaseOperation,
         operations = operations.filter(op => op !== operation);
     }
 
-    databaseConnectionService.updateDatabaseConnection(data.id, {
+    databaseConnectionStore.updateDatabaseConnection(data.id, {
         operation: operations
     });
 }

@@ -1,9 +1,12 @@
 import { useViewStore } from "../../stores/canvas/view.store";
 import { useDatabaseStore } from "../../stores/resources/database.store";
+import { useTableStore, type Table } from "../../stores/resources/table.store";
 
 export function useDatabaseService() {
     const databaseStore = useDatabaseStore();
     const viewStore = useViewStore();
+
+    const tableStore = useTableStore();
 
     async function createDatabase(name: string) {
         const currentViewId = viewStore.currentViewId;
@@ -16,5 +19,9 @@ export function useDatabaseService() {
         viewStore.removeViewNode(res.viewNodeId);
     }
 
-    return { createDatabase, deleteDatabase }
+    function getDatabaseTables(databaseId: string): Table[]{
+        return tableStore.tables.filter((table) => table.databaseId === databaseId);
+    }
+
+    return { createDatabase, deleteDatabase, getDatabaseTables }
 }

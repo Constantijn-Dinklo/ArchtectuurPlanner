@@ -11,13 +11,13 @@ export interface CanvasNode {
     label: string;
     // type: NodeType | 'unknown'; //Change to 'type' when rendering each type seperately
     resourceId: string;
-    parentPosition?: {
-      x: number,
-      y: number
-    }
   }
 
   parentNode?: string;
+  parentPosition?: {
+    x: number,
+    y: number
+  }
   extent?: 'parent' | CoordinateExtent | CoordinateExtentRange;
 
   position: {

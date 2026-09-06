@@ -7,10 +7,6 @@ export function useDatabaseConnectionService() {
 
     const resourceService = useResourceService();
 
-    async function updateDatabaseConnection(id: string, patch: Partial<DatabaseConnection>) {
-        const updatedConnection = await databaseConnectionStore.updateDatabaseConnection(id, patch);
-    }
-
     async function deleteDatabaseConnection(id: string) {
         const deletedApiConnection = await databaseConnectionStore.deleteDatabaseConnection(id);
         if(!deletedApiConnection) return;
@@ -26,5 +22,5 @@ export function useDatabaseConnectionService() {
         }
     }
 
-    return { updateDatabaseConnection, deleteDatabaseConnection, resolveConnection }
+    return { deleteDatabaseConnection, resolveConnection }
 }

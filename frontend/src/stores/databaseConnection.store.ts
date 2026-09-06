@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import api from "../helpers/axios";
+import type { InformationField } from "../types/informationField.type";
 
 export type DatabaseOperation = 'read' | 'write';
 
@@ -11,6 +12,9 @@ export interface DatabaseConnection {
     entityId: string;
 
     operation: DatabaseOperation[];
+
+    //Frontend fields
+    accessibleInformationFields: InformationField[];
 }
 
 export const useDatabaseConnectionStore = defineStore('databaseConnection', () => {
@@ -19,7 +23,11 @@ export const useDatabaseConnectionStore = defineStore('databaseConnection', () =
     async function fetchDatabaseConnections() {
         const res = await api.get('/databaseConnections');
         const data = res.data as DatabaseConnection[];
-        databaseConnections.value = data;
+        databaseConnections.value = data.map(d => ({
+            ...d,
+            accessibleInformationFields: []
+        }));
+        console.log(databaseConnections);
     }
 
     async function createDatabaseConnection(databaseId: string, entityId: string) {
@@ -31,6 +39,7 @@ export const useDatabaseConnectionStore = defineStore('databaseConnection', () =
             id: res.data.id,
             databaseId: res.data.databaseId,
             entityId: res.data.entityId,
+            accessibleInformationFields: [],
             operation: res.data.operation
         }
 

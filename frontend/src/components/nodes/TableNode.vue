@@ -1,17 +1,17 @@
 
 <script setup lang="ts">
-import type { NodeProps } from '@vue-flow/core';
-import { computed } from 'vue';
-import { useResourceService } from '../../services/resources/resource.service';
-import type { Table } from '../../stores/resources/table.store';
+    import type { NodeProps } from '@vue-flow/core';
+    import { computed } from 'vue';
+    import { useResourceService } from '../../services/resources/resource.service';
+    import type { Table } from '../../stores/resources/table.store';
 
-const props = defineProps<NodeProps>();
-const resourceService = useResourceService();
+    const props = defineProps<NodeProps>();
+    const resourceService = useResourceService();
 
 
-const table = computed(() =>
-    resourceService.getResource(props.data.resourceId) as Table | undefined
-);
+    const table = computed(() =>
+        resourceService.getResource(props.data.resourceId) as Table | undefined
+    );
 </script>
 
 <template>
@@ -22,7 +22,7 @@ const table = computed(() =>
         <div>
             <ul v-for="column in table.columns" class="column-list">
                 <li>
-                    {{ column }}
+                    {{ column.fieldName }}
                 </li>
             </ul>
         </div>

@@ -1,11 +1,12 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
+import { IResourceField, ResourceFieldSchema } from './resourceField.model';
 
 
 export interface ITable extends Document {
     organisationId: Types.ObjectId;
     databaseId: Types.ObjectId;
     name: string;
-    columns: [Types.ObjectId];
+    columns: IResourceField[];
 }
 
 const TableSchema = new Schema<ITable>({
@@ -25,10 +26,10 @@ const TableSchema = new Schema<ITable>({
         type: Schema.Types.String,
         required: true
     },
-    columns: [{
-        type: Schema.Types.ObjectId,
-        ref: 'InformationField'
-    }]
+    columns: {
+        type: [ResourceFieldSchema],
+        required: true,
+    }
 },
 {
     timestamps: true,

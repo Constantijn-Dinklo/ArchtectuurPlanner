@@ -6,9 +6,13 @@ import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useScriptStore } from "../stores/script.store";
 import type { CanvasNode } from "./types/canvasNode";
 import type { CanvasEdge } from "./types/canvasEdge";
-import { useServerStore } from "../stores/resources/server.store";
+import { useServerStore, type Server } from "../stores/resources/server.store";
 import { useUIStore } from "../stores/canvas/ui.store";
-import { getVisibleResourceTypes, isResourceTypeVisible, type LevelOfDetail } from "../types/levelOfDetail";
+import { getVisibleResourceTypes, isResourceTypeExpanded, isResourceTypeVisible, type LevelOfDetail } from "../types/levelOfDetail";
+import type { Application } from "../stores/resources/application.store";
+import type { Database } from "../stores/resources/database.store";
+import type { Table } from "../stores/resources/table.store";
+import type { InformationField } from "../types/informationField.type";
 
 
 export function useCanvasProjection() {
@@ -141,82 +145,35 @@ export function useCanvasProjection() {
     function resolveViewNode(viewNode: ViewNode): CanvasNode | undefined {
         const resource = resourceService.getResource(viewNode.entityId);
         if(!resource) { return; }
-        const nodeType = getNodeType(resource);
-        const label = getResourceLabel(resource);
-        const style = getResourceStyle(resource);
         const parent = getResourceParent(resource);
 
         const hasVisibleParent = parent && isResourceTypeVisible(UIStore.levelOfDetail, parent.entityType)
         const position = hasVisibleParent ? calculateChildPosition(parent, viewNode) : viewNode.position
 
+        let resolvedViewNode = undefined;
+        if(resource.type === 'application') {
+            resolvedViewNode = resolveApplicationNode(resource);
+        }
+        else if (resource.type === 'database'){
+            resolvedViewNode = resolveDatabaseNode(resource);
+        }
+        else if (resource.type === 'server') {
+            resolvedViewNode = resolveServerNode(resource);
+        }
+        else if (resource.type === 'table') {
+            resolvedViewNode = resolveTableNode(resource);
+        }
+        if(!resolvedViewNode) { return }
         const node: CanvasNode = {
+            ...resolvedViewNode,
             id: viewNode.id,
-            type: nodeType,
             position: position,
-            style: style,
             parentNode: hasVisibleParent ? parent.id : undefined,
+            parentPosition: parent?.position,
             extent: parent ? 'parent' : undefined,
-            data: {
-                label: label,
-                // type: resource.type,
-                resourceId: viewNode.entityId,
-                parentPosition: parent ? parent.position : undefined
-            },
             class: resource.type
         }
         return node;
-    }
-
-    function getNodeType(resource: Resource): string {
-        switch (resource.type) {
-            case 'table':
-                return 'table'
-        }
-
-        return 'default';
-    }
-
-    function getResourceLabel(resource: Resource): string {
-        let label = resource.name;
-
-        switch (resource.type) {
-            case 'application':
-                if(resource.version){
-                    label += ' (' + resource.version + ')'
-                }
-                break;
-            case 'database':
-                if(resource.engine){
-                    label += ' (' + resource.engine + ')'
-                }
-                break;
-        }
-
-        return label;
-    }
-
-    function getResourceStyle(resource: Resource): any {
-        
-        switch (resource.type) {
-            case 'database':
-                return {
-                    width: '200px',
-                    height: '150px'
-                }
-            case 'server':
-                return {
-                    width: '600px',
-                    height: '300px'
-            }
-            case 'table':
-                return {
-                    width: '50px',
-                    height: '100px',
-                    'font-size': '4px',
-                    'line-height': '1px'
-                }
-        }
-        return undefined;
     }
 
     function getResourceParent(resource: Resource): ViewNode | undefined {
@@ -247,6 +204,86 @@ export function useCanvasProjection() {
         return {
             x: child.position.x - parent.position.x,
             y: child.position.y - parent.position.y
+        }
+    }
+
+    function resolveApplicationNode(application: Application) {
+        let label = application.name;
+        if(application.version){
+            label += ' (' + application.version + ')'
+        }
+
+        let style = undefined;
+        let inputInformationFields: InformationField[] | undefined = undefined;
+        let outputInformationFields: InformationField[] | undefined = undefined;
+        if(isResourceTypeExpanded(UIStore.levelOfDetail, 'application')){
+            style = {
+                width: '150px',
+                height: '100px'                
+            }
+            inputInformationFields = application.inputInformationFields;
+            outputInformationFields = application.outputInformationFields;
+        }
+
+        return {
+            type: 'application',
+            style,
+            data:{
+                label,
+                inputInformationFields,
+                outputInformationFields,
+                resourceId: application.id
+            }
+        }
+    }
+
+    function resolveDatabaseNode(database: Database) {
+        let label = database.name;
+        if(database.engine){
+            label += ' (' + database.engine + ')'
+        }
+
+        return {
+            type: 'default',
+            style: {
+                width: '200px',
+                height: '150px'
+            },
+            data: {
+                label,
+                resourceId: database.id
+            }
+        }
+    }
+
+    function resolveTableNode(table: Table) {
+
+        return {
+            type: 'table',
+            style: {
+                width: '50px',
+                height: '100px',
+                'font-size': '6px',
+                'line-height': '2px'
+            },
+            data: {
+                label: table.name,
+                resourceId: table.id
+            }
+        }
+    }
+
+    function resolveServerNode(server: Server) {
+        return {
+            type: 'default',
+            style: {
+                width: '600px',
+                height: '300px'
+            },
+            data: {
+                label: server.name,
+                resourceId: server.id
+            }
         }
     }
 

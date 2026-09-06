@@ -1,9 +1,12 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
+import { IResourceField, ResourceFieldSchema } from './resourceField.model';
 
 export interface IApplication extends Document {
     organisationId: Types.ObjectId;
     name: string;
     version: string;
+    inputInformationFields: IResourceField[];
+    outputInformationFields: IResourceField[];
 }
 
 const ApplicationSchema = new Schema<IApplication>({
@@ -19,6 +22,14 @@ const ApplicationSchema = new Schema<IApplication>({
     },
     version: {
         type: Schema.Types.String
+    },
+    inputInformationFields: {
+        type: [ResourceFieldSchema],
+        required: true,
+    },
+    outputInformationFields: {
+        type: [ResourceFieldSchema],
+        required: true,
     }
 },
 {

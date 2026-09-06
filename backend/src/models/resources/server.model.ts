@@ -10,10 +10,6 @@ export interface IServer extends Document {
 }
 
 const ServerSchema = new Schema<IServer>({
-    // resourceId: {
-    //     type: Schema.Types.ObjectId,
-    //     ref: 'Resource'
-    // },
     organisationId: {
         type: Schema.Types.ObjectId,
         ref: 'Organisation',
