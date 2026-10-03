@@ -10,6 +10,11 @@ export function useTableService() {
         const currentViewId = viewStore.currentViewId;
         const res = await tableStore.createTable(name, databaseId, currentViewId);
         viewStore.addViewNode(res.viewNode);
+        return res.table.id as string;
+    }
+
+    async function renameTable(tableId: string, name: string) {
+        await tableStore.renameTable(tableId, name);
     }
 
     async function deleteTable(tableId: string) {
@@ -17,5 +22,5 @@ export function useTableService() {
         viewStore.removeViewNode(res.viewNodeId);
     }
 
-    return { createTable, deleteTable }
+    return { createTable, renameTable, deleteTable }
 }

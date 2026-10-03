@@ -25,5 +25,6 @@ export interface CanvasNode {
     y: number;
   };
   style?: any;
+  draggable?: boolean;
   class?: string;
 }

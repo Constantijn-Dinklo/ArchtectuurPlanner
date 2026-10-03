@@ -1,5 +1,5 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
-import { IResourceField, ResourceFieldSchema } from './resourceField.model';
+import { IResourceField, ResourceFieldSchema } from '../information/resourceField.model';
 
 
 export interface ITable extends Document {

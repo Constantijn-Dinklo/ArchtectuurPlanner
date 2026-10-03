@@ -15,6 +15,8 @@ import apiRoutes from './routes/apiRoutes';
 import apiConnectionRoutes from './routes/apiConnectionRoutes';
 import databaseConnectionRoutes from './routes/databaseConnectionRoutes';
 import scriptRoutes from './routes/scriptRoutes';
+import informationObjectRoutes from './routes/informationObjectRoutes';
+import informationRelationRoutes from './routes/informationRelationRoutes';
 
 
 import viewRoutes from './routes/canvas/viewRoutes';
@@ -50,6 +52,10 @@ app.use('/servers', serverRoutes);
 app.use('/tables', tableRoutes);
 
 app.use('/apis', apiRoutes);
+
+// ** Information ** //
+app.use('/informationObjects', informationObjectRoutes);
+app.use('/informationRelations', informationRelationRoutes);
 
 // ** Connections ** //
 app.use('/apiConnections', apiConnectionRoutes);

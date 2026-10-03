@@ -7,6 +7,7 @@ import { useScriptStore } from "../stores/script.store";
 import { useApiConnectionService } from "../services/apiConnection.service";
 import { useDatabaseConnectionService } from "../services/databaseConnection.service";
 import { useResourceService } from "../services/resources/resource.service";
+import { useResourceResolver } from "../resolvers/resource.resolver";
 
 
 
@@ -15,6 +16,7 @@ export function useSelectedNodeProjection() {
     const viewStore = useViewStore();
 
     const resourceService = useResourceService();
+    const resourceResolver = useResourceResolver();
 
     const apiConnectionStore = useApiConnectionStore();
     const scriptStore = useScriptStore();
@@ -80,8 +82,9 @@ export function useSelectedNodeProjection() {
         const selectedEntityId = getSelectedEntityId();
         if(!selectedEntityId) { return }
 
-        const node = resourceService.getResource(selectedEntityId);
-        if(!node) { return }
+        const resource = resourceService.getResource(selectedEntityId);
+        if(!resource) { return }
+        const node = resourceResolver.resolveResource(resource);
         
         const apiConnections = getResourceApiConnections(selectedEntityId);
         const scripts = getResourceScripts(selectedEntityId)

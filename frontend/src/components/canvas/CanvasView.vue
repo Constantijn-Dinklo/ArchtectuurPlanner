@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VueFlow } from "@vue-flow/core";
+import { Panel, VueFlow } from "@vue-flow/core";
 import { useVueFlow } from '@vue-flow/core'
 import { Background } from "@vue-flow/background";
 
@@ -13,15 +13,27 @@ import { useUIStore } from "../../stores/canvas/ui.store";
 import { useArchitectureViewService } from "../../services/architectureView.service";
 import TableNode from "../nodes/TableNode.vue";
 import ApplicationNode from "../nodes/ApplicationNode.vue";
+import DatabaseNode from "../nodes/DatabaseNode.vue";
+import ConnectionEdge from "../edges/ConnectionEdge.vue";
+import { useInformationRelationStore } from "../../stores/information/informationRelation.store";
+import { useApplicationStore } from "../../stores/resources/application.store";
+import { useTableStore } from "../../stores/resources/table.store";
 
 const viewStore = useViewStore();
 const UIStore = useUIStore();
 const architectureViewService = useArchitectureViewService();
+const informationRelationStore = useInformationRelationStore();
+const applicationStore = useApplicationStore();
+const tableStore = useTableStore();
 
 const { getNodes } = useVueFlow();
 const nodeTypes = {
   application: markRaw(ApplicationNode),
+  database: markRaw(DatabaseNode),
   table: markRaw(TableNode)
+}
+const edgeTypes = {
+  connection: markRaw(ConnectionEdge)
 }
 
 const flowNodes = useCanvasProjection().flowNodes;
@@ -29,7 +41,15 @@ const flowEdges = useCanvasProjection().flowEdges;
 
 onMounted(() => {
   viewStore.fetchViews();
+  informationRelationStore.fetchInformationRelations();
 })
+
+// The relations are changed in the backend whenever information is added to or removed from a resource
+watch(
+  () => [applicationStore.applications, tableStore.tables],
+  () => informationRelationStore.fetchInformationRelations(),
+  { deep: true }
+);
 
 function onNodeClick(event: any) {
   UIStore.setSelectedEntity(event.node.id, 'node');
@@ -81,28 +101,65 @@ watch(
       :nodes="flowNodes"
       :edges="flowEdges"
       :node-types="nodeTypes"
+      :edge-types="edgeTypes"
       fit-view-on-init
       @node-click="onNodeClick"
       @node-drag-stop="onNodeDragStop"
       @edge-click="onEdgeClick"
     >
       <Background />
+
+      <Panel position="top-left" class="search-panel">
+        <input
+          v-model="UIStore.informationFieldSearch"
+          type="search"
+          placeholder="Search information field"
+        />
+        <input
+          v-model="UIStore.informationObjectSearch"
+          type="search"
+          placeholder="Search information object"
+        />
+      </Panel>
     </VueFlow>
   </div>
 </template>
 
 <style>
 
-.vue-flow__node.application {
-  background: white;
-}
-
-.vue-flow__node.database {
-  background: #22c55e;
-}
-
 .vue-flow__node.server {
   background: yellow;
+}
+
+.search-panel {
+  display: flex;
+  gap: 6px;
+}
+
+.search-panel input {
+  width: 190px;
+  height: 29px;
+  box-sizing: border-box;
+  padding: 4px 7px;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 4px;
+  background: var(--p-content-background);
+  color: var(--p-text-color);
+  font-size: 12px;
+  outline: none;
+}
+
+.search-panel input:focus {
+  border-color: var(--p-primary-color);
+}
+
+.vue-flow__node.search-match {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 2px;
+}
+
+.vue-flow__node.search-dimmed {
+  opacity: 0.3;
 }
 
 </style>

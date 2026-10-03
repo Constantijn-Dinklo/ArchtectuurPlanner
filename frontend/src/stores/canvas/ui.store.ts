@@ -10,6 +10,12 @@ export const useUIStore = defineStore('UI', () => {
     const selectedEntityId = ref<string>('');
     const selectedEntityType = ref<EntityType>();
 
+    const informationFieldSearch = ref('');
+    const informationObjectSearch = ref('');
+
+    // The table whose name is being edited on the canvas
+    const editingTableId = ref<string>();
+
     function setLevelOfDetail(LoD: LevelOfDetail){
         levelOfDetail.value = LoD;
     }
@@ -19,5 +25,5 @@ export const useUIStore = defineStore('UI', () => {
         selectedEntityType.value = type;
     }
 
-    return { levelOfDetail, selectedEntityId, selectedEntityType, setSelectedEntity, setLevelOfDetail }
+    return { levelOfDetail, selectedEntityId, selectedEntityType, informationFieldSearch, informationObjectSearch, editingTableId, setSelectedEntity, setLevelOfDetail }
 })

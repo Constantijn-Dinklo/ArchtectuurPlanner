@@ -18,11 +18,27 @@
 
 <template>
     <div v-if="server">
-        <div>
-            {{ server.name }}
-        </div>
-        <div>
-            IP: <input v-model="server.ip" type="text" @change="onIPChange"/>
-        </div>
+        <header class="detail-header">
+            <span class="detail-header-icon server"><i class="pi pi-server" /></span>
+            <div class="detail-header-text">
+                <span class="detail-type-label">Server</span>
+                <h2>{{ server.name }}</h2>
+            </div>
+        </header>
+
+        <section class="detail-section">
+            <div class="detail-section-title">Properties</div>
+
+            <label class="detail-property">
+                <span class="detail-property-label">IP address</span>
+                <input
+                    v-model="server.ip"
+                    type="text"
+                    class="detail-input"
+                    placeholder="0.0.0.0"
+                    @change="onIPChange"
+                />
+            </label>
+        </section>
     </div>
 </template>

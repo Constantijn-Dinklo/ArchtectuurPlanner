@@ -74,21 +74,42 @@ function deleteDatabaseConnection(id: string) {
 </script>
 
 <template>
-    <button @click="addDBConnection">
-        Add DB Connection
-    </button>
+    <div class="connection-table-toolbar">
+        <span class="toolbar-hint">Click a cell to edit it</span>
+        <Button
+            label="Add DB connection"
+            icon="pi pi-plus"
+            size="small"
+            @click="addDBConnection"
+        />
+    </div>
     <DataTable
         :value="databaseConnectionStore.databaseConnections"
         editMode="cell"
+        size="small"
+        class="connection-table"
         @cell-edit-complete="onCellEditComplete"
         tableStyle="min-width: 50rem"
     >
-        <Column field="id" header="ID"></Column>
+        <template #empty>
+            <div class="table-empty">No database connections yet</div>
+        </template>
+
+        <Column field="id" header="ID">
+            <template #body="{ data }">
+                <span class="cell-id" :title="data.id">…{{ data.id.slice(-6) }}</span>
+            </template>
+        </Column>
         <Column field="databaseId" header="Database">
             <template #body="{ data }">
-                {{
-                    resourceService.getByType('database').find(db => db.id === data.databaseId)?.name || ''
-                }}
+                <span
+                    v-if="resourceService.getByType('database').find(db => db.id === data.databaseId)"
+                    class="cell-resource"
+                >
+                    <i class="pi pi-database" />
+                    {{ resourceService.getByType('database').find(db => db.id === data.databaseId)?.name }}
+                </span>
+                <span v-else class="cell-empty">Select database</span>
             </template>
             
             <template #editor="{ data, field }">
@@ -103,9 +124,14 @@ function deleteDatabaseConnection(id: string) {
         </Column>
         <Column field="entityId" header="Entity">
             <template #body="{ data }">
-                {{
-                    resourceService.getByType('application').find(entity => entity.id === data.entityId)?.name || ''
-                }}
+                <span
+                    v-if="resourceService.getByType('application').find(entity => entity.id === data.entityId)"
+                    class="cell-resource"
+                >
+                    <i class="pi pi-desktop" />
+                    {{ resourceService.getByType('application').find(entity => entity.id === data.entityId)?.name }}
+                </span>
+                <span v-else class="cell-empty">Select application</span>
             </template>
             
             <template #editor="{ data, field }">
@@ -118,7 +144,7 @@ function deleteDatabaseConnection(id: string) {
                 />
             </template>
         </Column>
-        <Column field="operation" header="Read">
+        <Column field="operation" header="Read" style="width: 5rem">
             <template #body="{ data }">
                 <Checkbox
                     binary
@@ -127,7 +153,7 @@ function deleteDatabaseConnection(id: string) {
                 />
             </template>
         </Column>
-        <Column field="operation" header="Write">
+        <Column field="operation" header="Write" style="width: 5rem">
             <template #body="{ data }">
                 <Checkbox
                     binary
@@ -136,12 +162,15 @@ function deleteDatabaseConnection(id: string) {
                 />
             </template>
         </Column>
-        <Column>
+        <Column style="width: 3rem">
             <template #body="{ data }">
                 <Button
-                icon="pi pi-ellipsis-v"
-                text
-                @click="toggleMenu($event, data)"
+                    icon="pi pi-ellipsis-v"
+                    text
+                    rounded
+                    size="small"
+                    severity="secondary"
+                    @click="toggleMenu($event, data)"
                 />
             </template>
         </Column>

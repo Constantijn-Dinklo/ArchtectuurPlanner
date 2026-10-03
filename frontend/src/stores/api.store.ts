@@ -9,6 +9,9 @@ export interface Api {
     applicationId: string;
     url: string;
     hasAuthentication: boolean;
+    // The output information of the application that is sent through this api
+    informationFieldIds: string[];
+    informationObjectIds: string[];
 }
 
 export const useApiStore = defineStore('api', () => {
@@ -58,6 +61,33 @@ export const useApiStore = defineStore('api', () => {
         }
     }
 
+    function setApi(updated: Api) {
+        const existing = apis.value.find(a => a.id === updated.id);
+        if(existing) {
+            Object.assign(existing, updated);
+        }
+    }
+
+    async function addInformationField(apiId: string, informationFieldId: string) {
+        const res = await api.post<Api>(`/apis/${apiId}/informationFields`, { informationFieldId });
+        setApi(res.data);
+    }
+
+    async function removeInformationField(apiId: string, informationFieldId: string) {
+        const res = await api.delete<Api>(`/apis/${apiId}/informationFields/${informationFieldId}`);
+        setApi(res.data);
+    }
+
+    async function addInformationObject(apiId: string, informationObjectId: string) {
+        const res = await api.post<Api>(`/apis/${apiId}/informationObjects`, { informationObjectId });
+        setApi(res.data);
+    }
+
+    async function removeInformationObject(apiId: string, informationObjectId: string) {
+        const res = await api.delete<Api>(`/apis/${apiId}/informationObjects/${informationObjectId}`);
+        setApi(res.data);
+    }
+
     function getApi(id: string): Api | undefined{
         return apis.value.find((api) => api.id === id);
     }
@@ -66,5 +96,5 @@ export const useApiStore = defineStore('api', () => {
         return apis.value.filter((api) => api.applicationId === applicationId);
     }
 
-    return { apis, fetchApis, commitApi, updateApi, deleteApi, getApi, getApplicationApis  }
+    return { apis, fetchApis, commitApi, updateApi, deleteApi, getApi, getApplicationApis, addInformationField, removeInformationField, addInformationObject, removeInformationObject }
 })

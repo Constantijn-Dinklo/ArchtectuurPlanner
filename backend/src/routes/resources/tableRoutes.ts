@@ -4,7 +4,7 @@ import Table from "../../models/resources/table.model";
 import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
 import { createTable, addTableColumn, removeTableColumn } from "../../services/table.service";
 import ViewNode from "../../models/canvas/viewNode.model";
-import { IResourceFieldExpanded, resolveResourceField } from "../../models/resources/resourceField.model";
+import { IResourceFieldExpanded, resolveResourceField } from "../../models/information/resourceField.model";
 
 const router: Router = express.Router();
 

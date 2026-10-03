@@ -11,12 +11,21 @@ export type AddInformationFieldRequest =
           sourceResourceType: ResourceType;
       };
 
+
+
 export interface InformationField {
     id: string;
     fieldName: string;
+}
+
+export interface InformationFieldReference {
+    informationFieldId: string;
     position: number;
-    sourceResourceId?: string;
-    targetResourceIds?: string[];
+}
+
+export interface ResolvedInformationFieldReference {
+    informationField: InformationField;
+    position: number;
 }
 
 export interface AccessibleInformationField extends InformationField {

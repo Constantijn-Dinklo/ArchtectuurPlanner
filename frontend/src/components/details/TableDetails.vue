@@ -1,5 +1,6 @@
 <script setup lang="ts">
     import { computed, ref } from 'vue';
+    import { Select } from 'primevue';
     import { useSelectedNodeProjection } from '../../projections/selectedNode.projection';
     import { useTableStore, type Table } from '../../stores/resources/table.store';
     import { useResourceService } from '../../services/resources/resource.service';
@@ -9,7 +10,7 @@ import type { AccessibleInformationField } from '../../types/informationField.ty
 
     const selectedNodeProjection = useSelectedNodeProjection();
     const tableStore = useTableStore();
-    
+
     const newColumnName = ref('');
     const inputColumn = ref<AccessibleInformationField | undefined>();
 
@@ -17,11 +18,17 @@ import type { AccessibleInformationField } from '../../types/informationField.ty
         () => selectedNodeProjection.nodeInfo.value?.node as Table | undefined
     );
 
+    const accessibleInformationFields = computed(() =>
+        table.value ? resourceService.getAccessibleInformationFields(table.value.databaseId) : []
+    );
+
     function createColumn(tableId: string, newInformationField: boolean = true){
         if(newInformationField){
+            if(!newColumnName.value.trim()) { return }
             tableStore.createColumn(tableId, {
-                fieldName: newColumnName.value
+                fieldName: newColumnName.value.trim()
             });
+            newColumnName.value = '';
         }
         else {
             if(!inputColumn.value) { return }
@@ -41,29 +48,76 @@ import type { AccessibleInformationField } from '../../types/informationField.ty
 
 <template>
     <div v-if="table">
-        {{ table.name }}
-        <div>
-            Columns:
-            <div>
-                <input type="text" v-model="newColumnName" placeholder="Column name" @keyup.enter="createColumn(table.id)"/>
-                <button @click="createColumn(table.id)">Add</button>
+        <header class="detail-header">
+            <span class="detail-header-icon table"><i class="pi pi-table" /></span>
+            <div class="detail-header-text">
+                <span class="detail-type-label">Table</span>
+                <h2>{{ table.name }}</h2>
             </div>
-            <div v-for="column in table.columns">
-                {{ column.fieldName }}
-                <button @click="deleteColumn(table.id, column.id)">X</button>
+        </header>
+
+        <section class="detail-section">
+            <div class="detail-section-title">
+                <span>Columns</span>
+                <span class="detail-count">{{ table.columns.length }}</span>
             </div>
-            <select v-model="inputColumn" @change="createColumn(table.id, false)">
-                <option value="">-- Select Information Field --</option>
-                <option
-                    v-for="accessibleInformationField in resourceService.getAccessibleInformationFields(table.databaseId)"
-                    :key="accessibleInformationField.id"
-                    :value="accessibleInformationField"
-                    :disabled="table.columns.some((column) => column.id === accessibleInformationField.id)"
+
+            <div
+                v-if="!table.columns.length"
+                class="detail-empty"
+            >
+                No columns
+            </div>
+
+            <div
+                v-for="column in table.columns"
+                :key="column.id"
+                class="detail-row"
+            >
+                <span class="detail-row-name">{{ column.fieldName }}</span>
+                <button
+                    type="button"
+                    class="detail-delete-button"
+                    title="Delete column"
+                    @click="deleteColumn(table.id, column.id)"
                 >
-                    {{ accessibleInformationField.fieldName }}
-                </option>
-            </select>
-        </div>
+                    ×
+                </button>
+            </div>
+
+            <Select
+                v-model="inputColumn"
+                :options="accessibleInformationFields"
+                option-label="fieldName"
+                :option-disabled="(field: AccessibleInformationField) =>
+                    table!.columns.some((column) => column.id === field.id)"
+                placeholder="+ Add accessible field"
+                filter
+                filter-placeholder="Search field"
+                empty-message="No accessible fields"
+                size="small"
+                class="detail-prime-select"
+                @change="createColumn(table.id, false)"
+            />
+
+            <div class="detail-add-row">
+                <input
+                    v-model="newColumnName"
+                    type="text"
+                    class="detail-input"
+                    placeholder="+ New column"
+                    @keyup.enter="createColumn(table.id)"
+                />
+                <button
+                    type="button"
+                    class="detail-add-button"
+                    title="Add column"
+                    :disabled="!newColumnName.trim()"
+                    @click="createColumn(table.id)"
+                >
+                    <i class="pi pi-plus" />
+                </button>
+            </div>
+        </section>
     </div>
-    
 </template>

@@ -1,10 +1,13 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
-import { IResourceField, ResourceFieldSchema } from './resourceField.model';
+import { IResourceField, ResourceFieldSchema } from '../information/resourceField.model';
+import { IResourceObject, ResourceObjectSchema } from '../information/resourceObject.model';
 
 export interface IApplication extends Document {
     organisationId: Types.ObjectId;
     name: string;
     version: string;
+    inputInformationObjects: IResourceObject[];
+    outputInformationObjects: IResourceObject[];
     inputInformationFields: IResourceField[];
     outputInformationFields: IResourceField[];
 }
@@ -22,6 +25,14 @@ const ApplicationSchema = new Schema<IApplication>({
     },
     version: {
         type: Schema.Types.String
+    },
+    inputInformationObjects: {
+        type: [ResourceObjectSchema],
+        required: true
+    },
+    outputInformationObjects: {
+        type: [ResourceObjectSchema],
+        required: true
     },
     inputInformationFields: {
         type: [ResourceFieldSchema],

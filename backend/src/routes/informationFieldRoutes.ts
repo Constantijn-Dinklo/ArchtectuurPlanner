@@ -1,7 +1,7 @@
 import express, { Router, Response } from "express";
 
 import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
-import InformationField from "../models/informationField.model";
+import InformationField from "../models/information/informationField.model";
 import { createInformationField } from "../services/information.service";
 
 const router: Router = express.Router();

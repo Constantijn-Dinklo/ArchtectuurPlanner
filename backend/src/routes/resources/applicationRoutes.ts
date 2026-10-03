@@ -1,8 +1,7 @@
 import express, { Router, Response } from "express";
 import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
 import Application from "../../models/resources/application.model";
-import { createAppliction, deleteApplication, addApplicationInputInformationField, deleteApplicationInputInformationField, resolveApplicationInformationFields, resolveApplicationsInformationFields, addApplicationOutputInformationField, deleteApplicationOutputInformationField } from "../../services/application.service";
-import { IResourceFieldExpanded, resolveResourceField } from "../../models/resources/resourceField.model";
+import { createAppliction, deleteApplication, addApplicationInputInformationField, deleteApplicationInputInformationField, addApplicationOutputInformationField, deleteApplicationOutputInformationField, getApplications, addApplicationInputInformationObject, deleteApplicationInputInformationObject, addApplicationOutputInformationObject, deleteApplicationOutputInformationObject } from "../../services/application.service";
 
 
 const router: Router = express.Router();
@@ -11,21 +10,8 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
     const user = getUser(req);
 
     try {
-        const applications = await Application.find({
-            organisationId: user.organisationId
-        }).populate<{
-            inputInformationFields: IResourceFieldExpanded[];
-            outputInformationFields: IResourceFieldExpanded[];
-        }>([
-            {
-                path: 'inputInformationFields.informationFieldId'
-            },
-            {
-                path: 'outputInformationFields.informationFieldId'
-            }
-        ]);
-        const resultApplications = resolveApplicationsInformationFields(applications);
-        res.json(resultApplications);
+        const result = await getApplications(user);
+        res.status(201).json(result);
     }
     catch(err: any){
         res.status(400).json({ error: err.message });
@@ -55,20 +41,9 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
             },
             { $set: req.body },
             { returnDocument: 'after'}
-        ).populate<{
-            inputInformationFields: IResourceFieldExpanded[];
-            outputInformationFields: IResourceFieldExpanded[];
-        }>([
-            {
-                path: 'inputInformationFields.informationFieldId'
-            },
-            {
-                path: 'outputInformationFields.informationFieldId'
-            }
-        ]);
+        );
         if(!updatedApplication) { return res.status(400).json({error: "Application not found"}) }
-        const resultApplication = resolveApplicationInformationFields(updatedApplication);
-        res.status(201).json(resultApplication);
+        res.status(201).json(updatedApplication);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
@@ -117,6 +92,45 @@ router.patch('/:id/informationFields', authenticateToken, async (req: Authentica
         }
         else {
             const result = await deleteApplicationOutputInformationField(user, req.params.id as string, informationFieldId)
+            res.status(201).json(result);
+        }
+
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.post('/:id/informationObjects', authenticateToken,  async (req: AuthenticatedRequest, res: Response) => {
+    const user = getUser(req);
+
+    try {
+        const { direction, informationObject } = req.body;
+        if(direction === 'input'){
+            const result = await addApplicationInputInformationObject(user, req.params.id as string, informationObject);
+            res.status(201).json(result);
+        }
+        else {
+            const result = await addApplicationOutputInformationObject(user, req.params.id as string, informationObject);
+            res.status(201).json(result);
+        }
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.patch('/:id/informationObjects', authenticateToken,  async (req: AuthenticatedRequest, res: Response) => {
+    const user = getUser(req);
+
+    try {
+        const { direction, informationObjectId } = req.body;
+        if(direction === 'input'){
+            const result = await deleteApplicationInputInformationObject(user, req.params.id as string, informationObjectId);
+            res.status(201).json(result);
+        }
+        else {
+            const result = await deleteApplicationOutputInformationObject(user, req.params.id as string, informationObjectId);
             res.status(201).json(result);
         }
 

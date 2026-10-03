@@ -40,6 +40,13 @@ export const useTableStore = defineStore('table', () => {
         return res.data;
     }
 
+    async function renameTable(tableId: string, name: string) {
+        const table = tables.value.find(t => t.id === tableId);
+        if(!table) return;
+        await api.patch(`/tables/${tableId}`, { name });
+        table.name = name;
+    }
+
     async function deleteTable(tableId: string) {
         const res = await api.delete(`/tables/${tableId}`);
         tables.value = tables.value.filter((table) => table.id !== res.data.resourceId);
@@ -69,5 +76,5 @@ export const useTableStore = defineStore('table', () => {
         Object.assign(table, res.data);
     }
 
-    return { tables, fetchTables, createTable, deleteTable, getTables, createColumn, deleteColumn }
+    return { tables, fetchTables, createTable, renameTable, deleteTable, getTables, createColumn, deleteColumn }
 });

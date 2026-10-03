@@ -2,18 +2,22 @@
 import { computed } from "vue";
 
 import { useDatabaseStore, type Database } from "../../stores/resources/database.store";
-import { useApplicationStore, type Application } from "../../stores/resources/application.store";
+import { useApplicationStore} from "../../stores/resources/application.store";
 import { useFileLocationStore, type FileLocation } from "../../stores/resources/fileLocation.store";
 import { useServerStore, type Server } from "../../stores/resources/server.store";
 import type { ResourceType } from "../../types/resource.type";
 import { useTableStore, type Table } from "../../stores/resources/table.store";
-import type { AccessibleInformationField, InformationField } from "../../types/informationField.type";
+import type { AccessibleInformationField } from "../../types/informationField.type";
+import type { AccessibleInformationObject } from "../../types/informationObject.type";
 import { useApiConnectionStore } from "../../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../../stores/databaseConnection.store";
 import { useScriptStore } from "../../stores/script.store";
 import { useDatabaseService } from "./database.service";
+import type { Application, ResolvedApplication } from "../../types/application.types";
+import { useResourceResolver } from "../../resolvers/resource.resolver";
 
 export type Resource = Application | Database | FileLocation | Server | Table;
+export type ResolvedResource = ResolvedApplication | Database | FileLocation | Server | Table;
 
 export function useResourceService() {
     const applicationStore = useApplicationStore();
@@ -21,6 +25,8 @@ export function useResourceService() {
     const fileLocationStore = useFileLocationStore();
     const serverStore = useServerStore();
     const tableStore = useTableStore();
+
+    const resourceResolver = useResourceResolver();
 
     const databaseService = useDatabaseService();
 
@@ -41,11 +47,11 @@ export function useResourceService() {
     const resourceMap = computed(() => {
         const map = new Map<string, Resource>();
 
-        for(const database of databaseStore.databases) {
-            map.set(database.id, database);
-        }
         for(const app of applicationStore.applications) {
             map.set(app.id, app);
+        }
+        for(const database of databaseStore.databases) {
+            map.set(database.id, database);
         }
         for(const file of fileLocationStore.fileLocations){
             map.set(file.id, file);
@@ -59,7 +65,7 @@ export function useResourceService() {
         return map;
     });
 
-    function getResource(id: string): Resource | Database | undefined {
+    function getResource(id: string): Resource | undefined {
         return resourceMap.value.get(id);
     }
 
@@ -109,21 +115,23 @@ export function useResourceService() {
     function getResourceInformationFields(resourceId: string): AccessibleInformationField[] {
         const resource = getResource(resourceId);
         if(!resource) { return []; }
+        const resolvedResource = resourceResolver.resolveResource(resource);
         
-        switch (resource.type) {
+        switch (resolvedResource.type) {
             case 'application':
-                return resource.outputInformationFields.map((outputInformationField) => (
+                return resolvedResource.outputInformationFields.map((outputInformationField) => (
                     {
-                        ...outputInformationField,
+                        id: outputInformationField.informationField.id,
+                        fieldName: outputInformationField.informationField.fieldName,
                         accessibleFromId: resource.id,
                         accessibleFromType: 'application'
                     }
                 ));
             case 'database':
-                const tables = databaseService.getDatabaseTables(resource.id);
+                const tables = databaseService.getDatabaseTables(resolvedResource.id);
                 return tables.flatMap((table) => getResourceInformationFields(table.id))
             case 'table':
-                return resource.columns.map((column) => {
+                return resolvedResource.columns.map((column) => {
                     return {
                         ...column,
                         accessibleFromId: resource.id,
@@ -143,5 +151,28 @@ export function useResourceService() {
         return informationFields;
     }
 
-    return { getResource, getByType, getAccessibleInformationFields }
+    function getResourceInformationObjects(resourceId: string): AccessibleInformationObject[] {
+        const resource = getResource(resourceId);
+        if(!resource) { return []; }
+        const resolvedResource = resourceResolver.resolveResource(resource);
+
+        switch (resolvedResource.type) {
+            case 'application':
+                return resolvedResource.outputInformationObjects.map((outputInformationObject) => (
+                    {
+                        ...outputInformationObject.informationObject,
+                        accessibleFromId: resource.id,
+                        accessibleFromType: 'application'
+                    }
+                ));
+        }
+        return [];
+    }
+
+    function getAccessibleInformationObjects(resourceId: string): AccessibleInformationObject[] {
+        const upstreamResourceIds = getUpstreamResourceIds(resourceId);
+        return upstreamResourceIds.flatMap((upstreamResourceId) => getResourceInformationObjects(upstreamResourceId));
+    }
+
+    return { getResource, getByType, getAccessibleInformationFields, getAccessibleInformationObjects }
 }

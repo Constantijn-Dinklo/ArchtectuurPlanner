@@ -1,6 +1,7 @@
 import { computed } from "vue";
-import { useResourceService, type Resource } from "../services/resources/resource.service";
-import { useViewStore, type View, type ViewNode } from "../stores/canvas/view.store";
+import { MarkerType } from "@vue-flow/core";
+import { useResourceService, type ResolvedResource, type Resource } from "../services/resources/resource.service";
+import { useViewStore, type ViewNode } from "../stores/canvas/view.store";
 import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useScriptStore } from "../stores/script.store";
@@ -9,17 +10,46 @@ import type { CanvasEdge } from "./types/canvasEdge";
 import { useServerStore, type Server } from "../stores/resources/server.store";
 import { useUIStore } from "../stores/canvas/ui.store";
 import { getVisibleResourceTypes, isResourceTypeExpanded, isResourceTypeVisible, type LevelOfDetail } from "../types/levelOfDetail";
-import type { Application } from "../stores/resources/application.store";
-import type { Database } from "../stores/resources/database.store";
-import type { Table } from "../stores/resources/table.store";
-import type { InformationField } from "../types/informationField.type";
+import { useDatabaseStore, type Database } from "../stores/resources/database.store";
+import { useTableStore, type Table } from "../stores/resources/table.store";
+import { useApplicationStore } from "../stores/resources/application.store";
+import { useInformationTransferService } from "../services/informationTransfer.service";
+import type { ResolvedInformationFieldReference } from "../types/informationField.type";
+import type { ResolvedInformationObjectReference } from "../types/informationObject.type";
+import { useResourceResolver } from "../resolvers/resource.resolver";
+import type { ApplicationNode, ResolvedApplication } from "../types/application.types";
 
+
+// Sizes in px. The table sizes have to match the styling in TableNode.vue
+const TABLE_LAYOUT = {
+    tableWidth: 110,
+    tableHeaderHeight: 20,
+    tableRowHeight: 13,
+    tablePaddingBottom: 3,
+    gap: 8,
+    databasePadding: 10,
+    databaseHeaderHeight: 38,
+    emptyDatabaseWidth: 200,
+    emptyDatabaseHeight: 70
+};
+
+interface DatabaseLayout {
+    tablePositions: Map<string, { x: number, y: number }>;
+    width: number;
+    height: number;
+}
 
 export function useCanvasProjection() {
     const UIStore = useUIStore();
     const viewStore = useViewStore();
+    
     const resourceService = useResourceService();
+    const resourceResolver = useResourceResolver();
     const serverStore = useServerStore();
+    const databaseStore = useDatabaseStore();
+    const tableStore = useTableStore();
+    const applicationStore = useApplicationStore();
+    const informationTransferService = useInformationTransferService();
 
     const apiConnectionStore = useApiConnectionStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
@@ -45,39 +75,42 @@ export function useCanvasProjection() {
         function createEdge(
             id: string,
             source: string,
-            target: string
+            target: string,
+            sourceResourceId: string,
+            targetResourceId: string
         ): CanvasEdge {
             return {
                 id,
+                type: 'connection',
                 source,
                 target,
                 data: {
                     apiIds: [],
                     databaseConnectionIds: [],
                     scriptIds: [],
+                    sourceResourceId,
+                    targetResourceId,
+                    warnings: []
                 },
-                label: '',
                 zIndex: 10,
             };
         }
 
-        function createlabel(edge: CanvasEdge){
-            let apiLabel = ''
-            if(edge.data.apiIds.length > 0){
-                apiLabel = edge.data.apiIds.length + " API's"
-            }
+        function getOrCreateEdge(sourceResourceId: string, targetResourceId: string): CanvasEdge | undefined {
+            const sourceViewNodeId = entityIdToNodeMap.value.get(sourceResourceId)?.id;
+            const targetViewNodeId = entityIdToNodeMap.value.get(targetResourceId)?.id;
 
-            let dbLabel = ''
-            if(edge.data.databaseConnectionIds.length > 0){
-                dbLabel = edge.data.databaseConnectionIds.length + " DB's"
-            }
+            if (!sourceViewNodeId || !targetViewNodeId) return;
 
-            let scriptLabel = ''
-            if(edge.data.scriptIds.length > 0){
-                scriptLabel = edge.data.scriptIds.length + " scripts"
-            }
+            const edgeId = `${sourceViewNodeId}-${targetViewNodeId}`;
 
-            return apiLabel + dbLabel + scriptLabel
+            let edge = edges.get(edgeId);
+
+            if (!edge) {
+                edge = createEdge(edgeId, sourceViewNodeId, targetViewNodeId, sourceResourceId, targetResourceId);
+                edges.set(edgeId, edge);
+            }
+            return edge;
         }
 
         function addConnection(
@@ -89,24 +122,9 @@ export function useCanvasProjection() {
             'apiIds' | 'databaseConnectionIds' | 'scriptIds'
             >
         ) {
-            const sourceViewNodeId = entityIdToNodeMap.value.get(sourceResourceId)?.id;
-            const targetViewNodeId = entityIdToNodeMap.value.get(targetResourceId)?.id;
-
-            if (!sourceViewNodeId || !targetViewNodeId) return;
-
-            const edgeId = `${sourceViewNodeId}-${targetViewNodeId}`;
-
-            let edge = edges.get(edgeId);
-
-            if (!edge) {
-                edge = createEdge(edgeId, sourceViewNodeId, targetViewNodeId);
-                edges.set(edgeId, edge);
-            }
-
-            edge.data[field].push(connectionId);
-            edge.label = createlabel(edge);
+            getOrCreateEdge(sourceResourceId, targetResourceId)?.data[field].push(connectionId);
         }
-        
+
         for(const apiConnection of apiConnectionStore.apiConnections){
             addConnection(
                 apiConnection.sourceId,
@@ -114,6 +132,33 @@ export function useCanvasProjection() {
                 apiConnection.id,
                 'apiIds'
             );
+
+            if(!apiConnection.sourceUrlId) {
+                getOrCreateEdge(apiConnection.sourceId, apiConnection.targetId)?.data.warnings.push(
+                    'An API connection has no url to transfer information'
+                );
+            }
+        }
+
+        // Information that goes from one application to another without an api url that sends it.
+        // When there is no connection between the applications at all, the edge only shows the warning
+        const applicationIds = new Set(applicationStore.applications.map((application) => application.id));
+        for(const sourceId of applicationIds) {
+            for(const targetId of applicationIds) {
+                if(sourceId === targetId) continue;
+                const transferWarnings = informationTransferService.getTransferWarnings(sourceId, targetId);
+                if(!transferWarnings) continue;
+
+                const edge = getOrCreateEdge(sourceId, targetId);
+                if(!edge) continue;
+
+                if(transferWarnings.objectNames.length) {
+                    edge.data.warnings.push(`Objects sent without an API url: ${transferWarnings.objectNames.join(', ')}`);
+                }
+                if(transferWarnings.fieldNames.length) {
+                    edge.data.warnings.push(`Fields sent without an API url: ${transferWarnings.fieldNames.join(', ')}`);
+                }
+            }
         }
 
         for(const dbConnection of databaseConnectionStore.databaseConnections){
@@ -133,7 +178,16 @@ export function useCanvasProjection() {
             })
         }
 
-        return Array.from(edges.values());
+        // The arrow head gets the same color as the edge line in ConnectionEdge.vue
+        return Array.from(edges.values()).map((edge) => ({
+            ...edge,
+            markerEnd: {
+                type: MarkerType.ArrowClosed,
+                color: edge.data.warnings.length ? '#f59e0b' : '#94a3b8',
+                width: 14,
+                height: 14
+            }
+        }));
     });
 
     function getVisibleNodes(levelOfDetail: LevelOfDetail, viewNodes: ViewNode[]): ViewNode[]{
@@ -148,32 +202,133 @@ export function useCanvasProjection() {
         const parent = getResourceParent(resource);
 
         const hasVisibleParent = parent && isResourceTypeVisible(UIStore.levelOfDetail, parent.entityType)
-        const position = hasVisibleParent ? calculateChildPosition(parent, viewNode) : viewNode.position
+        let position = hasVisibleParent ? calculateChildPosition(parent, viewNode) : viewNode.position
 
-        let resolvedViewNode = undefined;
-        if(resource.type === 'application') {
-            resolvedViewNode = resolveApplicationNode(resource);
+        // Tables are laid out automatically inside their database, so a database can hold many tables
+        const tableLayoutPosition = resource.type === 'table' && hasVisibleParent
+            ? databaseLayouts.value.get(resource.databaseId)?.tablePositions.get(resource.id)
+            : undefined;
+        if(tableLayoutPosition) {
+            position = tableLayoutPosition;
+        }
+
+        const resolvedResoure = resourceResolver.resolveResource(resource);
+        let projectedViewNode = undefined;
+        if(resolvedResoure.type === 'application') {
+            projectedViewNode = projectApplicationNode(resolvedResoure);
         }
         else if (resource.type === 'database'){
-            resolvedViewNode = resolveDatabaseNode(resource);
+            projectedViewNode = resolveDatabaseNode(resource);
         }
         else if (resource.type === 'server') {
-            resolvedViewNode = resolveServerNode(resource);
+            projectedViewNode = resolveServerNode(resource);
         }
         else if (resource.type === 'table') {
-            resolvedViewNode = resolveTableNode(resource);
+            projectedViewNode = resolveTableNode(resource);
         }
-        if(!resolvedViewNode) { return }
+        if(!projectedViewNode) { return }
         const node: CanvasNode = {
-            ...resolvedViewNode,
+            ...projectedViewNode,
             id: viewNode.id,
             position: position,
             parentNode: hasVisibleParent ? parent.id : undefined,
             parentPosition: parent?.position,
             extent: parent ? 'parent' : undefined,
-            class: resource.type
+            draggable: tableLayoutPosition ? false : undefined,
+            class: resource.type + getSearchClass(resolvedResoure)
         }
         return node;
+    }
+
+    function getTableHeight(table: Table) {
+        const rowCount = Math.max(table.columns.length, 1);
+        return TABLE_LAYOUT.tableHeaderHeight + rowCount * TABLE_LAYOUT.tableRowHeight + TABLE_LAYOUT.tablePaddingBottom;
+    }
+
+    // Places the tables of every database in a grid that is as square as possible
+    const databaseLayouts = computed(() => {
+        const layouts = new Map<string, DatabaseLayout>();
+        const {
+            tableWidth,
+            gap,
+            databasePadding,
+            databaseHeaderHeight,
+            emptyDatabaseWidth,
+            emptyDatabaseHeight
+        } = TABLE_LAYOUT;
+
+        const tablesPerDatabase = new Map<string, Table[]>();
+        for(const table of tableStore.tables) {
+            const tables = tablesPerDatabase.get(table.databaseId) ?? [];
+            tables.push(table);
+            tablesPerDatabase.set(table.databaseId, tables);
+        }
+
+        for(const [databaseId, tables] of tablesPerDatabase) {
+            const sortedTables = [...tables].sort((a, b) => a.name.localeCompare(b.name));
+            const columnCount = Math.ceil(Math.sqrt(sortedTables.length));
+            const tablePositions = new Map<string, { x: number, y: number }>();
+
+            let y = databaseHeaderHeight;
+            for(let rowStart = 0; rowStart < sortedTables.length; rowStart += columnCount) {
+                const row = sortedTables.slice(rowStart, rowStart + columnCount);
+                row.forEach((table, columnIndex) => {
+                    tablePositions.set(table.id, {
+                        x: databasePadding + columnIndex * (tableWidth + gap),
+                        y
+                    });
+                });
+                y += Math.max(...row.map(getTableHeight)) + gap;
+            }
+
+            layouts.set(databaseId, {
+                tablePositions,
+                width: Math.max(emptyDatabaseWidth, 2 * databasePadding + columnCount * tableWidth + (columnCount - 1) * gap),
+                height: Math.max(emptyDatabaseHeight, y - gap + databasePadding)
+            });
+        }
+
+        for(const database of databaseStore.databases) {
+            if(layouts.has(database.id)) continue;
+            layouts.set(database.id, {
+                tablePositions: new Map(),
+                width: emptyDatabaseWidth,
+                height: emptyDatabaseHeight
+            });
+        }
+
+        return layouts;
+    });
+
+    // Nodes that contain the searched InformationField and/or InformationObject are highlighted, all others are dimmed
+    function getSearchClass(resource: ResolvedResource): string {
+        const fieldSearch = UIStore.informationFieldSearch.trim().toLowerCase();
+        const objectSearch = UIStore.informationObjectSearch.trim().toLowerCase();
+        if(!fieldSearch && !objectSearch) { return ''; }
+
+        let fieldNames: string[] = [];
+        let objectNames: string[] = [];
+        if(resource.type === 'application') {
+            const informationObjects = [
+                ...resource.inputInformationObjects,
+                ...resource.outputInformationObjects
+            ].map((reference) => reference.informationObject);
+
+            objectNames = informationObjects.map((informationObject) => informationObject.objectName);
+            fieldNames = [
+                ...resource.inputInformationFields.map((reference) => reference.informationField.fieldName),
+                ...resource.outputInformationFields.map((reference) => reference.informationField.fieldName),
+                ...informationObjects.flatMap((informationObject) => informationObject.informationFields.map((field) => field.fieldName))
+            ];
+        }
+        else if(resource.type === 'table') {
+            fieldNames = resource.columns.map((column) => column.fieldName);
+        }
+
+        const matchesField = !fieldSearch || fieldNames.some((name) => name.toLowerCase().includes(fieldSearch));
+        const matchesObject = !objectSearch || objectNames.some((name) => name.toLowerCase().includes(objectSearch));
+
+        return matchesField && matchesObject ? ' search-match' : ' search-dimmed';
     }
 
     function getResourceParent(resource: Resource): ViewNode | undefined {
@@ -207,22 +362,27 @@ export function useCanvasProjection() {
         }
     }
 
-    function resolveApplicationNode(application: Application) {
+    function projectApplicationNode(application: ResolvedApplication) {
         let label = application.name;
         if(application.version){
             label += ' (' + application.version + ')'
         }
 
         let style = undefined;
-        let inputInformationFields: InformationField[] | undefined = undefined;
-        let outputInformationFields: InformationField[] | undefined = undefined;
+        let inputInformationFields: ResolvedInformationFieldReference[] | undefined = undefined;
+        let outputInformationFields: ResolvedInformationFieldReference[] | undefined = undefined;
+        let inputInformationObjects: ResolvedInformationObjectReference[] | undefined = undefined;
+        let outputInformationObjects: ResolvedInformationObjectReference[] | undefined = undefined;
         if(isResourceTypeExpanded(UIStore.levelOfDetail, 'application')){
             style = {
                 width: '150px',
-                height: '100px'                
+                // minHeight instead of height, so the node grows with its information fields and objects
+                minHeight: '100px'
             }
             inputInformationFields = application.inputInformationFields;
             outputInformationFields = application.outputInformationFields;
+            inputInformationObjects = application.inputInformationObjects;
+            outputInformationObjects = application.outputInformationObjects;
         }
 
         return {
@@ -230,41 +390,45 @@ export function useCanvasProjection() {
             style,
             data:{
                 label,
+                resourceId: application.id,
                 inputInformationFields,
                 outputInformationFields,
-                resourceId: application.id
+                inputInformationObjects,
+                outputInformationObjects,
             }
         }
     }
 
     function resolveDatabaseNode(database: Database) {
-        let label = database.name;
-        if(database.engine){
-            label += ' (' + database.engine + ')'
-        }
+        const tableCount = tableStore.tables.filter((table) => table.databaseId === database.id).length;
+        const showTables = isResourceTypeVisible(UIStore.levelOfDetail, 'table');
+        const layout = databaseLayouts.value.get(database.id);
 
         return {
-            type: 'default',
-            style: {
-                width: '200px',
-                height: '150px'
-            },
+            type: 'database',
+            style: showTables && layout
+                ? {
+                    width: `${layout.width}px`,
+                    height: `${layout.height}px`
+                }
+                : {
+                    width: '200px'
+                },
             data: {
-                label,
+                label: database.name,
+                engine: database.engine,
+                tableCount,
                 resourceId: database.id
             }
         }
     }
 
     function resolveTableNode(table: Table) {
-
         return {
             type: 'table',
             style: {
-                width: '50px',
-                height: '100px',
-                'font-size': '6px',
-                'line-height': '2px'
+                width: `${TABLE_LAYOUT.tableWidth}px`,
+                height: `${getTableHeight(table)}px`
             },
             data: {
                 label: table.name,

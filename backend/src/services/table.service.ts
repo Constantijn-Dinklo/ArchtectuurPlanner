@@ -1,10 +1,10 @@
 import { UserJwtPayload } from "../middelware";
 import ViewNode from "../models/canvas/viewNode.model";
 import { createInformationField, ResourceFieldInformation } from "./resourceField.service";
-import InformationField from "../models/informationField.model";
-import { IResourceFieldExpanded, resolveResourceField } from "../models/resources/resourceField.model";
+import InformationField from "../models/information/informationField.model";
+import { IResourceFieldExpanded, resolveResourceField } from "../models/information/resourceField.model";
 import Table from "../models/resources/table.model";
-import ResourceFieldRelation from "../models/resources/resourceFieldRelation.model";
+import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 
 export async function createTable(user: UserJwtPayload, name: string, databaseId: string, viewId: string) {
     try {

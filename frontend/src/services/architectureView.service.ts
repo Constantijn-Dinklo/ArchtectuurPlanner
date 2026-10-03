@@ -1,16 +1,16 @@
 import { useUIStore } from "../stores/canvas/ui.store"
-import { useApplicationStore } from "../stores/resources/application.store"
 import { useDatabaseStore } from "../stores/resources/database.store"
 import { useFileLocationStore } from "../stores/resources/fileLocation.store"
 import { useServerStore } from "../stores/resources/server.store"
 import { useTableStore } from "../stores/resources/table.store"
 import { type LevelOfDetail, getVisibleResourceTypes } from "../types/levelOfDetail"
+import { useApplicationService } from "./resources/application.service"
 
 
 export function useArchitectureViewService() {
   const UIStore = useUIStore();
 
-  const applicationStore = useApplicationStore();
+  const applicationService = useApplicationService();
   const databaseStore = useDatabaseStore();
   const fileLocationStore = useFileLocationStore();
   const tableStore = useTableStore();
@@ -27,7 +27,7 @@ export function useArchitectureViewService() {
     const fetchPromises: Promise<unknown>[] = []
 
     if (visibleTypes.includes('application')) {
-      fetchPromises.push(applicationStore.fetchApplications())
+      fetchPromises.push(applicationService.fetchApplications())
     }
 
     if (visibleTypes.includes('database')) {

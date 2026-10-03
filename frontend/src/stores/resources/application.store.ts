@@ -3,29 +3,33 @@ import { ref } from "vue";
 import { useToast } from 'primevue';
 
 import api from "../../helpers/axios";
-import type { BaseResource } from "../../types/resource.type";
-import type { AddInformationFieldRequest, InformationField } from "../../types/informationField.type";
 
-export interface Application extends BaseResource {
-    type: 'application';
-    version?: string;
-    inputInformationFields: InformationField[];
-    outputInformationFields: InformationField[];
-}
+import type { Application } from "../../types/application.types";
+import { mapApplicationDto } from "../../mappers/application.mapper";
 
 export const useApplicationStore = defineStore('application', () => {
     const applications = ref<Application[]>([]);
 
     const toast = useToast();
 
-    async function  fetchApplications() {
-        const res = await api.get('/applications');
-        const data = res.data as Application[];
-        
-        applications.value = data.map((d) => ({ 
-            ...d,
+    function setApplications(data: Application[]) {
+        applications.value = data.map(application => ({
+            ...application,
             type: 'application'
         }));
+    }
+
+    function setApplication(app: Application) {
+        const application = applications.value.find(a => a.id === app.id);
+        if(!application) {
+            applications.value.push({
+                ...app,
+                type: 'application'
+            });
+        }
+        else {
+            Object.assign(application, app);
+        }
     }
 
     async function createAppliction(name: string, viewId: string) {
@@ -37,8 +41,10 @@ export const useApplicationStore = defineStore('application', () => {
             id: res.data.application.id,
             name: res.data.application.name,
             type: 'application',
-            inputInformationFields: [],
-            outputInformationFields: []
+            inputInformationObjectRefs: [],
+            outputInformationObjectRefs: [],
+            inputInformationFieldRefs: [],
+            outputInformationFieldRefs: []
         }
         applications.value.push(newApplication);
         return res.data;
@@ -48,7 +54,7 @@ export const useApplicationStore = defineStore('application', () => {
         const res = await api.patch(`/applications/${id}`, patch);
         const application = applications.value.find(a => a.id === id);
         if(!application) return;
-        const result: Application = Object.assign(application, res.data);
+        const result: Application = Object.assign(application, mapApplicationDto(res.data));
         return result;
     }
 
@@ -69,39 +75,5 @@ export const useApplicationStore = defineStore('application', () => {
         }
     }
 
-    async function addApplicationInformationField(
-        applicationId: string,
-        informationField: AddInformationFieldRequest,
-        direction: 'input' | 'output' = 'input'
-    ) {
-        const application = applications.value.find(a => a.id === applicationId);
-        if(!application) return;
-        
-        const res = await api.post(
-            `/applications/${applicationId}/informationFields`,
-            {
-                informationField,
-                direction
-            }
-        );
-        const result: Application = Object.assign(application, res.data);
-        return result;
-    }
-
-    async function deleteApplicationInformationField(applicationId: string, informationFieldId: string, direction: 'input' | 'output' = 'input') {
-        const application = applications.value.find(a => a.id === applicationId);
-        if(!application) return;
-        
-        const res = await api.patch(
-            `/applications/${applicationId}/informationFields`,
-            {
-                informationFieldId,
-                direction
-            }
-        );
-        const result: Application = Object.assign(application, res.data);
-        return result;
-    }
-
-    return { applications, fetchApplications, createAppliction, updateApplication, deleteApplication, addApplicationInformationField, deleteApplicationInformationField }
-})
+    return { applications, setApplications, setApplication, createAppliction, updateApplication, deleteApplication }
+});

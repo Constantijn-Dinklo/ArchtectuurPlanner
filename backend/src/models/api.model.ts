@@ -6,6 +6,10 @@ export interface IApi extends Document {
     
     url: string;
     hasAuthentication: boolean;
+
+    // The output information of the application that is sent through this api
+    informationFieldIds: Types.ObjectId[];
+    informationObjectIds: Types.ObjectId[];
 }
 
 const ApiSchema = new Schema<IApi>({
@@ -27,6 +31,16 @@ const ApiSchema = new Schema<IApi>({
     hasAuthentication: {
         type: Schema.Types.Boolean,
         default: false
+    },
+    informationFieldIds: {
+        type: [Schema.Types.ObjectId],
+        ref: 'InformationField',
+        default: []
+    },
+    informationObjectIds: {
+        type: [Schema.Types.ObjectId],
+        ref: 'InformationObject',
+        default: []
     }
 },
 {
