@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import LeftSidebar from './components/layout/LeftSidebar.vue';
-import CenterContent from "./components/layout/CenterContent.vue";
-import RightSidebar from "./components/layout/RightSidebar.vue";
 import { useAuthStore } from './stores/auth.store.ts';
 import Login from './components/login/Login.vue';
 import { onMounted } from 'vue';
+import NavigationRail from './components/layout/NavigationRail.vue';
 
 import Toast from 'primevue/toast';
 
@@ -18,16 +16,17 @@ onMounted(() => {
 
 <template>
   <Toast />
-  <div v-if="authStore.auth.isAuthenticated" class="app-layout">
-    <div class="left-sidebar">
-      <LeftSidebar />
-    </div>
-    <div class="center-content">
-      <CenterContent />
-    </div>
-    <div class="right-sidebar">
-      <RightSidebar />
-    </div>
+  <div v-if="authStore.auth.isAuthenticated" class="app-shell">
+    <NavigationRail />
+
+    <main class="app-main">
+      <!-- keep-alive keeps the architecture canvas mounted, so switching back keeps its viewport and data -->
+      <RouterView v-slot="{ Component }">
+        <KeepAlive include="ArchitectureView">
+          <component :is="Component" />
+        </KeepAlive>
+      </RouterView>
+    </main>
   </div>
 
   <div v-else>
@@ -36,30 +35,14 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.app-layout {
-  display: grid;
-
-  grid-template-columns:
-    250px
-    1fr
-    250px;
-
+/* The navigation rail is 52px wide and expands over the content, so the content starts after the collapsed rail */
+.app-shell {
+  position: relative;
   height: 100vh;
 }
 
-.left-sidebar {
-  border-right: 1px solid #ddd;
-
-  overflow: auto;
-}
-
-.center-content {
-  overflow: hidden;
-}
-
-.right-sidebar {
-  border-left: 1px solid #ddd;
-
-  overflow: auto;
+.app-main {
+  height: 100%;
+  margin-left: 52px;
 }
 </style>
