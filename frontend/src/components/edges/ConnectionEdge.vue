@@ -18,11 +18,18 @@
     const warningCount = computed(() => props.data?.warnings.length ?? 0);
 
     // An edge without any connection only exists to show that information is sent without a connection
-    const hasConnections = computed(() =>
+    const humanCount = computed(() => props.data?.humanConnectionIds.length ?? 0);
+
+    const systemConnectionCount = computed(() =>
         (props.data?.apiIds.length ?? 0) +
         (props.data?.databaseConnectionIds.length ?? 0) +
-        (props.data?.scriptIds.length ?? 0) > 0
+        (props.data?.scriptIds.length ?? 0)
     );
+
+    const hasConnections = computed(() => systemConnectionCount.value + humanCount.value > 0);
+
+    // Only human connections: information is entered by hand, shown with a dashed line
+    const isHumanOnly = computed(() => humanCount.value > 0 && systemConnectionCount.value === 0);
 
     function plural(count: number, single: string, multiple: string) {
         return `${count} ${count === 1 ? single : multiple}`;
@@ -38,6 +45,7 @@
         if (apiCount) parts.push(plural(apiCount, 'API', "API's"));
         if (databaseCount) parts.push(plural(databaseCount, 'DB', "DB's"));
         if (scriptCount) parts.push(plural(scriptCount, 'script', 'scripts'));
+        if (humanCount.value) parts.push(plural(humanCount.value, 'human', 'human'));
         if (!hasConnections.value) parts.push('No connection');
 
         const text = parts.join(' · ');
@@ -47,7 +55,9 @@
     const edgeStyle = computed(() => ({
         stroke: warningCount.value ? '#f59e0b' : props.selected ? '#6366f1' : '#94a3b8',
         strokeWidth: props.selected ? 2 : 1.5,
-        strokeDasharray: hasConnections.value ? undefined : '5 4'
+        // Dashed: entered by hand. Dotted: information flows without any connection
+        strokeDasharray: isHumanOnly.value ? '6 4' : hasConnections.value ? undefined : '1.5 4',
+        strokeLinecap: hasConnections.value ? undefined : 'round' as const
     }));
 
     const labelStyle = computed(() => ({

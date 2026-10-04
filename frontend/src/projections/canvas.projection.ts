@@ -13,6 +13,7 @@ import { getVisibleResourceTypes, isResourceTypeExpanded, isResourceTypeVisible,
 import { useDatabaseStore, type Database } from "../stores/resources/database.store";
 import { useTableStore, type Table } from "../stores/resources/table.store";
 import { useApplicationStore } from "../stores/resources/application.store";
+import { useHumanConnectionStore } from "../stores/humanConnection.store";
 import { useInformationTransferService } from "../services/informationTransfer.service";
 import type { ResolvedInformationFieldReference } from "../types/informationField.type";
 import type { ResolvedInformationObjectReference } from "../types/informationObject.type";
@@ -49,6 +50,7 @@ export function useCanvasProjection() {
     const databaseStore = useDatabaseStore();
     const tableStore = useTableStore();
     const applicationStore = useApplicationStore();
+    const humanConnectionStore = useHumanConnectionStore();
     const informationTransferService = useInformationTransferService();
 
     const apiConnectionStore = useApiConnectionStore();
@@ -88,6 +90,7 @@ export function useCanvasProjection() {
                     apiIds: [],
                     databaseConnectionIds: [],
                     scriptIds: [],
+                    humanConnectionIds: [],
                     sourceResourceId,
                     targetResourceId,
                     warnings: []
@@ -119,7 +122,7 @@ export function useCanvasProjection() {
             connectionId: string,
             field: keyof Pick<
             CanvasEdge["data"],
-            'apiIds' | 'databaseConnectionIds' | 'scriptIds'
+            'apiIds' | 'databaseConnectionIds' | 'scriptIds' | 'humanConnectionIds'
             >
         ) {
             getOrCreateEdge(sourceResourceId, targetResourceId)?.data[field].push(connectionId);
@@ -133,11 +136,16 @@ export function useCanvasProjection() {
                 'apiIds'
             );
 
-            if(!apiConnection.sourceUrlId) {
-                getOrCreateEdge(apiConnection.sourceId, apiConnection.targetId)?.data.warnings.push(
-                    'An API connection has no url to transfer information'
-                );
-            }
+        }
+
+        for(const humanConnection of humanConnectionStore.humanConnections){
+            if(!humanConnection.sourceId || !humanConnection.targetId) continue;
+            addConnection(
+                humanConnection.sourceId,
+                humanConnection.targetId,
+                humanConnection.id,
+                'humanConnectionIds'
+            );
         }
 
         // Information that goes from one application to another without an api url that sends it.
@@ -146,17 +154,8 @@ export function useCanvasProjection() {
         for(const sourceId of applicationIds) {
             for(const targetId of applicationIds) {
                 if(sourceId === targetId) continue;
-                const transferWarnings = informationTransferService.getTransferWarnings(sourceId, targetId);
-                if(!transferWarnings) continue;
-
-                const edge = getOrCreateEdge(sourceId, targetId);
-                if(!edge) continue;
-
-                if(transferWarnings.objectNames.length) {
-                    edge.data.warnings.push(`Objects sent without an API url: ${transferWarnings.objectNames.join(', ')}`);
-                }
-                if(transferWarnings.fieldNames.length) {
-                    edge.data.warnings.push(`Fields sent without an API url: ${transferWarnings.fieldNames.join(', ')}`);
+                if(informationTransferService.getTransferWarnings(sourceId, targetId)) {
+                    getOrCreateEdge(sourceId, targetId);
                 }
             }
         }
@@ -176,6 +175,13 @@ export function useCanvasProjection() {
                     addConnection(inputId, outputId, script.id, 'scriptIds');
                 })
             })
+        }
+
+        // The same warnings are shown in the connection details when the edge is selected
+        for(const edge of edges.values()) {
+            edge.data.warnings = informationTransferService
+                .getConnectionWarnings(edge.data.sourceResourceId, edge.data.targetResourceId)
+                .map((warning) => warning.title);
         }
 
         // The arrow head gets the same color as the edge line in ConnectionEdge.vue

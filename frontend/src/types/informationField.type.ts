@@ -31,4 +31,6 @@ export interface ResolvedInformationFieldReference {
 export interface AccessibleInformationField extends InformationField {
     accessibleFromId: string;
     accessibleFromType: ResourceType;
+    // The output objects of the source the field is part of, when it is received as part of an object
+    objectNames?: string[];
 }

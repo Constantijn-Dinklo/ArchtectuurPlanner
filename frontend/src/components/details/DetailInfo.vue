@@ -7,6 +7,7 @@
     import DatabaseDetails from './DatabaseDetails.vue';
     import ServerDetails from './ServerDetails.vue';
     import TableDetails from './TableDetails.vue';
+    import ConnectionWarnings from './ConnectionWarnings.vue';
 
     const selectedNodeProjection = useSelectedNodeProjection();
     const selectedEdgeProjection = useSelectedEdgeProjection();
@@ -40,9 +41,14 @@
                 <span class="detail-header-icon"><i class="pi pi-arrow-right-arrow-left" /></span>
                 <div class="detail-header-text">
                     <span class="detail-type-label">Connection</span>
-                    <h2>Connection details</h2>
+                    <h2>
+                        {{ selectedEdgeProjection.connectionsInfo.value.sourceName ?? '?' }}
+                        →
+                        {{ selectedEdgeProjection.connectionsInfo.value.targetName ?? '?' }}
+                    </h2>
                 </div>
             </header>
+            <ConnectionWarnings :warnings="selectedEdgeProjection.connectionsInfo.value.warnings" />
             <ConnectionsDetail :connections-info="selectedEdgeProjection.connectionsInfo.value" />
         </template>
 

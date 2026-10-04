@@ -8,19 +8,23 @@
   import { useDatabaseConnectionStore } from '../stores/databaseConnection.store.ts';
   import { useApiConnectionStore } from '../stores/apiConnection.store.ts';
   import { useScriptStore } from '../stores/script.store.ts';
+  import ConnectionTableHuman from './ConnectionTableHuman.vue';
+  import { useHumanConnectionStore } from '../stores/humanConnection.store.ts';
 
   const apiConnectionService = useApiConnectionService();
   const apiConnectionStore = useApiConnectionStore();
   const databaseConnectionStore = useDatabaseConnectionStore();
   const scriptService = useScriptService();
   const scriptStore = useScriptStore();
+  const humanConnectionStore = useHumanConnectionStore();
 
-  const activeTable = ref<'api' | 'script' | 'database'>('api');
+  const activeTable = ref<'api' | 'script' | 'database' | 'human'>('api');
 
   onMounted(() => {
     apiConnectionService.fetchApiConnections();
     databaseConnectionStore.fetchDatabaseConnections();
     scriptService.fetchScripts();
+    humanConnectionStore.fetchHumanConnections();
   });
 
 </script>
@@ -54,6 +58,15 @@
         Database Connections
         <span class="toggle-count">{{ databaseConnectionStore.databaseConnections.length }}</span>
       </button>
+
+      <button
+        :class="{ active: activeTable === 'human' }"
+        @click="activeTable = 'human'"
+      >
+        <i class="pi pi-user" />
+        Human
+        <span class="toggle-count">{{ humanConnectionStore.humanConnections.length }}</span>
+      </button>
     </div>
 
     <div class="table-container">
@@ -61,7 +74,9 @@
 
       <ConnectionTableScript v-else-if="activeTable === 'script'" />
 
-      <ConnectionTableDatabase v-else/>
+      <ConnectionTableDatabase v-else-if="activeTable === 'database'" />
+
+      <ConnectionTableHuman v-else />
     </div>
   </div>
 </template>

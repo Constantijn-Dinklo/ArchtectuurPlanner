@@ -8,6 +8,7 @@ import { useApiConnectionService } from "../services/apiConnection.service";
 import { useDatabaseConnectionService } from "../services/databaseConnection.service";
 import { useResourceService } from "../services/resources/resource.service";
 import { useResourceResolver } from "../resolvers/resource.resolver";
+import { useHumanConnectionStore } from "../stores/humanConnection.store";
 
 
 
@@ -21,6 +22,7 @@ export function useSelectedNodeProjection() {
     const apiConnectionStore = useApiConnectionStore();
     const scriptStore = useScriptStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
+    const humanConnectionStore = useHumanConnectionStore();
 
     const apiConnectionService = useApiConnectionService();
     const databaseConnectionService = useDatabaseConnectionService();
@@ -78,6 +80,16 @@ export function useSelectedNodeProjection() {
         return resolvedDatabaseConnections;
     }
 
+    function getResourceHumanConnections(resourceId: string) {
+        return humanConnectionStore.humanConnections
+            .filter((humanConnection) => humanConnection.sourceId === resourceId || humanConnection.targetId === resourceId)
+            .map((humanConnection) => ({
+                ...humanConnection,
+                source: humanConnection.sourceId ? resourceService.getResource(humanConnection.sourceId) : undefined,
+                target: humanConnection.targetId ? resourceService.getResource(humanConnection.targetId) : undefined
+            }));
+    }
+
     const nodeInfo = computed(() => {
         const selectedEntityId = getSelectedEntityId();
         if(!selectedEntityId) { return }
@@ -89,13 +101,15 @@ export function useSelectedNodeProjection() {
         const apiConnections = getResourceApiConnections(selectedEntityId);
         const scripts = getResourceScripts(selectedEntityId)
         const databaseConnections = getResourceDatabaseConnections(selectedEntityId);
+        const humanConnections = getResourceHumanConnections(selectedEntityId);
 
         return {
             node,
             connections: {
                 apiConnections,
                 scripts,
-                databaseConnections
+                databaseConnections,
+                humanConnections
             }
         };
     });

@@ -11,6 +11,8 @@ export interface CanvasEdge {
         apiIds: string[];
         databaseConnectionIds: string[];
         scriptIds: string[];
+        // Connections where a person manually enters the information into the target
+        humanConnectionIds: string[];
 
         sourceResourceId: string;
         targetResourceId: string;

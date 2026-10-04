@@ -21,6 +21,12 @@
             entityId: string;
             database?: Resource;
             entity?: Resource
+        }[],
+        humanConnections?: {
+            id: string;
+            description: string;
+            source?: Resource;
+            target?: Resource;
         }[]
     }
 
@@ -31,7 +37,8 @@
     const connectionCount = computed(() =>
         (props.connectionsInfo.apiConnections?.length ?? 0) +
         (props.connectionsInfo.scripts?.length ?? 0) +
-        (props.connectionsInfo.databaseConnections?.length ?? 0)
+        (props.connectionsInfo.databaseConnections?.length ?? 0) +
+        (props.connectionsInfo.humanConnections?.length ?? 0)
     );
 </script>
 
@@ -84,6 +91,21 @@
             >
                 <i class="pi pi-database detail-row-icon" />
                 <span class="detail-row-name">{{ database.database?.name || 'No database selected' }}</span>
+            </div>
+        </template>
+
+        <template v-if="connectionsInfo.humanConnections && connectionsInfo.humanConnections.length > 0">
+            <div class="detail-subtitle">Human</div>
+            <div
+                v-for="humanConnection in connectionsInfo.humanConnections"
+                :key="humanConnection.id"
+                class="detail-row"
+                :title="humanConnection.description || undefined"
+            >
+                <i class="pi pi-user detail-row-icon" />
+                <span class="detail-row-name">
+                    {{ humanConnection.source?.name ?? '?' }} → {{ humanConnection.target?.name ?? '?' }}
+                </span>
             </div>
         </template>
     </section>

@@ -6,6 +6,9 @@ import { useViewStore } from "../stores/canvas/view.store";
 import { useApiConnectionService } from "../services/apiConnection.service";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useDatabaseConnectionService } from "../services/databaseConnection.service";
+import { useHumanConnectionStore } from "../stores/humanConnection.store";
+import { useResourceService } from "../services/resources/resource.service";
+import { useInformationTransferService } from "../services/informationTransfer.service";
 
 
 export function useSelectedEdgeProjection() {
@@ -16,6 +19,9 @@ export function useSelectedEdgeProjection() {
     const apiConnectionStore = useApiConnectionStore();
     const scriptStore = useScriptStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
+    const humanConnectionStore = useHumanConnectionStore();
+    const resourceService = useResourceService();
+    const informationTransferService = useInformationTransferService();
     
     const apiConnectionService = useApiConnectionService();
     const databaseConnectionService = useDatabaseConnectionService();
@@ -90,6 +96,16 @@ export function useSelectedEdgeProjection() {
         return resolvedDatabaseConnections;
     }
 
+    function getSelectedEdgeHumanConnections(inputEntityId: string, outputEntityId: string) {
+        return humanConnectionStore.humanConnections
+            .filter((humanConnection) => humanConnection.sourceId === inputEntityId && humanConnection.targetId === outputEntityId)
+            .map((humanConnection) => ({
+                ...humanConnection,
+                source: resourceService.getResource(inputEntityId),
+                target: resourceService.getResource(outputEntityId)
+            }));
+    }
+
     const connectionsInfo = computed(() => {
         const selectedEdgeId = getSelectedEdgeId();
         if(!selectedEdgeId) { return }
@@ -103,11 +119,16 @@ export function useSelectedEdgeProjection() {
         const apiConnections = getSelectedEdgeApiConnections(inputEntityId, outputEntityId);
         const scripts = getSelectedEdgeScripts(inputEntityId, outputEntityId);
         const databaseConnections = getSelectedEdgeDB(inputEntityId, outputEntityId);
+        const humanConnections = getSelectedEdgeHumanConnections(inputEntityId, outputEntityId);
 
         return {
             apiConnections,
             scripts,
-            databaseConnections
+            databaseConnections,
+            humanConnections,
+            warnings: informationTransferService.getConnectionWarnings(inputEntityId, outputEntityId),
+            sourceName: resourceService.getResource(inputEntityId)?.name,
+            targetName: resourceService.getResource(outputEntityId)?.name
         }
     });
 

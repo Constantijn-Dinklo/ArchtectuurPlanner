@@ -12,6 +12,7 @@ import type { AccessibleInformationObject } from "../../types/informationObject.
 import { useApiConnectionStore } from "../../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../../stores/databaseConnection.store";
 import { useScriptStore } from "../../stores/script.store";
+import { useHumanConnectionStore } from "../../stores/humanConnection.store";
 import { useDatabaseService } from "./database.service";
 import type { Application, ResolvedApplication } from "../../types/application.types";
 import { useResourceResolver } from "../../resolvers/resource.resolver";
@@ -33,6 +34,7 @@ export function useResourceService() {
     const apiConnectionStore = useApiConnectionStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
     const scriptStore = useScriptStore();
+    const humanConnectionStore = useHumanConnectionStore();
     
     const resources = computed(() => {
         return [
@@ -102,31 +104,58 @@ export function useResourceService() {
         const apiConnectedResources = apiConnectionStore.apiConnections.filter((apiConnection) => apiConnection.targetId === resourceId).map((apiConnection) => apiConnection.sourceId);
         const upstreamResourceIdsViaDatabaseConnections = getUpstreamResourceIdsViaDatabaseConnections(resourceId);
         const scriptConnectedResources = scriptStore.scripts.filter((script) => script.outputIds.includes(resourceId)).flatMap((script) => script.inputIds);
+        const humanConnectedResources = humanConnectionStore.humanConnections
+            .filter((humanConnection) => humanConnection.targetId === resourceId && humanConnection.sourceId)
+            .map((humanConnection) => humanConnection.sourceId as string);
 
         return [
             ...new Set([
                 ...apiConnectedResources,
                 ...upstreamResourceIdsViaDatabaseConnections,
-                ...scriptConnectedResources
+                ...scriptConnectedResources,
+                ...humanConnectedResources
             ])
         ]
     }
 
-    function getResourceInformationFields(resourceId: string): AccessibleInformationField[] {
+    // includeObjectFields: also return the fields that are part of the output objects of an application,
+    // for receivers that store fields individually (databases and their tables)
+    function getResourceInformationFields(resourceId: string, includeObjectFields: boolean = false): AccessibleInformationField[] {
         const resource = getResource(resourceId);
         if(!resource) { return []; }
         const resolvedResource = resourceResolver.resolveResource(resource);
         
         switch (resolvedResource.type) {
-            case 'application':
-                return resolvedResource.outputInformationFields.map((outputInformationField) => (
-                    {
+            case 'application': {
+                const fields = new Map<string, AccessibleInformationField>();
+
+                for(const outputInformationField of resolvedResource.outputInformationFields) {
+                    fields.set(outputInformationField.informationField.id, {
                         id: outputInformationField.informationField.id,
                         fieldName: outputInformationField.informationField.fieldName,
                         accessibleFromId: resource.id,
                         accessibleFromType: 'application'
+                    });
+                }
+
+                if(includeObjectFields) {
+                    for(const outputInformationObject of resolvedResource.outputInformationObjects) {
+                        for(const informationField of outputInformationObject.informationObject.informationFields) {
+                            const field = fields.get(informationField.id) ?? {
+                                id: informationField.id,
+                                fieldName: informationField.fieldName,
+                                accessibleFromId: resource.id,
+                                accessibleFromType: 'application',
+                                objectNames: []
+                            };
+                            field.objectNames = [...(field.objectNames ?? []), outputInformationObject.informationObject.objectName];
+                            fields.set(informationField.id, field);
+                        }
                     }
-                ));
+                }
+
+                return [...fields.values()];
+            }
             case 'database':
                 const tables = databaseService.getDatabaseTables(resolvedResource.id);
                 return tables.flatMap((table) => getResourceInformationFields(table.id))
@@ -147,7 +176,9 @@ export function useResourceService() {
         //For now I am only looking at the resource, so filter out any duplicates
         //TODO: Look at which information is actually send THROUGH the connection, not just which are available on the resource
         const upstreamResourceIds = getUpstreamResourceIds(resourceId);
-        const informationFields = upstreamResourceIds.flatMap((upstreamResourceId) => getResourceInformationFields(upstreamResourceId))
+        // A database can store the fields of an information object that is written to it as separate columns
+        const receivesObjectFields = getResource(resourceId)?.type === 'database';
+        const informationFields = upstreamResourceIds.flatMap((upstreamResourceId) => getResourceInformationFields(upstreamResourceId, receivesObjectFields))
         return informationFields;
     }
 
@@ -174,5 +205,5 @@ export function useResourceService() {
         return upstreamResourceIds.flatMap((upstreamResourceId) => getResourceInformationObjects(upstreamResourceId));
     }
 
-    return { getResource, getByType, getAccessibleInformationFields, getAccessibleInformationObjects }
+    return { getResource, getByType, getResourceInformationFields, getResourceInformationObjects, getAccessibleInformationFields, getAccessibleInformationObjects }
 }

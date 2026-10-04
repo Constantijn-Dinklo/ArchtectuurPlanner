@@ -18,8 +18,13 @@ import type { AccessibleInformationField } from '../../types/informationField.ty
         () => selectedNodeProjection.nodeInfo.value?.node as Table | undefined
     );
 
+    // Fields that are part of an object are shown with the object, e.g. "customerId (Order)"
     const accessibleInformationFields = computed(() =>
-        table.value ? resourceService.getAccessibleInformationFields(table.value.databaseId) : []
+        (table.value ? resourceService.getAccessibleInformationFields(table.value.databaseId) : [])
+            .map(field => ({
+                ...field,
+                label: field.objectNames?.length ? `${field.fieldName} (${field.objectNames.join(', ')})` : field.fieldName
+            }))
     );
 
     function createColumn(tableId: string, newInformationField: boolean = true){
@@ -88,7 +93,7 @@ import type { AccessibleInformationField } from '../../types/informationField.ty
             <Select
                 v-model="inputColumn"
                 :options="accessibleInformationFields"
-                option-label="fieldName"
+                option-label="label"
                 :option-disabled="(field: AccessibleInformationField) =>
                     table!.columns.some((column) => column.id === field.id)"
                 placeholder="+ Add accessible field"

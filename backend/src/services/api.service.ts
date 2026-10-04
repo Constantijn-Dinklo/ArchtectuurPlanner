@@ -2,6 +2,7 @@ import { UserJwtPayload } from "../middelware";
 import Api from "../models/api.model";
 import Application, { IApplication } from "../models/resources/application.model";
 import InformationObject from "../models/information/informationObject.models";
+import HumanConnection from "../models/humanConnection.model";
 
 // Only the output information of the application the api belongs to can be sent through the api
 async function getApiWithApplication(user: UserJwtPayload, apiId: string) {
@@ -26,7 +27,7 @@ async function getApiWithApplication(user: UserJwtPayload, apiId: string) {
 
 // The fields an application can send through its apis: its standalone output fields
 // and the fields that are part of its output objects
-async function getSendableFieldIds(user: UserJwtPayload, application: IApplication): Promise<Set<string>> {
+export async function getSendableFieldIds(user: UserJwtPayload, application: IApplication): Promise<Set<string>> {
     const outputObjects = await InformationObject.find({
         _id: { $in: application.outputInformationObjects.map((object) => object.informationObjectId) },
         organisationId: user.organisationId
@@ -38,7 +39,7 @@ async function getSendableFieldIds(user: UserJwtPayload, application: IApplicati
     ]);
 }
 
-// Removes everything from the apis of the application that the application can no longer send
+// Removes everything from the apis and human connections of the application that the application can no longer send
 export async function cleanupApplicationApis(user: UserJwtPayload, applicationId: string) {
     const application = await Application.findOne({
         _id: applicationId,
@@ -60,6 +61,23 @@ export async function cleanupApplicationApis(user: UserJwtPayload, applicationId
                 $pull: {
                     informationFieldIds: { $in: api.informationFieldIds.filter((fieldId) => !sendableFieldIds.has(fieldId.toString())) },
                     informationObjectIds: { $in: api.informationObjectIds.filter((objectId) => !outputObjectIds.includes(objectId.toString())) }
+                }
+            }
+        );
+    }
+
+    // Human connections from the application can only carry what the application outputs as well
+    const humanConnections = await HumanConnection.find({
+        organisationId: user.organisationId,
+        sourceId: applicationId
+    });
+    for(const humanConnection of humanConnections) {
+        await HumanConnection.updateOne(
+            { _id: humanConnection._id },
+            {
+                $pull: {
+                    informationFieldIds: { $in: humanConnection.informationFieldIds.filter((fieldId) => !sendableFieldIds.has(fieldId.toString())) },
+                    informationObjectIds: { $in: humanConnection.informationObjectIds.filter((objectId) => !outputObjectIds.includes(objectId.toString())) }
                 }
             }
         );

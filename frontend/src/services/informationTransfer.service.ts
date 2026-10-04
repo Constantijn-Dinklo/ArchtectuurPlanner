@@ -4,22 +4,35 @@ import { useInformationObjectStore } from "../stores/information/informationObje
 import { useInformationFieldStore } from "../stores/information/informationField.store";
 import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useApiStore, type Api } from "../stores/api.store";
+import { useHumanConnectionStore } from "../stores/humanConnection.store";
+import { useResourceService } from "./resources/resource.service";
+
+// A problem with the information transfer between two resources, with what to do about it
+export interface ConnectionWarning {
+    title: string;
+    // The information or connections the warning is about
+    items: string[];
+    hint: string;
+}
 
 export interface TransferWarnings {
-    // Names of the information that goes from the source to the target application without an api url sending it
+    // Names of the information that goes from the source to the target application without an api url or human connection carrying it
     fieldNames: string[];
     objectNames: string[];
 }
 
-// Information that is sent from one application to another has to be sent through an api url:
-// an api connection from the source to the target, whose url sends the field or object.
-// A field also counts as sent when the url sends an object the field is part of.
+// Information that is sent from one application to another has to be sent through an api url
+// (an api connection from the source to the target, whose url sends the field or object),
+// or carried over by a human connection from the source to the target.
+// A field also counts as sent when an object the field is part of is sent.
 export function useInformationTransferService() {
     const informationRelationStore = useInformationRelationStore();
     const informationObjectStore = useInformationObjectStore();
     const informationFieldStore = useInformationFieldStore();
     const apiConnectionStore = useApiConnectionStore();
     const apiStore = useApiStore();
+    const humanConnectionStore = useHumanConnectionStore();
+    const resourceService = useResourceService();
 
     function getUrlsBetween(sourceId: string, targetId: string): Api[] {
         return apiConnectionStore.apiConnections
@@ -28,10 +41,17 @@ export function useInformationTransferService() {
             .filter(url => url !== undefined);
     }
 
-    function urlSendsField(url: Api, informationFieldId: string) {
-        if (url.informationFieldIds?.includes(informationFieldId)) return true;
+    // Api urls and human connections both carry a list of fields and objects
+    function getCarriersBetween(sourceId: string, targetId: string): Pick<Api, 'informationFieldIds' | 'informationObjectIds'>[] {
+        const humanConnections = humanConnectionStore.humanConnections
+            .filter(connection => connection.sourceId === sourceId && connection.targetId === targetId);
+        return [...getUrlsBetween(sourceId, targetId), ...humanConnections];
+    }
 
-        return (url.informationObjectIds ?? []).some(objectId =>
+    function carriesField(carrier: Pick<Api, 'informationFieldIds' | 'informationObjectIds'>, informationFieldId: string) {
+        if (carrier.informationFieldIds?.includes(informationFieldId)) return true;
+
+        return (carrier.informationObjectIds ?? []).some(objectId =>
             informationObjectStore.getInformationObject(objectId)?.informationFieldIds.includes(informationFieldId)
         );
     }
@@ -45,15 +65,15 @@ export function useInformationTransferService() {
     const unsentFieldRelations = computed(() =>
         informationRelationStore.fieldRelations
             .filter(isBetweenApplications)
-            .filter(relation => !getUrlsBetween(relation.sourceResourceId, relation.targetResourceId)
-                .some(url => urlSendsField(url, relation.informationFieldId)))
+            .filter(relation => !getCarriersBetween(relation.sourceResourceId, relation.targetResourceId)
+                .some(carrier => carriesField(carrier, relation.informationFieldId)))
     );
 
     const unsentObjectRelations = computed(() =>
         informationRelationStore.objectRelations
             .filter(isBetweenApplications)
-            .filter(relation => !getUrlsBetween(relation.sourceResourceId, relation.targetResourceId)
-                .some(url => url.informationObjectIds?.includes(relation.informationObjectId)))
+            .filter(relation => !getCarriersBetween(relation.sourceResourceId, relation.targetResourceId)
+                .some(carrier => carrier.informationObjectIds?.includes(relation.informationObjectId)))
     );
 
     // Keyed by `${targetApplicationId}:${informationId}`, the value is the id of the application it comes from
@@ -103,5 +123,45 @@ export function useInformationTransferService() {
         return transferWarnings.value.get(`${sourceId}->${targetId}`);
     }
 
-    return { getUnsentInputFieldSource, getUnsentInputObjectSource, getTransferWarnings };
+    // All warnings for the connection from the source to the target, used by the canvas edge and the connection details
+    function getConnectionWarnings(sourceId: string, targetId: string): ConnectionWarning[] {
+        const warnings: ConnectionWarning[] = [];
+        const sourceName = resourceService.getResource(sourceId)?.name ?? 'the source';
+        const targetName = resourceService.getResource(targetId)?.name ?? 'the target';
+
+        const connectionsWithoutUrl = apiConnectionStore.apiConnections.filter(connection =>
+            connection.sourceId === sourceId && connection.targetId === targetId && !connection.sourceUrlId
+        );
+        if (connectionsWithoutUrl.length) {
+            warnings.push({
+                title: connectionsWithoutUrl.length === 1
+                    ? 'An API connection has no url'
+                    : `${connectionsWithoutUrl.length} API connections have no url`,
+                items: connectionsWithoutUrl.map(connection => `API connection …${connection.id.slice(-6)}`),
+                hint: `Select the url of ${sourceName} in the Api tab of the connections table, otherwise no information can be transferred.`
+            });
+        }
+
+        const transferWarnings = getTransferWarnings(sourceId, targetId);
+        const fixHint = `Add them to an API url of ${sourceName} that is connected to ${targetName}, or to a human connection from ${sourceName} to ${targetName}.`;
+
+        if (transferWarnings?.objectNames.length) {
+            warnings.push({
+                title: 'Objects sent without an API url or human connection',
+                items: transferWarnings.objectNames,
+                hint: fixHint
+            });
+        }
+        if (transferWarnings?.fieldNames.length) {
+            warnings.push({
+                title: 'Fields sent without an API url or human connection',
+                items: transferWarnings.fieldNames,
+                hint: fixHint
+            });
+        }
+
+        return warnings;
+    }
+
+    return { getUnsentInputFieldSource, getUnsentInputObjectSource, getTransferWarnings, getConnectionWarnings };
 }
