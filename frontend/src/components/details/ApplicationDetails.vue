@@ -18,6 +18,9 @@ import { useInformationObjectService } from '../../services/informationObject.se
 import { useInformationEndpointService } from '../../services/informationEndpoint.service.ts';
 import { useApiStore, type Api } from '../../stores/api.store.ts';
 import { useInformationTransferService } from '../../services/informationTransfer.service.ts';
+import { useInformationSourceService, type CandidateConnection } from '../../services/informationSource.service.ts';
+import { useInformationRelationStore } from '../../stores/information/informationRelation.store.ts';
+import ViaConnection from './ViaConnection.vue';
 import type { ResolvedApplication } from '../../types/application.types.ts';
 
 const resourceService = useResourceService();
@@ -28,6 +31,8 @@ const informationObjectService = useInformationObjectService();
 const informationEndpointService = useInformationEndpointService();
 const apiStore = useApiStore();
 const informationTransferService = useInformationTransferService();
+const informationSourceService = useInformationSourceService();
+const informationRelationStore = useInformationRelationStore();
 
 // Returns a warning when the input comes from another application without an api url that sends it
 function getUnsentFieldWarning(applicationId: string, informationFieldId: string) {
@@ -43,14 +48,14 @@ function getUnsentObjectWarning(applicationId: string, informationObjectId: stri
 }
 
 
-const inputInformationField = ref<AccessibleInformationField>();
+const inputInformationField = ref<AccessibleInformationField & { via?: CandidateConnection }>();
 const forwardedInformationField = ref<InformationField>();
 
 const newInputInformationFieldName = ref('');
 const newOutputInformationFieldName = ref('');
 
 
-const inputInformationObject = ref<AccessibleInformationObject>();
+const inputInformationObject = ref<AccessibleInformationObject & { via?: CandidateConnection }>();
 const forwardedInformationObject = ref<ResolvedInformationObject>();
 
 const newInputInformationObjectName = ref('');
@@ -101,17 +106,74 @@ const localOutputFields = computed(() =>
     application.value?.outputInformationFields.filter(field => field.position === 0) ?? []
 );
 
+// Information can come through several connections. Every connection gets its own option, so the user picks
+// the connection together with the information, e.g. "customerId — Webshop · via API https://…/orders".
+// Information that does not come through any connection gets one option with "(none)".
+function withConnectionOptions<T extends { accessibleFromId: string }>(
+    items: T[],
+    getName: (item: T) => string,
+    getCandidates: (item: T) => CandidateConnection[]
+) {
+    return items.flatMap((item): (T & { via?: CandidateConnection, label: string })[] => {
+        const sourceName = resourceService.getResource(item.accessibleFromId)?.name ?? '?';
+        const candidates = getCandidates(item);
+
+        if (!candidates.length) {
+            return [{ ...item, via: undefined, label: `${getName(item)} — ${sourceName} · (none)` }];
+        }
+        return candidates.map(candidate => ({
+            ...item,
+            via: candidate,
+            label: `${getName(item)} — ${sourceName} · via ${candidate.label}`
+        }));
+    });
+}
+
+// Every accessible field once, for places that do not care about the connection
+const accessibleInputFieldsOnce = computed(() =>
+    application.value ? resourceService.getAccessibleInformationFields(application.value.id) : []
+);
+
 const accessibleInputFields = computed(() => {
     if (!application.value) return [];
+    const applicationId = application.value.id;
 
-    return resourceService.getAccessibleInformationFields(application.value.id);
+    return withConnectionOptions(
+        resourceService.getAccessibleInformationFields(applicationId),
+        field => field.fieldName,
+        field => informationSourceService.getCandidateConnections(field.accessibleFromId, applicationId, { informationFieldId: field.id })
+    );
 });
 
 const accessibleInformationObjects = computed(() => {
     if (!application.value) return [];
+    const applicationId = application.value.id;
 
-    return resourceService.getAccessibleInformationObjects(application.value.id);
+    return withConnectionOptions(
+        resourceService.getAccessibleInformationObjects(applicationId),
+        informationObject => informationObject.objectName,
+        informationObject => informationSourceService.getCandidateConnections(informationObject.accessibleFromId, applicationId, { informationObjectId: informationObject.id })
+    );
 });
+
+// The relation through which an input field or object comes into this application from another resource
+function getInputFieldRelation(informationFieldId: string) {
+    const applicationId = application.value?.id;
+    return informationRelationStore.fieldRelations.find(relation =>
+        relation.targetResourceId === applicationId &&
+        relation.sourceResourceId !== applicationId &&
+        relation.informationFieldId === informationFieldId
+    );
+}
+
+function getInputObjectRelation(informationObjectId: string) {
+    const applicationId = application.value?.id;
+    return informationRelationStore.objectRelations.find(relation =>
+        relation.targetResourceId === applicationId &&
+        relation.sourceResourceId !== applicationId &&
+        relation.informationObjectId === informationObjectId
+    );
+}
 
 // <-- APIs -->
 const applicationApis = computed(() =>
@@ -185,7 +247,9 @@ function addInputInformationField(applicationId: string) {
     applicationService.addApplicationInformationField(applicationId, {
         informationFieldId: inputInformationField.value.id,
         sourceResourceId: inputInformationField.value.accessibleFromId,
-        sourceResourceType: inputInformationField.value.accessibleFromType
+        sourceResourceType: inputInformationField.value.accessibleFromType,
+        viaConnectionType: inputInformationField.value.via?.type ?? null,
+        viaConnectionId: inputInformationField.value.via?.id ?? null
     });
 
     inputInformationField.value = undefined;
@@ -250,7 +314,9 @@ function addInputInformationObject(applicationId: string) {
     applicationService.addApplictionInformationObject(applicationId, {
         informationObjectId: inputInformationObject.value.id,
         sourceResourceId: inputInformationObject.value.accessibleFromId,
-        sourceResourceType: inputInformationObject.value.accessibleFromType
+        sourceResourceType: inputInformationObject.value.accessibleFromType,
+        viaConnectionType: inputInformationObject.value.via?.type ?? null,
+        viaConnectionId: inputInformationObject.value.via?.id ?? null
     });
 
     inputInformationObject.value = undefined;
@@ -411,6 +477,11 @@ function isInformationObjectExpanded(informationObjectId: string) {
                             {{ informationObject.informationObject.objectName }}
                         </span>
 
+                        <ViaConnection
+                            v-if="informationObject.position > 0 && getInputObjectRelation(informationObject.informationObject.id)"
+                            :relation="getInputObjectRelation(informationObject.informationObject.id)!"
+                        />
+
                         <span class="object-field-count">
                             {{ informationObject.informationObject.informationFields.length }}
                         </span>
@@ -472,7 +543,7 @@ function isInformationObjectExpanded(informationObjectId: string) {
                             </option>
 
                             <option
-                                v-for="field in accessibleInputFields"
+                                v-for="field in accessibleInputFieldsOnce"
                                 :key="field.id"
                                 :value="field"
                                 :disabled="informationObject.informationObject.informationFields.some(
@@ -505,7 +576,7 @@ function isInformationObjectExpanded(informationObjectId: string) {
                     <Select
                         v-model="inputInformationObject"
                         :options="accessibleInformationObjects"
-                        option-label="objectName"
+                        option-label="label"
                         :option-disabled="(informationObject: AccessibleInformationObject) =>
                             application!.inputInformationObjects.some(
                                 existing => existing.informationObject.id === informationObject.id
@@ -570,6 +641,11 @@ function isInformationObjectExpanded(informationObjectId: string) {
                         {{ field.informationField.fieldName }}
                     </span>
 
+                    <ViaConnection
+                        v-if="getInputFieldRelation(field.informationField.id)"
+                        :relation="getInputFieldRelation(field.informationField.id)!"
+                    />
+
                     <button
                         class="delete-button"
                         @click="deleteInformationField(
@@ -584,7 +660,7 @@ function isInformationObjectExpanded(informationObjectId: string) {
                 <Select
                     v-model="inputInformationField"
                     :options="accessibleInputFields"
-                    option-label="fieldName"
+                    option-label="label"
                     :option-disabled="(field: AccessibleInformationField) =>
                         application!.inputInformationFields.some(
                             existing => existing.informationField.id === field.id

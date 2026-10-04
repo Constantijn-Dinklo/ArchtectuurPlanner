@@ -12,6 +12,9 @@ export type resourceObjectInformation =
           informationObjectId: string;
           sourceResourceId: string;
           sourceResourceType: ResourceType;
+          // The connection the information comes through, when the user picked one
+          viaConnectionType?: 'api' | 'script' | 'database' | 'human' | null;
+          viaConnectionId?: string | null;
       };
 
 export async function createInformationObject(user: UserJwtPayload, objectName: string) {

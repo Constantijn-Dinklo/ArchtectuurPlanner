@@ -9,6 +9,9 @@ export type AddInformationFieldRequest =
           informationFieldId: string;
           sourceResourceId: string;
           sourceResourceType: ResourceType;
+          // The connection the information comes through, when the user picked one
+          viaConnectionType?: 'api' | 'script' | 'database' | 'human' | null;
+          viaConnectionId?: string | null;
       };
 
 

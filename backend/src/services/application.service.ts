@@ -148,7 +148,9 @@ export async function addApplicationInputInformationField(user: UserJwtPayload, 
             sourceResourceId: resourceFieldInformation.sourceResourceId,
             sourceResourceType: resourceFieldInformation.sourceResourceType,
             targetResourceId: applicationId,
-            targetResourceType: 'application'
+            targetResourceType: 'application',
+            viaConnectionType: resourceFieldInformation.viaConnectionType ?? null,
+            viaConnectionId: resourceFieldInformation.viaConnectionType ? resourceFieldInformation.viaConnectionId ?? null : null
         });
         newResourceFieldRelation.save();
 
@@ -243,7 +245,9 @@ export async function addApplicationOutputInformationField(user: UserJwtPayload,
             sourceResourceId: resourceFieldInformation.sourceResourceId,
             sourceResourceType: resourceFieldInformation.sourceResourceType,
             targetResourceId: applicationId,
-            targetResourceType: 'application'
+            targetResourceType: 'application',
+            viaConnectionType: resourceFieldInformation.viaConnectionType ?? null,
+            viaConnectionId: resourceFieldInformation.viaConnectionType ? resourceFieldInformation.viaConnectionId ?? null : null
         });
         newResourceFieldRelation.save();
 
@@ -412,7 +416,9 @@ export async function addApplicationInputInformationObject(user: UserJwtPayload,
             sourceResourceId: resourceObjectInformation.sourceResourceId,
             sourceResourceType: resourceObjectInformation.sourceResourceType,
             targetResourceId: applicationId,
-            targetResourceType: 'application'
+            targetResourceType: 'application',
+            viaConnectionType: resourceObjectInformation.viaConnectionType ?? null,
+            viaConnectionId: resourceObjectInformation.viaConnectionType ? resourceObjectInformation.viaConnectionId ?? null : null
         });
         await newResourceObjectRelation.save();
 
@@ -508,7 +514,9 @@ export async function addApplicationOutputInformationObject(user: UserJwtPayload
             sourceResourceId: resourceObjectInformation.sourceResourceId,
             sourceResourceType: resourceObjectInformation.sourceResourceType,
             targetResourceId: applicationId,
-            targetResourceType: 'application'
+            targetResourceType: 'application',
+            viaConnectionType: resourceObjectInformation.viaConnectionType ?? null,
+            viaConnectionId: resourceObjectInformation.viaConnectionType ? resourceObjectInformation.viaConnectionId ?? null : null
         });
         await newResourceObjectRelation.save();
 
