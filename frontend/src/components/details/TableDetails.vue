@@ -5,6 +5,7 @@
     import { useTableStore, type Table } from '../../stores/resources/table.store';
     import { useResourceService } from '../../services/resources/resource.service';
 import type { AccessibleInformationField } from '../../types/informationField.type';
+    import EndpointsSection from './EndpointsSection.vue';
 
     const resourceService = useResourceService();
 
@@ -124,5 +125,10 @@ import type { AccessibleInformationField } from '../../types/informationField.ty
                 </button>
             </div>
         </section>
+
+        <EndpointsSection
+            :resource-id="table.id"
+            resource-type="table"
+        />
     </div>
 </template>

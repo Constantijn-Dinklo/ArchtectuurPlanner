@@ -82,10 +82,14 @@ export function useSelectedEdgeProjection() {
     }
 
     function getSelectedEdgeDB(inputEntityId: string, outputEntityId: string) {
+        // Same direction as the canvas edges: read is database -> resource, write is resource -> database
         const databaseConnections = databaseConnectionStore.databaseConnections.filter((databaseConnection) => {
+            const writes = databaseConnection.operation.includes('write');
+            const reads = databaseConnection.operation.includes('read') || !writes;
+
             return (
-                databaseConnection.databaseId === inputEntityId &&
-                databaseConnection.entityId === outputEntityId
+                (reads && databaseConnection.databaseId === inputEntityId && databaseConnection.entityId === outputEntityId) ||
+                (writes && databaseConnection.entityId === inputEntityId && databaseConnection.databaseId === outputEntityId)
             )
         });
 

@@ -6,10 +6,13 @@ import { useInformationFieldStore } from '../stores/information/informationField
 import { useInformationObjectStore } from '../stores/information/informationObject.store';
 import { useInformationRelationStore, type ResourceRelation } from '../stores/information/informationRelation.store';
 import { useResourceService } from '../services/resources/resource.service';
+import { useEndpointStore, getEndpointTypeInfo } from '../stores/endpoint.store';
 
 interface ChainStep {
     resourceId: string;
     side?: 'input' | 'output';
+    // The step is an endpoint (dashboard, map, ...) inside the resource, where the information is used
+    endpointId?: string;
 }
 
 // A relation between two steps. carriedByObjectIds is empty when the information travels on its own
@@ -46,6 +49,7 @@ const informationFieldStore = useInformationFieldStore();
 const informationObjectStore = useInformationObjectStore();
 const informationRelationStore = useInformationRelationStore();
 const resourceService = useResourceService();
+const endpointStore = useEndpointStore();
 
 // The relations are kept up to date by CanvasView; this only makes sure they are fresh when the sheet opens
 onMounted(() => {
@@ -72,7 +76,8 @@ const fieldGroups = computed<ChainGroup[]>(() => {
                     .map(relation => relationToEdge(relation)),
                 ...informationRelationStore.objectRelations
                     .filter(relation => containingObjectIds.includes(relation.informationObjectId))
-                    .map(relation => relationToEdge(relation, relation.informationObjectId))
+                    .map(relation => relationToEdge(relation, relation.informationObjectId)),
+                ...getFieldEndpointEdges(field.id, containingObjectIds)
             ];
 
             return {
@@ -92,9 +97,12 @@ const objectGroups = computed<ChainGroup[]>(() => {
             id: object.id,
             name: object.objectName,
             chains: buildChains(
-                informationRelationStore.objectRelations
-                    .filter(relation => relation.informationObjectId === object.id)
-                    .map(relation => relationToEdge(relation)),
+                [
+                    ...informationRelationStore.objectRelations
+                        .filter(relation => relation.informationObjectId === object.id)
+                        .map(relation => relationToEdge(relation)),
+                    ...getObjectEndpointEdges(object.id)
+                ],
                 () => []
             )
         }));
@@ -122,10 +130,53 @@ function relationToEdge(relation: ResourceRelation, carriedByObjectId?: string):
     };
 }
 
+interface OutputRefs {
+    outputInformationFieldRefs: { informationFieldId: string }[];
+    outputInformationObjectRefs: { informationObjectId: string }[];
+}
+
+// Information that is used in an endpoint gets an extra step from the resource to that endpoint.
+// In an application the step starts at the output when the application outputs the information, otherwise at the input
+function getEndpointSourceStep(resourceId: string, isOutput: (resource: OutputRefs) => boolean): ChainStep {
+    const resource = resourceService.getResource(resourceId);
+    if (resource?.type !== 'application') return { resourceId };
+    return { resourceId, side: isOutput(resource) ? 'output' : 'input' };
+}
+
+function getFieldEndpointEdges(informationFieldId: string, containingObjectIds: string[]): ChainEdge[] {
+    return endpointStore.endpoints.flatMap(endpoint => {
+        const usedDirectly = endpoint.informationFieldIds.includes(informationFieldId);
+        const usedInObjectIds = endpoint.informationObjectIds.filter(objectId => containingObjectIds.includes(objectId));
+        if (!usedDirectly && !usedInObjectIds.length) return [];
+
+        const source = getEndpointSourceStep(endpoint.resourceId, resource =>
+            resource.outputInformationFieldRefs.some(ref => ref.informationFieldId === informationFieldId) ||
+            resource.outputInformationObjectRefs.some(ref => containingObjectIds.includes(ref.informationObjectId))
+        );
+        return [{
+            source,
+            target: { resourceId: endpoint.resourceId, endpointId: endpoint.id },
+            carriedByObjectIds: usedDirectly ? [] : usedInObjectIds
+        }];
+    });
+}
+
+function getObjectEndpointEdges(informationObjectId: string): ChainEdge[] {
+    return endpointStore.endpoints
+        .filter(endpoint => endpoint.informationObjectIds.includes(informationObjectId))
+        .map(endpoint => ({
+            source: getEndpointSourceStep(endpoint.resourceId, resource =>
+                resource.outputInformationObjectRefs.some(ref => ref.informationObjectId === informationObjectId)
+            ),
+            target: { resourceId: endpoint.resourceId, endpointId: endpoint.id },
+            carriedByObjectIds: []
+        }));
+}
+
 // The objects (out of the given ones) that are present on this side of the resource
 function getContainingObjectIds(step: ChainStep, objectIds: string[]): string[] {
     const resource = resourceService.getResource(step.resourceId);
-    if (resource?.type !== 'application' || !step.side) return [];
+    if (resource?.type !== 'application' || !step.side || step.endpointId) return [];
 
     const objectRefs = step.side === 'input'
         ? resource.inputInformationObjectRefs
@@ -141,6 +192,7 @@ function getObjectNames(objectIds: string[]) {
 }
 
 function stepKey(step: ChainStep) {
+    if (step.endpointId) return `endpoint:${step.endpointId}`;
     return `${step.resourceId}:${step.side ?? ''}`;
 }
 
@@ -216,7 +268,16 @@ function buildChains(edges: ChainEdge[], getStepObjectIds: (step: ChainStep) => 
 
 function stepLabel(step: ChainStep) {
     const name = resourceService.getResource(step.resourceId)?.name ?? 'Unknown resource';
+    if (step.endpointId) {
+        const endpoint = endpointStore.endpoints.find(endpoint => endpoint.id === step.endpointId);
+        return `${endpoint?.name ?? 'Unknown endpoint'} (${name})`;
+    }
     return step.side ? `${name} (${step.side})` : name;
+}
+
+function stepIcon(step: ChainStep) {
+    const endpoint = endpointStore.endpoints.find(endpoint => endpoint.id === step.endpointId);
+    return endpoint ? getEndpointTypeInfo(endpoint.type).icon : undefined;
 }
 </script>
 
@@ -296,9 +357,17 @@ function stepLabel(step: ChainStep) {
 
                         <span
                             class="chain-step"
-                            :class="{ 'in-object': step.objectNames.length }"
+                            :class="{ 'in-object': step.objectNames.length, endpoint: step.endpointId }"
+                            :title="step.endpointId ? 'Endpoint: the information is used here' : undefined"
                         >
-                            <span>{{ stepLabel(step) }}</span>
+                            <span>
+                                <i
+                                    v-if="stepIcon(step)"
+                                    :class="stepIcon(step)"
+                                    class="endpoint-step-icon"
+                                />
+                                {{ stepLabel(step) }}
+                            </span>
 
                             <span
                                 v-if="step.objectNames.length"
@@ -315,6 +384,18 @@ function stepLabel(step: ChainStep) {
 </template>
 
 <style scoped>
+.chain-step.endpoint {
+    border-color: #c4b5fd;
+    background: #faf5ff;
+    color: #5b21b6;
+}
+
+.endpoint-step-icon {
+    margin-right: 3px;
+    color: #7c3aed;
+    font-size: 10px;
+}
+
 .relation-chains {
     padding: 4px 14px 12px;
     font-size: 13px;

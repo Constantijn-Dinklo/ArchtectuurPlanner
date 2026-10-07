@@ -21,6 +21,7 @@ import { useInformationTransferService } from '../../services/informationTransfe
 import { useInformationSourceService, type CandidateConnection } from '../../services/informationSource.service.ts';
 import { useInformationRelationStore } from '../../stores/information/informationRelation.store.ts';
 import ViaConnection from './ViaConnection.vue';
+import EndpointsSection from './EndpointsSection.vue';
 import type { ResolvedApplication } from '../../types/application.types.ts';
 
 const resourceService = useResourceService();
@@ -1034,6 +1035,12 @@ function isInformationObjectExpanded(informationObjectId: string) {
                 </div>
             </div>
         </section>
+
+        <!-- Endpoints: where the information of this application is used by people -->
+        <EndpointsSection
+            :resource-id="application.id"
+            resource-type="application"
+        />
     </div>
 </template>
 

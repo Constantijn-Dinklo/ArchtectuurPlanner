@@ -16,6 +16,7 @@ import ApplicationNode from "../nodes/ApplicationNode.vue";
 import DatabaseNode from "../nodes/DatabaseNode.vue";
 import ConnectionEdge from "../edges/ConnectionEdge.vue";
 import { useInformationRelationStore } from "../../stores/information/informationRelation.store";
+import { useEndpointStore } from "../../stores/endpoint.store";
 import { useApplicationStore } from "../../stores/resources/application.store";
 import { useTableStore } from "../../stores/resources/table.store";
 
@@ -23,6 +24,7 @@ const viewStore = useViewStore();
 const UIStore = useUIStore();
 const architectureViewService = useArchitectureViewService();
 const informationRelationStore = useInformationRelationStore();
+const endpointStore = useEndpointStore();
 const applicationStore = useApplicationStore();
 const tableStore = useTableStore();
 
@@ -42,6 +44,7 @@ const flowEdges = useCanvasProjection().flowEdges;
 onMounted(() => {
   viewStore.fetchViews();
   informationRelationStore.fetchInformationRelations();
+  endpointStore.fetchEndpoints();
 })
 
 // The relations are changed in the backend whenever information is added to or removed from a resource

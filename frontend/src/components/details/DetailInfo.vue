@@ -8,6 +8,7 @@
     import ServerDetails from './ServerDetails.vue';
     import TableDetails from './TableDetails.vue';
     import ConnectionWarnings from './ConnectionWarnings.vue';
+    import EndpointsSection from './EndpointsSection.vue';
 
     const selectedNodeProjection = useSelectedNodeProjection();
     const selectedEdgeProjection = useSelectedEdgeProjection();
@@ -32,6 +33,10 @@
                         <h2>{{ selectedNodeProjection.nodeInfo.value.node.name }}</h2>
                     </div>
                 </header>
+                <EndpointsSection
+                    :resource-id="selectedNodeProjection.nodeInfo.value.node.id"
+                    :resource-type="selectedNodeProjection.nodeInfo.value.node.type"
+                />
                 <ConnectionsDetail :connections-info="selectedNodeProjection.nodeInfo.value.connections" />
             </template>
         </template>

@@ -160,13 +160,18 @@ export function useCanvasProjection() {
             }
         }
 
+        // The edge points in the direction the data flows: reading goes from the database to the resource,
+        // writing goes from the resource to the database. A connection that does both gets an edge in each direction
         for(const dbConnection of databaseConnectionStore.databaseConnections){
-            addConnection(
-                dbConnection.databaseId,
-                dbConnection.entityId,
-                dbConnection.id,
-                'databaseConnectionIds'
-            );
+            const writes = dbConnection.operation.includes('write');
+            const reads = dbConnection.operation.includes('read') || !writes;
+
+            if(reads) {
+                addConnection(dbConnection.databaseId, dbConnection.entityId, dbConnection.id, 'databaseConnectionIds');
+            }
+            if(writes) {
+                addConnection(dbConnection.entityId, dbConnection.databaseId, dbConnection.id, 'databaseConnectionIds');
+            }
         }
 
         for(const script of scriptStore.scripts){

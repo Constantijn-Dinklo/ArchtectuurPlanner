@@ -4,6 +4,7 @@
     import { useDatabaseStore, type Database } from '../../stores/resources/database.store';
 
     import ConnectionsDetail from '../ConnectionsDetail.vue';
+    import EndpointsSection from './EndpointsSection.vue';
     import { useTableStore } from '../../stores/resources/table.store.ts';
     import { useTableService } from '../../services/resources/table.service.ts';
 
@@ -115,6 +116,11 @@
                 </button>
             </div>
         </section>
+
+        <EndpointsSection
+            :resource-id="database.id"
+            resource-type="database"
+        />
 
         <ConnectionsDetail
             v-if="selectedNodeProjection.nodeInfo.value"
