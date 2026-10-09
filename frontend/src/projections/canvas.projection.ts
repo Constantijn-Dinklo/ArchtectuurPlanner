@@ -13,12 +13,13 @@ import { getVisibleResourceTypes, isResourceTypeExpanded, isResourceTypeVisible,
 import { useDatabaseStore, type Database } from "../stores/resources/database.store";
 import { useTableStore, type Table } from "../stores/resources/table.store";
 import { useApplicationStore } from "../stores/resources/application.store";
-import { useHumanConnectionStore } from "../stores/humanConnection.store";
+import { useOtherConnectionStore } from "../stores/otherConnection.store";
 import { useInformationTransferService } from "../services/informationTransfer.service";
 import type { ResolvedInformationFieldReference } from "../types/informationField.type";
 import type { ResolvedInformationObjectReference } from "../types/informationObject.type";
 import { useResourceResolver } from "../resolvers/resource.resolver";
 import type { ApplicationNode, ResolvedApplication } from "../types/application.types";
+import type { ResolvedExternal } from "../types/external.types";
 
 
 // Sizes in px. The table sizes have to match the styling in TableNode.vue
@@ -50,7 +51,7 @@ export function useCanvasProjection() {
     const databaseStore = useDatabaseStore();
     const tableStore = useTableStore();
     const applicationStore = useApplicationStore();
-    const humanConnectionStore = useHumanConnectionStore();
+    const otherConnectionStore = useOtherConnectionStore();
     const informationTransferService = useInformationTransferService();
 
     const apiConnectionStore = useApiConnectionStore();
@@ -90,7 +91,8 @@ export function useCanvasProjection() {
                     apiIds: [],
                     databaseConnectionIds: [],
                     scriptIds: [],
-                    humanConnectionIds: [],
+                    otherConnectionIds: [],
+                    otherConnectionMethods: [],
                     sourceResourceId,
                     targetResourceId,
                     warnings: []
@@ -122,7 +124,7 @@ export function useCanvasProjection() {
             connectionId: string,
             field: keyof Pick<
             CanvasEdge["data"],
-            'apiIds' | 'databaseConnectionIds' | 'scriptIds' | 'humanConnectionIds'
+            'apiIds' | 'databaseConnectionIds' | 'scriptIds' | 'otherConnectionIds'
             >
         ) {
             getOrCreateEdge(sourceResourceId, targetResourceId)?.data[field].push(connectionId);
@@ -138,14 +140,15 @@ export function useCanvasProjection() {
 
         }
 
-        for(const humanConnection of humanConnectionStore.humanConnections){
-            if(!humanConnection.sourceId || !humanConnection.targetId) continue;
+        for(const otherConnection of otherConnectionStore.otherConnections){
+            if(!otherConnection.sourceId || !otherConnection.targetId) continue;
             addConnection(
-                humanConnection.sourceId,
-                humanConnection.targetId,
-                humanConnection.id,
-                'humanConnectionIds'
+                otherConnection.sourceId,
+                otherConnection.targetId,
+                otherConnection.id,
+                'otherConnectionIds'
             );
+            getOrCreateEdge(otherConnection.sourceId, otherConnection.targetId)?.data.otherConnectionMethods.push(otherConnection.method);
         }
 
         // Information that goes from one application to another without an api url that sends it.
@@ -236,6 +239,9 @@ export function useCanvasProjection() {
         }
         else if (resource.type === 'table') {
             projectedViewNode = resolveTableNode(resource);
+        }
+        else if (resolvedResoure.type === 'external') {
+            projectedViewNode = projectExternalNode(resolvedResoure);
         }
         if(!projectedViewNode) { return }
         const node: CanvasNode = {
@@ -334,6 +340,19 @@ export function useCanvasProjection() {
         }
         else if(resource.type === 'table') {
             fieldNames = resource.columns.map((column) => column.fieldName);
+        }
+        else if(resource.type === 'external') {
+            const informationObjects = [
+                ...resource.providedInformationObjects,
+                ...resource.receivedInformationObjects
+            ].map((reference) => reference.informationObject);
+
+            objectNames = informationObjects.map((informationObject) => informationObject.objectName);
+            fieldNames = [
+                ...resource.providedInformationFields.map((reference) => reference.informationField.fieldName),
+                ...resource.receivedInformationFields.map((reference) => reference.informationField.fieldName),
+                ...informationObjects.flatMap((informationObject) => informationObject.informationFields.map((field) => field.fieldName))
+            ];
         }
 
         const matchesField = !fieldSearch || fieldNames.some((name) => name.toLowerCase().includes(fieldSearch));
@@ -444,6 +463,30 @@ export function useCanvasProjection() {
             data: {
                 label: table.name,
                 resourceId: table.id
+            }
+        }
+    }
+
+    // An external element is a black box. At the application level only its name is shown,
+    // at lower levels also which information it provides and receives
+    function projectExternalNode(external: ResolvedExternal) {
+        const expanded = isResourceTypeExpanded(UIStore.levelOfDetail, 'external');
+
+        return {
+            type: 'external',
+            style: {
+                width: expanded ? '150px' : '130px'
+            },
+            data: {
+                label: external.name,
+                resourceId: external.id,
+                kind: external.kind,
+                externalOrganisation: external.externalOrganisation,
+                expanded,
+                providedInformationFields: external.providedInformationFields,
+                providedInformationObjects: external.providedInformationObjects,
+                receivedInformationFields: external.receivedInformationFields,
+                receivedInformationObjects: external.receivedInformationObjects
             }
         }
     }

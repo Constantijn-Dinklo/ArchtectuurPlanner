@@ -7,6 +7,7 @@
     import DatabaseDetails from './DatabaseDetails.vue';
     import ServerDetails from './ServerDetails.vue';
     import TableDetails from './TableDetails.vue';
+    import ExternalDetails from './ExternalDetails.vue';
     import ConnectionWarnings from './ConnectionWarnings.vue';
     import EndpointsSection from './EndpointsSection.vue';
 
@@ -24,6 +25,8 @@
             <ServerDetails v-else-if="selectedNodeProjection.nodeInfo.value.node.type === 'server'" />
 
             <TableDetails v-else-if="selectedNodeProjection.nodeInfo.value.node.type === 'table'" />
+
+            <ExternalDetails v-else-if="selectedNodeProjection.nodeInfo.value.node.type === 'external'" />
 
             <template v-else>
                 <header class="detail-header">
@@ -124,6 +127,7 @@
 .detail-header-icon.database { background: #ecfdf3; color: #22a35a; }
 .detail-header-icon.table { background: #eef2ff; color: #6366f1; }
 .detail-header-icon.server { background: #fefce8; color: #ca8a04; }
+.detail-header-icon.external { background: #f1f5f9; color: #475569; border: 1px dashed #94a3b8; box-sizing: border-box; }
 
 .detail-header-text {
     flex: 1;

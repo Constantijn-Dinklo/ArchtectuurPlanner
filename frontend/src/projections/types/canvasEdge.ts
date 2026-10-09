@@ -1,5 +1,7 @@
 
 
+import type { OtherConnectionMethod } from "../../stores/otherConnection.store";
+
 export interface CanvasEdge {
     id: string;
     type: 'connection';
@@ -11,8 +13,9 @@ export interface CanvasEdge {
         apiIds: string[];
         databaseConnectionIds: string[];
         scriptIds: string[];
-        // Connections where a person manually enters the information into the target
-        humanConnectionIds: string[];
+        // Connections that are not an api, database connection or script: by hand, a send button, a file, ...
+        otherConnectionIds: string[];
+        otherConnectionMethods: OtherConnectionMethod[];
 
         sourceResourceId: string;
         targetResourceId: string;

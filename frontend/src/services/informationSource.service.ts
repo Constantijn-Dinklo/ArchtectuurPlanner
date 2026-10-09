@@ -2,7 +2,7 @@ import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useApiStore } from "../stores/api.store";
 import { useScriptStore } from "../stores/script.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
-import { useHumanConnectionStore } from "../stores/humanConnection.store";
+import { useOtherConnectionStore, getOtherConnectionMethodInfo } from "../stores/otherConnection.store";
 import { useInformationObjectStore } from "../stores/information/informationObject.store";
 import type { ConnectionType, ResourceRelation } from "../stores/information/informationRelation.store";
 import { useResourceService } from "./resources/resource.service";
@@ -28,15 +28,15 @@ export interface ResolvedVia {
     needsChoice: boolean;
 }
 
-// Works out through which api, script, database connection or human connection information comes from another resource.
-// Api urls and human connections list the information they carry. Scripts and database connections do not,
+// Works out through which api, script, database connection or other connection information comes from another resource.
+// Api urls and other connections list the information they carry. Scripts and database connections do not,
 // so every script or database connection between the two resources can carry anything.
 export function useInformationSourceService() {
     const apiConnectionStore = useApiConnectionStore();
     const apiStore = useApiStore();
     const scriptStore = useScriptStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
-    const humanConnectionStore = useHumanConnectionStore();
+    const otherConnectionStore = useOtherConnectionStore();
     const informationObjectStore = useInformationObjectStore();
     const resourceService = useResourceService();
 
@@ -69,13 +69,13 @@ export function useInformationSourceService() {
             candidates.push({ type: 'api', id: apiConnection.id, label: `API ${url.url}` });
         }
 
-        for (const humanConnection of humanConnectionStore.humanConnections) {
-            if (humanConnection.sourceId !== sourceId || humanConnection.targetId !== targetId) continue;
-            if (!carries(humanConnection, information)) continue;
+        for (const otherConnection of otherConnectionStore.otherConnections) {
+            if (otherConnection.sourceId !== sourceId || otherConnection.targetId !== targetId) continue;
+            if (!carries(otherConnection, information)) continue;
             candidates.push({
-                type: 'human',
-                id: humanConnection.id,
-                label: `Human${humanConnection.description ? `: ${humanConnection.description}` : ''}`
+                type: 'other',
+                id: otherConnection.id,
+                label: `${getOtherConnectionMethodInfo(otherConnection.method).label}${otherConnection.description ? `: ${otherConnection.description}` : ''}`
             });
         }
 

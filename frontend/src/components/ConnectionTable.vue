@@ -8,23 +8,23 @@
   import { useDatabaseConnectionStore } from '../stores/databaseConnection.store.ts';
   import { useApiConnectionStore } from '../stores/apiConnection.store.ts';
   import { useScriptStore } from '../stores/script.store.ts';
-  import ConnectionTableHuman from './ConnectionTableHuman.vue';
-  import { useHumanConnectionStore } from '../stores/humanConnection.store.ts';
+  import ConnectionTableOther from './ConnectionTableOther.vue';
+  import { useOtherConnectionStore } from '../stores/otherConnection.store.ts';
 
   const apiConnectionService = useApiConnectionService();
   const apiConnectionStore = useApiConnectionStore();
   const databaseConnectionStore = useDatabaseConnectionStore();
   const scriptService = useScriptService();
   const scriptStore = useScriptStore();
-  const humanConnectionStore = useHumanConnectionStore();
+  const otherConnectionStore = useOtherConnectionStore();
 
-  const activeTable = ref<'api' | 'script' | 'database' | 'human'>('api');
+  const activeTable = ref<'api' | 'script' | 'database' | 'other'>('api');
 
   onMounted(() => {
     apiConnectionService.fetchApiConnections();
     databaseConnectionStore.fetchDatabaseConnections();
     scriptService.fetchScripts();
-    humanConnectionStore.fetchHumanConnections();
+    otherConnectionStore.fetchOtherConnections();
   });
 
 </script>
@@ -60,12 +60,12 @@
       </button>
 
       <button
-        :class="{ active: activeTable === 'human' }"
-        @click="activeTable = 'human'"
+        :class="{ active: activeTable === 'other' }"
+        @click="activeTable = 'other'"
       >
-        <i class="pi pi-user" />
-        Human
-        <span class="toggle-count">{{ humanConnectionStore.humanConnections.length }}</span>
+        <i class="pi pi-share-alt" />
+        Other
+        <span class="toggle-count">{{ otherConnectionStore.otherConnections.length }}</span>
       </button>
     </div>
 
@@ -76,7 +76,7 @@
 
       <ConnectionTableDatabase v-else-if="activeTable === 'database'" />
 
-      <ConnectionTableHuman v-else />
+      <ConnectionTableOther v-else />
     </div>
   </div>
 </template>

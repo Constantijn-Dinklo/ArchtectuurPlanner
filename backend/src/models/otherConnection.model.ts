@@ -1,10 +1,17 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
-// Information flows from the source to the target because a person manually enters it into the target
-export interface IHumanConnection extends Document {
+// How the information gets from the source to the target, as far as it is known
+export const OTHER_CONNECTION_METHODS = ['human', 'feature', 'file', 'email', 'unknown'] as const;
+export type OtherConnectionMethod = typeof OTHER_CONNECTION_METHODS[number];
+
+// A connection between any two resources that is not an api, database connection or script.
+// For example a person entering information by hand, a 'send' button in an application of which we do not know
+// how it works, a file or an e-mail. It is also the fallback when it is unclear how information is transferred.
+export interface IOtherConnection extends Document {
     organisationId: Types.ObjectId;
     sourceId: Types.ObjectId | null;
     targetId: Types.ObjectId | null;
+    method: OtherConnectionMethod;
     description: string;
 
     // The information of the source that is carried over to the target
@@ -12,7 +19,7 @@ export interface IHumanConnection extends Document {
     informationObjectIds: Types.ObjectId[];
 }
 
-const HumanConnectionSchema = new Schema<IHumanConnection>({
+const OtherConnectionSchema = new Schema<IOtherConnection>({
     organisationId: {
         type: Schema.Types.ObjectId,
         ref: 'Organisation',
@@ -28,6 +35,11 @@ const HumanConnectionSchema = new Schema<IHumanConnection>({
         type: Schema.Types.ObjectId,
         required: false,
         default: null
+    },
+    method: {
+        type: Schema.Types.String,
+        enum: OTHER_CONNECTION_METHODS,
+        default: 'unknown'
     },
     description: {
         type: Schema.Types.String,
@@ -64,6 +76,6 @@ const HumanConnectionSchema = new Schema<IHumanConnection>({
     }
 });
 
-const HumanConnection: Model<IHumanConnection> = mongoose.model<IHumanConnection>('HumanConnection', HumanConnectionSchema);
+const OtherConnection: Model<IOtherConnection> = mongoose.model<IOtherConnection>('OtherConnection', OtherConnectionSchema);
 
-export default HumanConnection;
+export default OtherConnection;

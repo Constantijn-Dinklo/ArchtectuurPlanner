@@ -39,13 +39,13 @@ const informationRelationStore = useInformationRelationStore();
 function getUnsentFieldWarning(applicationId: string, informationFieldId: string) {
     const sourceId = informationTransferService.getUnsentInputFieldSource(applicationId, informationFieldId);
     if (!sourceId) return undefined;
-    return `Sent from ${resourceService.getResource(sourceId)?.name ?? 'another application'} without an API url or human connection that carries it`;
+    return `Sent from ${resourceService.getResource(sourceId)?.name ?? 'another application'} without an API url or other connection that carries it`;
 }
 
 function getUnsentObjectWarning(applicationId: string, informationObjectId: string) {
     const sourceId = informationTransferService.getUnsentInputObjectSource(applicationId, informationObjectId);
     if (!sourceId) return undefined;
-    return `Sent from ${resourceService.getResource(sourceId)?.name ?? 'another application'} without an API url or human connection that carries it`;
+    return `Sent from ${resourceService.getResource(sourceId)?.name ?? 'another application'} without an API url or other connection that carries it`;
 }
 
 

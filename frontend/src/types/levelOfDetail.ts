@@ -39,6 +39,11 @@ export const LevelOfDetailConfig: Record<LevelOfDetail, LevelOfDetailConfig> = {
             visible: false,
             expandable: false,
             expanded: false
+        },
+        external: {
+            visible: true,
+            expandable: true,
+            expanded: false
         }
     },
     'database': {
@@ -66,6 +71,11 @@ export const LevelOfDetailConfig: Record<LevelOfDetail, LevelOfDetailConfig> = {
             visible: true,
             expandable: false,
             expanded: false
+        },
+        external: {
+            visible: true,
+            expandable: true,
+            expanded: true
         }
     },
     'technology': {}

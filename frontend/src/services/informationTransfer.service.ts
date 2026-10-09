@@ -4,7 +4,7 @@ import { useInformationObjectStore } from "../stores/information/informationObje
 import { useInformationFieldStore } from "../stores/information/informationField.store";
 import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useApiStore, type Api } from "../stores/api.store";
-import { useHumanConnectionStore } from "../stores/humanConnection.store";
+import { useOtherConnectionStore } from "../stores/otherConnection.store";
 import { useResourceService } from "./resources/resource.service";
 
 // A problem with the information transfer between two resources, with what to do about it
@@ -16,14 +16,14 @@ export interface ConnectionWarning {
 }
 
 export interface TransferWarnings {
-    // Names of the information that goes from the source to the target application without an api url or human connection carrying it
+    // Names of the information that goes from the source to the target application without an api url or other connection carrying it
     fieldNames: string[];
     objectNames: string[];
 }
 
 // Information that is sent from one application to another has to be sent through an api url
 // (an api connection from the source to the target, whose url sends the field or object),
-// or carried over by a human connection from the source to the target.
+// or carried over by an other connection (by hand, a send button, a file, ...) from the source to the target.
 // A field also counts as sent when an object the field is part of is sent.
 export function useInformationTransferService() {
     const informationRelationStore = useInformationRelationStore();
@@ -31,7 +31,7 @@ export function useInformationTransferService() {
     const informationFieldStore = useInformationFieldStore();
     const apiConnectionStore = useApiConnectionStore();
     const apiStore = useApiStore();
-    const humanConnectionStore = useHumanConnectionStore();
+    const otherConnectionStore = useOtherConnectionStore();
     const resourceService = useResourceService();
 
     function getUrlsBetween(sourceId: string, targetId: string): Api[] {
@@ -41,11 +41,11 @@ export function useInformationTransferService() {
             .filter(url => url !== undefined);
     }
 
-    // Api urls and human connections both carry a list of fields and objects
+    // Api urls and other connections both carry a list of fields and objects
     function getCarriersBetween(sourceId: string, targetId: string): Pick<Api, 'informationFieldIds' | 'informationObjectIds'>[] {
-        const humanConnections = humanConnectionStore.humanConnections
+        const otherConnections = otherConnectionStore.otherConnections
             .filter(connection => connection.sourceId === sourceId && connection.targetId === targetId);
-        return [...getUrlsBetween(sourceId, targetId), ...humanConnections];
+        return [...getUrlsBetween(sourceId, targetId), ...otherConnections];
     }
 
     function carriesField(carrier: Pick<Api, 'informationFieldIds' | 'informationObjectIds'>, informationFieldId: string) {
@@ -143,18 +143,18 @@ export function useInformationTransferService() {
         }
 
         const transferWarnings = getTransferWarnings(sourceId, targetId);
-        const fixHint = `Add them to an API url of ${sourceName} that is connected to ${targetName}, or to a human connection from ${sourceName} to ${targetName}.`;
+        const fixHint = `Add them to an API url of ${sourceName} that is connected to ${targetName}, or to an other connection (Other tab) from ${sourceName} to ${targetName}.`;
 
         if (transferWarnings?.objectNames.length) {
             warnings.push({
-                title: 'Objects sent without an API url or human connection',
+                title: 'Objects sent without an API url or other connection',
                 items: transferWarnings.objectNames,
                 hint: fixHint
             });
         }
         if (transferWarnings?.fieldNames.length) {
             warnings.push({
-                title: 'Fields sent without an API url or human connection',
+                title: 'Fields sent without an API url or other connection',
                 items: transferWarnings.fieldNames,
                 hint: fixHint
             });

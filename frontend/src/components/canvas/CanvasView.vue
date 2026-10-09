@@ -14,6 +14,7 @@ import { useArchitectureViewService } from "../../services/architectureView.serv
 import TableNode from "../nodes/TableNode.vue";
 import ApplicationNode from "../nodes/ApplicationNode.vue";
 import DatabaseNode from "../nodes/DatabaseNode.vue";
+import ExternalNode from "../nodes/ExternalNode.vue";
 import ConnectionEdge from "../edges/ConnectionEdge.vue";
 import { useInformationRelationStore } from "../../stores/information/informationRelation.store";
 import { useEndpointStore } from "../../stores/endpoint.store";
@@ -32,7 +33,8 @@ const { getNodes } = useVueFlow();
 const nodeTypes = {
   application: markRaw(ApplicationNode),
   database: markRaw(DatabaseNode),
-  table: markRaw(TableNode)
+  table: markRaw(TableNode),
+  external: markRaw(ExternalNode)
 }
 const edgeTypes = {
   connection: markRaw(ConnectionEdge)

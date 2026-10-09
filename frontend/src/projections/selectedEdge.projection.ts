@@ -6,7 +6,7 @@ import { useViewStore } from "../stores/canvas/view.store";
 import { useApiConnectionService } from "../services/apiConnection.service";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useDatabaseConnectionService } from "../services/databaseConnection.service";
-import { useHumanConnectionStore } from "../stores/humanConnection.store";
+import { useOtherConnectionStore } from "../stores/otherConnection.store";
 import { useResourceService } from "../services/resources/resource.service";
 import { useInformationTransferService } from "../services/informationTransfer.service";
 
@@ -19,7 +19,7 @@ export function useSelectedEdgeProjection() {
     const apiConnectionStore = useApiConnectionStore();
     const scriptStore = useScriptStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
-    const humanConnectionStore = useHumanConnectionStore();
+    const otherConnectionStore = useOtherConnectionStore();
     const resourceService = useResourceService();
     const informationTransferService = useInformationTransferService();
     
@@ -100,11 +100,11 @@ export function useSelectedEdgeProjection() {
         return resolvedDatabaseConnections;
     }
 
-    function getSelectedEdgeHumanConnections(inputEntityId: string, outputEntityId: string) {
-        return humanConnectionStore.humanConnections
-            .filter((humanConnection) => humanConnection.sourceId === inputEntityId && humanConnection.targetId === outputEntityId)
-            .map((humanConnection) => ({
-                ...humanConnection,
+    function getSelectedEdgeOtherConnections(inputEntityId: string, outputEntityId: string) {
+        return otherConnectionStore.otherConnections
+            .filter((otherConnection) => otherConnection.sourceId === inputEntityId && otherConnection.targetId === outputEntityId)
+            .map((otherConnection) => ({
+                ...otherConnection,
                 source: resourceService.getResource(inputEntityId),
                 target: resourceService.getResource(outputEntityId)
             }));
@@ -123,13 +123,13 @@ export function useSelectedEdgeProjection() {
         const apiConnections = getSelectedEdgeApiConnections(inputEntityId, outputEntityId);
         const scripts = getSelectedEdgeScripts(inputEntityId, outputEntityId);
         const databaseConnections = getSelectedEdgeDB(inputEntityId, outputEntityId);
-        const humanConnections = getSelectedEdgeHumanConnections(inputEntityId, outputEntityId);
+        const otherConnections = getSelectedEdgeOtherConnections(inputEntityId, outputEntityId);
 
         return {
             apiConnections,
             scripts,
             databaseConnections,
-            humanConnections,
+            otherConnections,
             warnings: informationTransferService.getConnectionWarnings(inputEntityId, outputEntityId),
             sourceName: resourceService.getResource(inputEntityId)?.name,
             targetName: resourceService.getResource(outputEntityId)?.name

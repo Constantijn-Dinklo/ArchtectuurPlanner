@@ -12,13 +12,15 @@ import type { AccessibleInformationObject } from "../../types/informationObject.
 import { useApiConnectionStore } from "../../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../../stores/databaseConnection.store";
 import { useScriptStore } from "../../stores/script.store";
-import { useHumanConnectionStore } from "../../stores/humanConnection.store";
+import { useOtherConnectionStore } from "../../stores/otherConnection.store";
 import { useDatabaseService } from "./database.service";
 import type { Application, ResolvedApplication } from "../../types/application.types";
+import type { External, ResolvedExternal } from "../../types/external.types";
+import { useExternalStore } from "../../stores/resources/external.store";
 import { useResourceResolver } from "../../resolvers/resource.resolver";
 
-export type Resource = Application | Database | FileLocation | Server | Table;
-export type ResolvedResource = ResolvedApplication | Database | FileLocation | Server | Table;
+export type Resource = Application | Database | FileLocation | Server | Table | External;
+export type ResolvedResource = ResolvedApplication | Database | FileLocation | Server | Table | ResolvedExternal;
 
 export function useResourceService() {
     const applicationStore = useApplicationStore();
@@ -26,6 +28,7 @@ export function useResourceService() {
     const fileLocationStore = useFileLocationStore();
     const serverStore = useServerStore();
     const tableStore = useTableStore();
+    const externalStore = useExternalStore();
 
     const resourceResolver = useResourceResolver();
 
@@ -34,7 +37,7 @@ export function useResourceService() {
     const apiConnectionStore = useApiConnectionStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
     const scriptStore = useScriptStore();
-    const humanConnectionStore = useHumanConnectionStore();
+    const otherConnectionStore = useOtherConnectionStore();
     
     const resources = computed(() => {
         return [
@@ -42,7 +45,8 @@ export function useResourceService() {
             ...databaseStore.databases,
             ...fileLocationStore.fileLocations,
             ...serverStore.servers,
-            ...tableStore.tables
+            ...tableStore.tables,
+            ...externalStore.externals
         ]
     });
 
@@ -63,6 +67,9 @@ export function useResourceService() {
         }
         for(const table of tableStore.tables){
             map.set(table.id, table);
+        }
+        for(const external of externalStore.externals){
+            map.set(external.id, external);
         }
         return map;
     });
@@ -104,16 +111,16 @@ export function useResourceService() {
         const apiConnectedResources = apiConnectionStore.apiConnections.filter((apiConnection) => apiConnection.targetId === resourceId).map((apiConnection) => apiConnection.sourceId);
         const upstreamResourceIdsViaDatabaseConnections = getUpstreamResourceIdsViaDatabaseConnections(resourceId);
         const scriptConnectedResources = scriptStore.scripts.filter((script) => script.outputIds.includes(resourceId)).flatMap((script) => script.inputIds);
-        const humanConnectedResources = humanConnectionStore.humanConnections
-            .filter((humanConnection) => humanConnection.targetId === resourceId && humanConnection.sourceId)
-            .map((humanConnection) => humanConnection.sourceId as string);
+        const otherConnectedResources = otherConnectionStore.otherConnections
+            .filter((otherConnection) => otherConnection.targetId === resourceId && otherConnection.sourceId)
+            .map((otherConnection) => otherConnection.sourceId as string);
 
         return [
             ...new Set([
                 ...apiConnectedResources,
                 ...upstreamResourceIdsViaDatabaseConnections,
                 ...scriptConnectedResources,
-                ...humanConnectedResources
+                ...otherConnectedResources
             ])
         ]
     }
@@ -159,6 +166,13 @@ export function useResourceService() {
             case 'database':
                 const tables = databaseService.getDatabaseTables(resolvedResource.id);
                 return tables.flatMap((table) => getResourceInformationFields(table.id))
+            case 'external':
+                return resolvedResource.providedInformationFields.map((providedInformationField) => ({
+                    id: providedInformationField.informationField.id,
+                    fieldName: providedInformationField.informationField.fieldName,
+                    accessibleFromId: resource.id,
+                    accessibleFromType: 'external'
+                }));
             case 'table':
                 return resolvedResource.columns.map((column) => {
                     return {
@@ -196,6 +210,12 @@ export function useResourceService() {
                         accessibleFromType: 'application'
                     }
                 ));
+            case 'external':
+                return resolvedResource.providedInformationObjects.map((providedInformationObject) => ({
+                    ...providedInformationObject.informationObject,
+                    accessibleFromId: resource.id,
+                    accessibleFromType: 'external'
+                }));
         }
         return [];
     }

@@ -2,7 +2,8 @@ import { UserJwtPayload } from "../middelware";
 import Api from "../models/api.model";
 import Application, { IApplication } from "../models/resources/application.model";
 import InformationObject from "../models/information/informationObject.models";
-import HumanConnection from "../models/humanConnection.model";
+import OtherConnection from "../models/otherConnection.model";
+import { syncOtherConnectionRelations } from "./externalRelation.service";
 
 // Only the output information of the application the api belongs to can be sent through the api
 async function getApiWithApplication(user: UserJwtPayload, apiId: string) {
@@ -39,7 +40,7 @@ export async function getSendableFieldIds(user: UserJwtPayload, application: IAp
     ]);
 }
 
-// Removes everything from the apis and human connections of the application that the application can no longer send
+// Removes everything from the apis and other connections of the application that the application can no longer send
 export async function cleanupApplicationApis(user: UserJwtPayload, applicationId: string) {
     const application = await Application.findOne({
         _id: applicationId,
@@ -66,21 +67,23 @@ export async function cleanupApplicationApis(user: UserJwtPayload, applicationId
         );
     }
 
-    // Human connections from the application can only carry what the application outputs as well
-    const humanConnections = await HumanConnection.find({
+    // Other connections from the application can only carry what the application outputs as well
+    const otherConnections = await OtherConnection.find({
         organisationId: user.organisationId,
         sourceId: applicationId
     });
-    for(const humanConnection of humanConnections) {
-        await HumanConnection.updateOne(
-            { _id: humanConnection._id },
+    for(const otherConnection of otherConnections) {
+        await OtherConnection.updateOne(
+            { _id: otherConnection._id },
             {
                 $pull: {
-                    informationFieldIds: { $in: humanConnection.informationFieldIds.filter((fieldId) => !sendableFieldIds.has(fieldId.toString())) },
-                    informationObjectIds: { $in: humanConnection.informationObjectIds.filter((objectId) => !outputObjectIds.includes(objectId.toString())) }
+                    informationFieldIds: { $in: otherConnection.informationFieldIds.filter((fieldId) => !sendableFieldIds.has(fieldId.toString())) },
+                    informationObjectIds: { $in: otherConnection.informationObjectIds.filter((objectId) => !outputObjectIds.includes(objectId.toString())) }
                 }
             }
         );
+        // An external element no longer receives what the connection stopped carrying
+        await syncOtherConnectionRelations(user, otherConnection._id.toString());
     }
 }
 

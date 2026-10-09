@@ -5,16 +5,21 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import { Select, Menu, Button, InputText } from 'primevue'
 
-import { useHumanConnectionStore, type HumanConnection } from '../stores/humanConnection.store';
+import {
+  useOtherConnectionStore,
+  OTHER_CONNECTION_METHODS,
+  type OtherConnection,
+  type OtherConnectionMethod
+} from '../stores/otherConnection.store';
 import { useResourceService } from '../services/resources/resource.service';
 import { useSendableInformationService, type SendableField, type SendableObject } from '../services/sendableInformation.service';
 
-const humanConnectionStore = useHumanConnectionStore();
+const otherConnectionStore = useOtherConnectionStore();
 const resourceService = useResourceService();
 const sendableInformationService = useSendableInformationService();
 
 const menu = ref();
-const selectedRow = ref<HumanConnection>();
+const selectedRow = ref<OtherConnection>();
 
 const menuItems = ref([
   {
@@ -22,41 +27,45 @@ const menuItems = ref([
     icon: 'pi pi-trash',
     command: () => {
       if (selectedRow.value) {
-        humanConnectionStore.deleteHumanConnection(selectedRow.value.id);
+        otherConnectionStore.deleteOtherConnection(selectedRow.value.id);
       }
     }
   }
 ]);
 
-// A person can copy information from and into any of these resources
-const resourceTypes = ['application', 'database', 'table', 'fileLocation'] as const;
+// An other connection is the fallback for any transfer, so it can be between any resources
+const resourceTypes = ['application', 'database', 'table', 'fileLocation', 'server', 'external'] as const;
 
-function toggleMenu(event: Event, row: HumanConnection) {
+function toggleMenu(event: Event, row: OtherConnection) {
   selectedRow.value = row;
   menu.value.toggle(event);
 }
 
 // Changing the source also clears the carried information, since it belonged to the old source
-function updateSource(connection: HumanConnection, sourceId: string) {
-  humanConnectionStore.updateHumanConnection(connection.id, { sourceId });
+function updateSource(connection: OtherConnection, sourceId: string) {
+  otherConnectionStore.updateOtherConnection(connection.id, { sourceId });
 }
 
-function updateTarget(connection: HumanConnection, targetId: string) {
-  humanConnectionStore.updateHumanConnection(connection.id, { targetId });
+function updateTarget(connection: OtherConnection, targetId: string) {
+  otherConnectionStore.updateOtherConnection(connection.id, { targetId });
 }
 
-function updateDescription(connection: HumanConnection) {
-  humanConnectionStore.updateHumanConnection(connection.id, { description: connection.description });
+function updateMethod(connection: OtherConnection, method: OtherConnectionMethod) {
+  otherConnectionStore.updateOtherConnection(connection.id, { method });
+}
+
+function updateDescription(connection: OtherConnection) {
+  otherConnectionStore.updateOtherConnection(connection.id, { description: connection.description });
 }
 
 // Only shows information that the source can still pass on
-function getCarriedFields(connection: HumanConnection) {
+function getCarriedFields(connection: OtherConnection) {
   if (!connection.sourceId) return [];
   return sendableInformationService.getSendableFields(connection.sourceId)
     .filter(field => connection.informationFieldIds.includes(field.id));
 }
 
-function getCarriedObjects(connection: HumanConnection) {
+function getCarriedObjects(connection: OtherConnection) {
   if (!connection.sourceId) return [];
   return sendableInformationService.getSendableObjects(connection.sourceId)
     .filter(informationObject => connection.informationObjectIds.includes(informationObject.id));
@@ -65,22 +74,22 @@ function getCarriedObjects(connection: HumanConnection) {
 
 <template>
   <div class="connection-table-toolbar">
-    <span class="toolbar-hint">A person manually enters information from one resource into another</span>
+    <span class="toolbar-hint">Information goes from one resource to another by hand, through a send button, a file, an e-mail or in an unknown way</span>
     <Button
-      label="Add human connection"
+      label="Add connection"
       icon="pi pi-plus"
       size="small"
-      @click="humanConnectionStore.createHumanConnection()"
+      @click="otherConnectionStore.createOtherConnection()"
     />
   </div>
   <DataTable
-    :value="humanConnectionStore.humanConnections"
+    :value="otherConnectionStore.otherConnections"
     size="small"
     class="connection-table"
     tableStyle="min-width: 50rem"
   >
     <template #empty>
-      <div class="table-empty">No human connections yet</div>
+      <div class="table-empty">No other connections yet</div>
     </template>
 
     <Column field="id" header="ID">
@@ -99,7 +108,7 @@ function getCarriedObjects(connection: HumanConnection) {
           placeholder="Select resource"
           filter
           size="small"
-          class="human-select"
+          class="resource-select"
           @update:model-value="(sourceId: string) => updateSource(data, sourceId)"
         />
       </template>
@@ -115,9 +124,36 @@ function getCarriedObjects(connection: HumanConnection) {
           placeholder="Select resource"
           filter
           size="small"
-          class="human-select"
+          class="resource-select"
           @update:model-value="(targetId: string) => updateTarget(data, targetId)"
         />
+      </template>
+    </Column>
+
+    <Column field="method" header="Method">
+      <template #body="{ data }">
+        <Select
+          :model-value="data.method"
+          :options="OTHER_CONNECTION_METHODS"
+          option-label="label"
+          option-value="method"
+          size="small"
+          class="method-select"
+          @update:model-value="(method: OtherConnectionMethod) => updateMethod(data, method)"
+        >
+          <template #value="{ value }">
+            <span class="method-option">
+              <i :class="OTHER_CONNECTION_METHODS.find(option => option.method === value)?.icon" />
+              {{ OTHER_CONNECTION_METHODS.find(option => option.method === value)?.label }}
+            </span>
+          </template>
+          <template #option="{ option }">
+            <span class="method-option">
+              <i :class="option.icon" />
+              {{ option.label }}
+            </span>
+          </template>
+        </Select>
       </template>
     </Column>
 
@@ -125,9 +161,9 @@ function getCarriedObjects(connection: HumanConnection) {
       <template #body="{ data }">
         <InputText
           v-model="data.description"
-          placeholder="Who enters what, e.g. 'Sales copies orders'"
+          placeholder="e.g. 'Send button in the HR module'"
           size="small"
-          class="human-description"
+          class="connection-description"
           @change="updateDescription(data)"
         />
       </template>
@@ -145,7 +181,7 @@ function getCarriedObjects(connection: HumanConnection) {
             <button
               type="button"
               title="Stop carrying this object over"
-              @click="humanConnectionStore.removeInformationObject(data.id, informationObject.id)"
+              @click="otherConnectionStore.removeInformationObject(data.id, informationObject.id)"
             >
               ×
             </button>
@@ -161,7 +197,7 @@ function getCarriedObjects(connection: HumanConnection) {
             <button
               type="button"
               title="Stop carrying this field over"
-              @click="humanConnectionStore.removeInformationField(data.id, field.id)"
+              @click="otherConnectionStore.removeInformationField(data.id, field.id)"
             >
               ×
             </button>
@@ -179,7 +215,7 @@ function getCarriedObjects(connection: HumanConnection) {
               filter-placeholder="Search object"
               size="small"
               class="carried-select"
-              @change="event => event.value && humanConnectionStore.addInformationObject(data.id, event.value.id)"
+              @change="event => event.value && otherConnectionStore.addInformationObject(data.id, event.value.id)"
             />
             <Select
               :model-value="undefined"
@@ -192,7 +228,7 @@ function getCarriedObjects(connection: HumanConnection) {
               empty-message="The source has no information to pass on"
               size="small"
               class="carried-select"
-              @change="event => event.value && humanConnectionStore.addInformationField(data.id, event.value.id)"
+              @change="event => event.value && otherConnectionStore.addInformationField(data.id, event.value.id)"
             />
           </template>
           <span v-else class="cell-empty">Select a source first</span>
@@ -221,11 +257,27 @@ function getCarriedObjects(connection: HumanConnection) {
 </template>
 
 <style scoped>
-.human-select {
+.method-select {
+  min-width: 9rem;
+}
+
+.method-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.method-option .pi {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.resource-select {
   min-width: 10rem;
 }
 
-.human-description {
+.connection-description {
   width: 100%;
   min-width: 12rem;
   font-size: 12px;

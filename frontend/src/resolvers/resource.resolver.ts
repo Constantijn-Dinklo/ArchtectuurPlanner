@@ -2,6 +2,7 @@ import type { ResolvedResource, Resource } from "../services/resources/resource.
 import { useInformationFieldStore } from "../stores/information/informationField.store";
 import { useInformationObjectStore } from "../stores/information/informationObject.store";
 import type { Application, ResolvedApplication } from "../types/application.types";
+import type { External, ResolvedExternal } from "../types/external.types";
 import type { InformationFieldReference, ResolvedInformationFieldReference } from "../types/informationField.type";
 import type { InformationObject, InformationObjectReference, ResolvedInformationObject, ResolvedInformationObjectReference } from "../types/informationObject.type";
 
@@ -15,6 +16,9 @@ export function useResourceResolver() {
         switch (resource.type) {
             case 'application':
                 return resolveApplication(resource);
+
+            case 'external':
+                return resolveExternal(resource);
 
             case 'database':
                 return resource;
@@ -58,6 +62,17 @@ export function useResourceResolver() {
                     .map(informationObject =>
                         resolveInformationObjectRef(informationObject)
                     )
+        };
+    }
+
+    function resolveExternal(external: External): ResolvedExternal {
+        return {
+            ...external,
+
+            providedInformationFields: external.providedInformationFieldRefs.map(resolveInformationFieldRef),
+            providedInformationObjects: external.providedInformationObjectRefs.map(resolveInformationObjectRef),
+            receivedInformationFields: external.receivedInformationFieldRefs.map(resolveInformationFieldRef),
+            receivedInformationObjects: external.receivedInformationObjectRefs.map(resolveInformationObjectRef)
         };
     }
 

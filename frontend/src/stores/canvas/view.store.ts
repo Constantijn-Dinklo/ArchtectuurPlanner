@@ -1,8 +1,9 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import api from "../../helpers/axios";
+import type { ResourceType } from "../../types/resource.type";
 
-export type ViewNodeType = 'application' | 'database' | 'fileLocation' | 'server';
+export type ViewNodeType = ResourceType;
 
 export interface View {
     id: string;

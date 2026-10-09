@@ -16,7 +16,7 @@ export interface ResourceRelation {
     viaConnectionId?: string | null;
 }
 
-export type ConnectionType = 'api' | 'script' | 'database' | 'human';
+export type ConnectionType = 'api' | 'script' | 'database' | 'other';
 
 export interface ViaConnection {
     type: ConnectionType;

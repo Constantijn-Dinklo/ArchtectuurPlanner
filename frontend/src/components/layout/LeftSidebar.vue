@@ -3,6 +3,7 @@ import ApplicationBar from '../ApplicationBar.vue';
 import DatabaseBar from '../DatabaseBar.vue';
 import FileLocation from '../FileLocationBar.vue'
 import ServerBar from '../ServerBar.vue';
+import ExternalBar from '../ExternalBar.vue';
 </script>
 
 <template>
@@ -13,6 +14,7 @@ import ServerBar from '../ServerBar.vue';
         <DatabaseBar />
         <FileLocation />
         <ServerBar />
+        <ExternalBar />
     </div>
 </template>
 
@@ -91,6 +93,7 @@ import ServerBar from '../ServerBar.vue';
 .sidebar-section-icon.database { background: #ecfdf3; color: #22a35a; }
 .sidebar-section-icon.file-location { background: #fff7ed; color: #ea580c; }
 .sidebar-section-icon.server { background: #fefce8; color: #ca8a04; }
+.sidebar-section-icon.external { background: #f1f5f9; color: #475569; border: 1px dashed #94a3b8; box-sizing: border-box; }
 
 .sidebar-section-title {
     flex: 1;

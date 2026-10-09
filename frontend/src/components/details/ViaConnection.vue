@@ -45,7 +45,7 @@
     <span
         v-if="!via.candidates.length"
         class="via none"
-        title="This information does not come through any api, script, database or human connection"
+        title="This information does not come through any api, script, database or other connection"
     >
         (none)
     </span>

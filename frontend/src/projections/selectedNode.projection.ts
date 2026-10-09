@@ -8,7 +8,7 @@ import { useApiConnectionService } from "../services/apiConnection.service";
 import { useDatabaseConnectionService } from "../services/databaseConnection.service";
 import { useResourceService } from "../services/resources/resource.service";
 import { useResourceResolver } from "../resolvers/resource.resolver";
-import { useHumanConnectionStore } from "../stores/humanConnection.store";
+import { useOtherConnectionStore } from "../stores/otherConnection.store";
 
 
 
@@ -22,7 +22,7 @@ export function useSelectedNodeProjection() {
     const apiConnectionStore = useApiConnectionStore();
     const scriptStore = useScriptStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
-    const humanConnectionStore = useHumanConnectionStore();
+    const otherConnectionStore = useOtherConnectionStore();
 
     const apiConnectionService = useApiConnectionService();
     const databaseConnectionService = useDatabaseConnectionService();
@@ -80,13 +80,13 @@ export function useSelectedNodeProjection() {
         return resolvedDatabaseConnections;
     }
 
-    function getResourceHumanConnections(resourceId: string) {
-        return humanConnectionStore.humanConnections
-            .filter((humanConnection) => humanConnection.sourceId === resourceId || humanConnection.targetId === resourceId)
-            .map((humanConnection) => ({
-                ...humanConnection,
-                source: humanConnection.sourceId ? resourceService.getResource(humanConnection.sourceId) : undefined,
-                target: humanConnection.targetId ? resourceService.getResource(humanConnection.targetId) : undefined
+    function getResourceOtherConnections(resourceId: string) {
+        return otherConnectionStore.otherConnections
+            .filter((otherConnection) => otherConnection.sourceId === resourceId || otherConnection.targetId === resourceId)
+            .map((otherConnection) => ({
+                ...otherConnection,
+                source: otherConnection.sourceId ? resourceService.getResource(otherConnection.sourceId) : undefined,
+                target: otherConnection.targetId ? resourceService.getResource(otherConnection.targetId) : undefined
             }));
     }
 
@@ -101,7 +101,7 @@ export function useSelectedNodeProjection() {
         const apiConnections = getResourceApiConnections(selectedEntityId);
         const scripts = getResourceScripts(selectedEntityId)
         const databaseConnections = getResourceDatabaseConnections(selectedEntityId);
-        const humanConnections = getResourceHumanConnections(selectedEntityId);
+        const otherConnections = getResourceOtherConnections(selectedEntityId);
 
         return {
             node,
@@ -109,7 +109,7 @@ export function useSelectedNodeProjection() {
                 apiConnections,
                 scripts,
                 databaseConnections,
-                humanConnections
+                otherConnections
             }
         };
     });

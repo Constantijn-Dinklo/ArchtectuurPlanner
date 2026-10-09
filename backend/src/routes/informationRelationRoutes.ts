@@ -26,7 +26,7 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
 // Sets the connection the information travels through. Both values null means "not chosen"
 function getViaPatch(body: any) {
     const viaConnectionType = body.viaConnectionType ?? null;
-    if(viaConnectionType !== null && !['api', 'script', 'database', 'human'].includes(viaConnectionType)) {
+    if(viaConnectionType !== null && !['api', 'script', 'database', 'other'].includes(viaConnectionType)) {
         throw new Error("Unknown connection type");
     }
     return {

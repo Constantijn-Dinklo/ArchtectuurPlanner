@@ -32,13 +32,13 @@ import { useResourceService } from '../../services/resources/resource.service';
     function getUnsentFieldWarning(informationFieldId: string) {
         const sourceId = informationTransferService.getUnsentInputFieldSource(props.data.resourceId, informationFieldId);
         if (!sourceId) return undefined;
-        return `Sent from ${resourceService.getResource(sourceId)?.name ?? 'another application'} without an API url or human connection that carries it`;
+        return `Sent from ${resourceService.getResource(sourceId)?.name ?? 'another application'} without an API url or other connection that carries it`;
     }
 
     function getUnsentObjectWarning(informationObjectId: string) {
         const sourceId = informationTransferService.getUnsentInputObjectSource(props.data.resourceId, informationObjectId);
         if (!sourceId) return undefined;
-        return `Sent from ${resourceService.getResource(sourceId)?.name ?? 'another application'} without an API url or human connection that carries it`;
+        return `Sent from ${resourceService.getResource(sourceId)?.name ?? 'another application'} without an API url or other connection that carries it`;
     }
 
     const nodeElement = ref<HTMLElement>();
