@@ -9,6 +9,7 @@
     import TableDetails from './TableDetails.vue';
     import ExternalDetails from './ExternalDetails.vue';
     import ConnectionWarnings from './ConnectionWarnings.vue';
+    import EdgeConnectionsDetail from './EdgeConnectionsDetail.vue';
     import EndpointsSection from './EndpointsSection.vue';
 
     const selectedNodeProjection = useSelectedNodeProjection();
@@ -57,7 +58,14 @@
                 </div>
             </header>
             <ConnectionWarnings :warnings="selectedEdgeProjection.connectionsInfo.value.warnings" />
-            <ConnectionsDetail :connections-info="selectedEdgeProjection.connectionsInfo.value" />
+            <EdgeConnectionsDetail
+                :source-id="selectedEdgeProjection.connectionsInfo.value.sourceId"
+                :target-id="selectedEdgeProjection.connectionsInfo.value.targetId"
+                :api-connection-ids="selectedEdgeProjection.connectionsInfo.value.apiConnections.map(connection => connection.id)"
+                :script-ids="selectedEdgeProjection.connectionsInfo.value.scripts.map(script => script.id)"
+                :database-connection-ids="selectedEdgeProjection.connectionsInfo.value.databaseConnections.map(connection => connection.id)"
+                :other-connection-ids="selectedEdgeProjection.connectionsInfo.value.otherConnections.map(connection => connection.id)"
+            />
         </template>
 
         <div

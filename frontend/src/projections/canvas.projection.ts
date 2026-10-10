@@ -23,6 +23,11 @@ import type { ApplicationNode, ResolvedApplication } from "../types/application.
 import type { ResolvedExternal } from "../types/external.types";
 
 
+// The default width of the resource nodes at the application level of detail. For now the database level of detail
+// starts from the same width; a node can become wider when its content needs more room, for example a database
+// with several tables
+const DEFAULT_NODE_WIDTH_APPLICATION_LOD = 220;
+
 // Sizes in px. The table sizes have to match the styling in TableNode.vue
 const TABLE_LAYOUT = {
     tableWidth: 110,
@@ -32,7 +37,7 @@ const TABLE_LAYOUT = {
     gap: 8,
     databasePadding: 10,
     databaseHeaderHeight: 38,
-    emptyDatabaseWidth: 200,
+    emptyDatabaseWidth: DEFAULT_NODE_WIDTH_APPLICATION_LOD,
     emptyDatabaseHeight: 70
 };
 
@@ -41,6 +46,13 @@ interface DatabaseLayout {
     width: number;
     height: number;
 }
+
+
+// At the application level of detail the resource nodes only show their name, all as cards of the same size
+const OVERVIEW_NODE_STYLE = {
+    width: `${DEFAULT_NODE_WIDTH_APPLICATION_LOD}px`,
+    height: '60px'
+};
 
 export function useCanvasProjection() {
     const UIStore = useUIStore();
@@ -403,14 +415,15 @@ export function useCanvasProjection() {
             label += ' (' + application.version + ')'
         }
 
-        let style = undefined;
+        // At the application level the node only shows its name, as a bigger card
+        let style: Record<string, string> = { ...OVERVIEW_NODE_STYLE };
         let inputInformationFields: ResolvedInformationFieldReference[] | undefined = undefined;
         let outputInformationFields: ResolvedInformationFieldReference[] | undefined = undefined;
         let inputInformationObjects: ResolvedInformationObjectReference[] | undefined = undefined;
         let outputInformationObjects: ResolvedInformationObjectReference[] | undefined = undefined;
         if(isResourceTypeExpanded(UIStore.levelOfDetail, 'application')){
             style = {
-                width: '150px',
+                width: `${DEFAULT_NODE_WIDTH_APPLICATION_LOD}px`,
                 // minHeight instead of height, so the node grows with its information fields and objects
                 minHeight: '100px'
             }
@@ -446,13 +459,13 @@ export function useCanvasProjection() {
                     width: `${layout.width}px`,
                     height: `${layout.height}px`
                 }
-                : {
-                    width: '200px'
-                },
+                // Without its tables the database only shows its header
+                : { ...OVERVIEW_NODE_STYLE },
             data: {
                 label: database.name,
                 engine: database.engine,
                 tableCount,
+                canAddTables: showTables,
                 resourceId: database.id
             }
         }
@@ -479,9 +492,7 @@ export function useCanvasProjection() {
 
         return {
             type: 'external',
-            style: {
-                width: expanded ? '150px' : '130px'
-            },
+            style: expanded ? { width: `${DEFAULT_NODE_WIDTH_APPLICATION_LOD}px` } : { ...OVERVIEW_NODE_STYLE },
             data: {
                 label: external.name,
                 resourceId: external.id,
@@ -499,12 +510,12 @@ export function useCanvasProjection() {
     function resolveFileLocationNode(fileLocation: FileLocation) {
         return {
             type: 'fileLocation',
-            style: {
-                width: '150px'
-            },
+            style: UIStore.levelOfDetail === 'application' ? { ...OVERVIEW_NODE_STYLE } : { width: `${DEFAULT_NODE_WIDTH_APPLICATION_LOD}px` },
             data: {
                 label: fileLocation.name,
-                resourceId: fileLocation.id
+                resourceId: fileLocation.id,
+                // At the database level the node has a banner like the application node
+                expanded: UIStore.levelOfDetail !== 'application'
             }
         }
     }

@@ -8,6 +8,8 @@
         label: string;
         engine?: string;
         tableCount: number;
+        // Tables can only be added when they are visible, at the database level of detail
+        canAddTables: boolean;
         resourceId: string;
     }
 
@@ -66,6 +68,7 @@
             </span>
 
             <button
+                v-if="props.data.canAddTables"
                 type="button"
                 class="add-table-button nodrag"
                 title="Add table"

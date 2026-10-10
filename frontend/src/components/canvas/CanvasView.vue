@@ -102,13 +102,16 @@ function onEdgeClick(event: any) {
 
 const { viewport } = useVueFlow()
 
+// Zooming in past this level switches from the application level to the database level of detail
+const DATABASE_LEVEL_ZOOM = 0.85;
+
 watch(
   () => viewport.value.zoom,
-  (newZoom, oldZoom) => {
-    if(newZoom > 0.7) {
+  (newZoom) => {
+    if(newZoom > DATABASE_LEVEL_ZOOM) {
       architectureViewService.changeLevelOfDetail('database');
     }
-    else if (newZoom < 0.7) {
+    else if (newZoom < DATABASE_LEVEL_ZOOM) {
       architectureViewService.changeLevelOfDetail('application');
     }
   }
@@ -117,7 +120,10 @@ watch(
 </script>
 
 <template>
-  <div style="width: 100%; height: 100%">
+  <div
+    class="canvas-wrapper"
+    :class="`canvas-lod-${UIStore.levelOfDetail}`"
+  >
     <VueFlow
       :min-zoom="0.01"
       :max-zoom="200"
@@ -152,6 +158,115 @@ watch(
 
 .vue-flow__node.server {
   background: yellow;
+}
+
+.canvas-wrapper {
+  width: 100%;
+  height: 100%;
+}
+
+/* Application level of detail: bigger nodes with bigger text, since only names are shown */
+
+.canvas-lod-application .vue-flow__node-application {
+  display: flex;
+}
+
+.canvas-lod-application .vue-flow__node-application .application-node {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+.canvas-lod-application .vue-flow__node-application .application-header {
+  gap: 8px;
+  font-size: 16px;
+}
+
+.canvas-lod-application .vue-flow__node-database .database-node {
+  display: flex;
+  align-items: center;
+}
+
+.canvas-lod-application .vue-flow__node-database .database-header {
+  flex: 1;
+  height: 100%;
+  font-size: 16px;
+}
+
+.canvas-lod-application .vue-flow__node-database .database-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.canvas-lod-application .vue-flow__node-database .engine-badge,
+.canvas-lod-application .vue-flow__node-database .table-count {
+  font-size: 12px;
+}
+
+/* External elements and file locations look like the application node: a centred icon and name.
+   Their border, colours and icon still show what kind of resource they are */
+.canvas-lod-application .vue-flow__node-external,
+.canvas-lod-application .vue-flow__node-fileLocation {
+  display: flex;
+}
+
+.canvas-lod-application .vue-flow__node-external .external-node,
+.canvas-lod-application .vue-flow__node-fileLocation .file-location-node {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+.canvas-lod-application .vue-flow__node-external .external-header,
+.canvas-lod-application .vue-flow__node-fileLocation .file-location-node {
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.canvas-lod-application .vue-flow__node-external .external-title,
+.canvas-lod-application .vue-flow__node-fileLocation .file-location-text {
+  flex: 0 1 auto;
+}
+
+.canvas-lod-application .vue-flow__node-external .external-name,
+.canvas-lod-application .vue-flow__node-fileLocation .file-location-name {
+  font-size: 16px;
+}
+
+/* The icon sits right next to the name, without a box around it, like on the application node */
+.canvas-lod-application .vue-flow__node-external .external-header,
+.canvas-lod-application .vue-flow__node-fileLocation .file-location-node {
+  font-size: 16px;
+}
+
+.canvas-lod-application .vue-flow__node-external .external-icon,
+.canvas-lod-application .vue-flow__node-fileLocation .file-location-icon {
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 0;
+  background: transparent;
+}
+
+.canvas-lod-application .vue-flow__node-external .external-icon .pi {
+  font-size: 1em;
+}
+
+.canvas-lod-application .vue-flow__node-fileLocation .file-location-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-lod-application .vue-flow__node-external .external-badge,
+.canvas-lod-application .vue-flow__node-external .external-organisation,
+.canvas-lod-application .vue-flow__node-fileLocation .file-location-badge,
+.canvas-lod-application .vue-flow__node-fileLocation .file-location-count {
+  display: none;
+}
+
+.canvas-lod-application .vue-flow__node-default {
+  font-size: 15px;
 }
 
 .search-panel {

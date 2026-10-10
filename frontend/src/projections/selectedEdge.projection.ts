@@ -131,6 +131,8 @@ export function useSelectedEdgeProjection() {
             databaseConnections,
             otherConnections,
             warnings: informationTransferService.getConnectionWarnings(inputEntityId, outputEntityId),
+            sourceId: inputEntityId,
+            targetId: outputEntityId,
             sourceName: resourceService.getResource(inputEntityId)?.name,
             targetName: resourceService.getResource(outputEntityId)?.name
         }

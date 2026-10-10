@@ -50,16 +50,26 @@
             </span>
 
             <span class="external-title">
-                <span class="external-badge">External</span>
+                <span v-if="!props.data.expanded" class="external-badge">External</span>
                 <span class="external-name">{{ props.data.label }}</span>
                 <span
-                    v-if="props.data.externalOrganisation"
+                    v-if="!props.data.expanded && props.data.externalOrganisation"
                     class="external-organisation"
                 >
                     {{ props.data.externalOrganisation }}
                 </span>
             </span>
+
+            <!-- At the database level the kind of resource is shown on the right of the banner -->
+            <span v-if="props.data.expanded" class="banner-badge">External</span>
         </header>
+
+        <div
+            v-if="props.data.expanded && props.data.externalOrganisation"
+            class="external-organisation-line"
+        >
+            {{ props.data.externalOrganisation }}
+        </div>
 
         <div
             v-if="props.data.expanded"
@@ -149,9 +159,43 @@
     padding: 7px 9px;
 }
 
+/* The same banner as the application node at the database level */
 .external-node.expanded .external-header {
-    padding: 5px 7px;
+    gap: 5px;
+    padding: 4px 6px;
+
     border-bottom: 1px dashed #cbd5e1;
+    border-radius: 9px 9px 0 0;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.external-node.expanded .external-title {
+    flex: 1;
+}
+
+.banner-badge {
+    flex: 0 0 auto;
+    margin-left: auto;
+    padding: 0 4px;
+    border-radius: 999px;
+
+    background: #e2e8f0;
+    color: #475569;
+    font-size: 5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    line-height: 9px;
+    text-transform: uppercase;
+}
+
+.external-organisation-line {
+    padding: 3px 7px 0;
+
+    overflow: hidden;
+    color: #64748b;
+    font-size: 6px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .external-icon {
@@ -170,9 +214,11 @@
 }
 
 .external-node.expanded .external-icon {
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
+    width: 1.1em;
+    height: 1.1em;
+    border-radius: 3px;
+
+    background: transparent;
     font-size: 8px;
 }
 
