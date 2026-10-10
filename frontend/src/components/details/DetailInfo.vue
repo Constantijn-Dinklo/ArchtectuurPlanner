@@ -73,6 +73,39 @@
 
 <!-- Shared styling for the detail components (DatabaseDetails, TableDetails, ServerDetails, ConnectionsDetail) -->
 <style>
+/* Collapsible sections (v-collapsible): the title toggles everything else in the section */
+.collapse-toggle {
+    cursor: pointer;
+    user-select: none;
+}
+
+.collapse-toggle::before {
+    content: '';
+    flex: 0 0 auto;
+    width: 5px;
+    height: 5px;
+    margin: 0 3px 3px 1px;
+
+    border-right: 1.5px solid #94a3b8;
+    border-bottom: 1.5px solid #94a3b8;
+    transform: rotate(45deg);
+
+    transition: transform 0.15s ease, margin 0.15s ease;
+}
+
+.section-collapsed > .collapse-toggle::before {
+    margin-bottom: 0;
+    transform: rotate(-45deg);
+}
+
+.section-collapsed > :not(.collapse-toggle) {
+    display: none !important;
+}
+
+.section-collapsed > .collapse-toggle {
+    margin-bottom: 0 !important;
+}
+
 .detail-panel {
     color: #1e293b;
     font-size: 12px;

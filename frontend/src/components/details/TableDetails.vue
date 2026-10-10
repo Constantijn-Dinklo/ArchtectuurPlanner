@@ -1,4 +1,5 @@
 <script setup lang="ts">
+    import { vCollapsible } from '../../directives/collapsible';
     import { computed, ref } from 'vue';
     import { Select } from 'primevue';
     import { useSelectedNodeProjection } from '../../projections/selectedNode.projection';
@@ -90,7 +91,7 @@ import type { AccessibleInformationField } from '../../types/informationField.ty
             </button>
         </header>
 
-        <section class="detail-section">
+        <section v-collapsible class="detail-section">
             <div class="detail-section-title">
                 <span>Columns</span>
                 <span class="detail-count">{{ table.columns.length }}</span>

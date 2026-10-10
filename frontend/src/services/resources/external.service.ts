@@ -1,4 +1,6 @@
 import api from "../../helpers/axios";
+import { useToast } from "primevue";
+import { useApiStore } from "../../stores/api.store";
 import { useExternalStore } from "../../stores/resources/external.store";
 import { useViewStore } from "../../stores/canvas/view.store";
 import { useInformationFieldStore } from "../../stores/information/informationField.store";
@@ -27,6 +29,8 @@ export function useExternalService() {
     const viewStore = useViewStore();
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
+    const apiStore = useApiStore();
+    const toast = useToast();
 
     // Fields first, so an external never references a field that is not in the store yet
     function setInformation(informationFields: InformationField[], informationObjects: InformationObject[]) {
@@ -60,10 +64,21 @@ export function useExternalService() {
     }
 
     async function deleteExternal(id: string) {
-        const res = await api.delete<{ resourceId: string, viewNodeId?: string }>(`/externals/${id}`);
-        externalStore.removeExternal(id);
-        if (res.data.viewNodeId) {
-            viewStore.removeViewNode(res.data.viewNodeId);
+        try {
+            const res = await api.delete<{ resourceId: string, viewNodeId?: string }>(`/externals/${id}`);
+            externalStore.removeExternal(id);
+            // The apis of the external element are removed with it
+            apiStore.apis = apiStore.apis.filter(externalApi => externalApi.applicationId !== id);
+            if (res.data.viewNodeId) {
+                viewStore.removeViewNode(res.data.viewNodeId);
+            }
+        }
+        catch (error: any) {
+            toast.add({
+                severity: 'warn',
+                summary: error.response?.data?.error ?? 'Could not delete the external element',
+                life: 3000
+            });
         }
     }
 

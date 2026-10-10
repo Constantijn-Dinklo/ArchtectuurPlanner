@@ -1,4 +1,5 @@
 <script setup lang="ts">
+    import { vCollapsible } from '../../directives/collapsible';
     import type { ConnectionWarning } from '../../services/informationTransfer.service';
 
     import { computed } from 'vue';
@@ -13,7 +14,7 @@
 
 <!-- The problems with a connection, each with what is affected and how to fix it -->
 <template>
-    <section
+    <section v-collapsible
         v-if="warnings.length"
         class="detail-section connection-warnings"
         :class="{ error: hasError }"

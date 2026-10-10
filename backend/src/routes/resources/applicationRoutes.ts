@@ -1,6 +1,6 @@
 import express, { Router, Response } from "express";
 import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
-import Application from "../../models/resources/application.model";
+import Application, { APPLICATION_HOSTINGS } from "../../models/resources/application.model";
 import { createAppliction, deleteApplication, addApplicationInputInformationField, deleteApplicationInputInformationField, addApplicationOutputInformationField, deleteApplicationOutputInformationField, getApplications, addApplicationInputInformationObject, deleteApplicationInputInformationObject, addApplicationOutputInformationObject, deleteApplicationOutputInformationObject } from "../../services/application.service";
 
 
@@ -34,12 +34,22 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
     const user = getUser(req);
 
     try {
+        // Only the properties of the application can be changed here; its information has its own routes
+        const patch: Record<string, unknown> = {};
+        for(const property of ['name', 'version', 'developer', 'websiteUrl'] as const) {
+            if(req.body[property] !== undefined) patch[property] = req.body[property];
+        }
+        if(req.body.hosting !== undefined) {
+            if(!APPLICATION_HOSTINGS.includes(req.body.hosting)) throw new Error("Unknown hosting");
+            patch.hosting = req.body.hosting;
+        }
+
         const updatedApplication = await Application.findOneAndUpdate(
             {
                 _id: req.params.id,
                 organisationId: user.organisationId
             },
-            { $set: req.body },
+            { $set: patch },
             { returnDocument: 'after'}
         );
         if(!updatedApplication) { return res.status(400).json({error: "Application not found"}) }

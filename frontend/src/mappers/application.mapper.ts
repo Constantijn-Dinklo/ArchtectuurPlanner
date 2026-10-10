@@ -8,6 +8,9 @@ export function mapApplicationDto(
         type: 'application',
         name: application.name,
         version: application.version,
+        developer: application.developer ?? '',
+        hosting: application.hosting ?? 'unknown',
+        websiteUrl: application.websiteUrl ?? '',
 
         inputInformationFieldRefs:
             application.inputInformationFields,

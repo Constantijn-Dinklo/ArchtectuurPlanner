@@ -2,10 +2,19 @@ import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 import { IResourceField, ResourceFieldSchema } from '../information/resourceField.model';
 import { IResourceObject, ResourceObjectSchema } from '../information/resourceObject.model';
 
+export const APPLICATION_HOSTINGS = ['unknown', 'saas', 'onPremise'] as const;
+export type ApplicationHosting = typeof APPLICATION_HOSTINGS[number];
+
 export interface IApplication extends Document {
     organisationId: Types.ObjectId;
     name: string;
     version: string;
+    // The organisation that develops the application
+    developer: string;
+    // Whether the application is used as a service (SaaS) or runs on our own servers (on-premise)
+    hosting: ApplicationHosting;
+    // For a SaaS application: where it can be found
+    websiteUrl: string;
     inputInformationObjects: IResourceObject[];
     outputInformationObjects: IResourceObject[];
     inputInformationFields: IResourceField[];
@@ -25,6 +34,19 @@ const ApplicationSchema = new Schema<IApplication>({
     },
     version: {
         type: Schema.Types.String
+    },
+    developer: {
+        type: Schema.Types.String,
+        default: ''
+    },
+    hosting: {
+        type: Schema.Types.String,
+        enum: APPLICATION_HOSTINGS,
+        default: 'unknown'
+    },
+    websiteUrl: {
+        type: Schema.Types.String,
+        default: ''
     },
     inputInformationObjects: {
         type: [ResourceObjectSchema],

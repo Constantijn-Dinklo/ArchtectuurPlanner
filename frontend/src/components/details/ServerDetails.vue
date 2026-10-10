@@ -1,4 +1,5 @@
 <script setup lang="ts">
+    import { vCollapsible } from '../../directives/collapsible';
     import { computed } from 'vue';
     import { useSelectedNodeProjection } from '../../projections/selectedNode.projection';
     import { useServerStore, type Server } from '../../stores/resources/server.store';
@@ -26,7 +27,7 @@
             </div>
         </header>
 
-        <section class="detail-section">
+        <section v-collapsible class="detail-section">
             <div class="detail-section-title">Properties</div>
 
             <label class="detail-property">

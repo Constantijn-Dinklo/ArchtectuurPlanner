@@ -1,4 +1,5 @@
 <script setup lang="ts">
+    import { vCollapsible } from '../../directives/collapsible';
     import { computed, ref } from 'vue';
     import { Select } from 'primevue';
     import { useSelectedNodeProjection } from '../../projections/selectedNode.projection';
@@ -9,6 +10,8 @@
     import type { InformationField } from '../../types/informationField.type';
     import type { InformationObject } from '../../types/informationObject.type';
     import ConnectionsDetail from '../ConnectionsDetail.vue';
+    import CarriedInformationEditor from './CarriedInformationEditor.vue';
+    import { useApiStore } from '../../stores/api.store';
 
     const selectedNodeProjection = useSelectedNodeProjection();
     const externalService = useExternalService();
@@ -20,6 +23,20 @@
     );
 
     const newProvidedFieldName = ref('');
+    const newApiUrl = ref('');
+
+    const apiStore = useApiStore();
+
+    const externalApis = computed(() =>
+        external.value ? apiStore.getApplicationApis(external.value.id) : []
+    );
+
+    async function addApi() {
+        const url = newApiUrl.value.trim();
+        if (!external.value || !url) return;
+        await apiStore.commitApi(external.value.id, url);
+        newApiUrl.value = '';
+    }
     const newProvidedObjectName = ref('');
 
     // Any existing information can be provided by an external element
@@ -66,7 +83,7 @@
             </div>
         </header>
 
-        <section class="detail-section">
+        <section v-collapsible class="detail-section">
             <div class="detail-section-title">Properties</div>
 
             <label class="detail-property">
@@ -131,7 +148,7 @@
         </section>
 
         <!-- The information we can read from the external element -->
-        <section class="detail-section">
+        <section v-collapsible class="detail-section">
             <div class="detail-section-title">
                 <span>Provides</span>
                 <span class="detail-count">
@@ -252,8 +269,82 @@
             </div>
         </section>
 
+        <!-- The apis the external element offers, and what is sent through them -->
+        <section v-collapsible class="detail-section">
+            <div class="detail-section-title">
+                <span>APIs</span>
+                <span class="detail-count">{{ externalApis.length }}</span>
+            </div>
+
+            <div
+                v-if="!externalApis.length"
+                class="detail-empty"
+            >
+                No APIs. Add the urls this element offers.
+            </div>
+
+            <div
+                v-for="externalApi in externalApis"
+                :key="externalApi.id"
+                class="api-item"
+            >
+                <div class="detail-row">
+                    <i class="pi pi-globe detail-row-icon" />
+                    <span class="detail-row-name" :title="externalApi.url">{{ externalApi.url }}</span>
+
+                    <label class="api-auth" title="Requires authentication">
+                        <input
+                            v-model="externalApi.hasAuthentication"
+                            type="checkbox"
+                            @change="apiStore.updateApi(externalApi.id, externalApi)"
+                        />
+                        Auth
+                    </label>
+
+                    <button
+                        type="button"
+                        class="detail-delete-button"
+                        title="Delete API url"
+                        @click="apiStore.deleteApi(externalApi.id)"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                <!-- Only what the external element provides can be sent through its apis -->
+                <CarriedInformationEditor
+                    :source-id="external.id"
+                    :information-field-ids="externalApi.informationFieldIds ?? []"
+                    :information-object-ids="externalApi.informationObjectIds ?? []"
+                    @add-field="id => apiStore.addInformationField(externalApi.id, id)"
+                    @remove-field="id => apiStore.removeInformationField(externalApi.id, id)"
+                    @add-object="id => apiStore.addInformationObject(externalApi.id, id)"
+                    @remove-object="id => apiStore.removeInformationObject(externalApi.id, id)"
+                />
+            </div>
+
+            <div class="detail-add-row">
+                <input
+                    v-model="newApiUrl"
+                    type="text"
+                    class="detail-input"
+                    placeholder="+ New API url, e.g. https://api.example.com/orders"
+                    @keyup.enter="addApi"
+                />
+                <button
+                    type="button"
+                    class="detail-add-button"
+                    title="Add API url"
+                    :disabled="!newApiUrl.trim()"
+                    @click="addApi"
+                >
+                    <i class="pi pi-plus" />
+                </button>
+            </div>
+        </section>
+
         <!-- The information we send to the external element. Filled in by the connections to it -->
-        <section class="detail-section">
+        <section v-collapsible class="detail-section">
             <div class="detail-section-title">
                 <span>Receives</span>
                 <span class="detail-count">
@@ -308,6 +399,21 @@
     min-height: 56px;
     padding: 6px 8px;
     resize: vertical;
+}
+
+.api-item + .api-item {
+    padding-top: 4px;
+    border-top: 1px dashed #eef2f7;
+}
+
+.api-auth {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+
+    color: #64748b;
+    font-size: 10px;
+    cursor: pointer;
 }
 
 .object-icon {

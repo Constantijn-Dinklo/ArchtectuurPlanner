@@ -1,4 +1,5 @@
 <script setup lang="ts">
+    import { vCollapsible } from '../directives/collapsible';
     import { computed } from 'vue';
     import { useApiStore, type Api } from '../stores/api.store';
     import type { Resource } from '../services/resources/resource.service';
@@ -70,7 +71,7 @@
 </script>
 
 <template>
-    <section class="detail-section">
+    <section v-collapsible class="detail-section">
         <div class="detail-section-title">
             <span>Connections</span>
             <span class="detail-count">{{ connectionCount }}</span>

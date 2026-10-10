@@ -1,4 +1,5 @@
 <script setup lang="ts">
+    import { vCollapsible } from '../../directives/collapsible';
     import { computed, onMounted, ref } from 'vue';
     import { useSelectedNodeProjection } from '../../projections/selectedNode.projection';
     import { useDatabaseStore, type Database } from '../../stores/resources/database.store';
@@ -50,7 +51,7 @@
             </div>
         </header>
 
-        <section class="detail-section">
+        <section v-collapsible class="detail-section">
             <div class="detail-section-title">Properties</div>
 
             <label class="detail-property">
@@ -67,7 +68,7 @@
             </label>
         </section>
 
-        <section class="detail-section">
+        <section v-collapsible class="detail-section">
             <div class="detail-section-title">
                 <span>Tables</span>
                 <span class="detail-count">{{ tableStore.getTables(database.id).length }}</span>

@@ -1,8 +1,8 @@
 <script setup lang="ts">
+import { vCollapsible } from '../../directives/collapsible';
 import { computed, ref } from 'vue';
 import { Select } from 'primevue';
 import { useSelectedNodeProjection } from '../../projections/selectedNode.projection';
-import ConnectionsDetail from '../ConnectionsDetail.vue';
 import { useApplicationStore } from '../../stores/resources/application.store.ts';
 import { useResourceService } from '../../services/resources/resource.service.ts';
 import type {
@@ -22,7 +22,9 @@ import { useInformationSourceService, type CandidateConnection } from '../../ser
 import { useInformationRelationStore } from '../../stores/information/informationRelation.store.ts';
 import ViaConnection from './ViaConnection.vue';
 import EndpointsSection from './EndpointsSection.vue';
-import type { ResolvedApplication } from '../../types/application.types.ts';
+import ConnectionPartnersSection from './ConnectionPartnersSection.vue';
+import { useApiConnectionStore } from '../../stores/apiConnection.store.ts';
+import { APPLICATION_HOSTINGS, type ResolvedApplication } from '../../types/application.types.ts';
 
 const resourceService = useResourceService();
 const selectedNodeProjection = useSelectedNodeProjection();
@@ -31,6 +33,7 @@ const applicationService = useApplicationService();
 const informationObjectService = useInformationObjectService();
 const informationEndpointService = useInformationEndpointService();
 const apiStore = useApiStore();
+const apiConnectionStore = useApiConnectionStore();
 const informationTransferService = useInformationTransferService();
 const informationSourceService = useInformationSourceService();
 const informationRelationStore = useInformationRelationStore();
@@ -181,6 +184,35 @@ const applicationApis = computed(() =>
     application.value ? apiStore.getApplicationApis(application.value.id) : []
 );
 
+
+// Every api card starts collapsed and can be opened to see and edit what is sent through it
+const expandedApis = ref<Set<string>>(new Set());
+
+function toggleApi(apiId: string) {
+    const expanded = new Set(expandedApis.value);
+    if (expanded.has(apiId)) {
+        expanded.delete(apiId);
+    } else {
+        expanded.add(apiId);
+    }
+    expandedApis.value = expanded;
+}
+const newApiUrl = ref('');
+
+// An api url that no api connection uses is shown in a warning colour
+function isApiUsed(apiId: string) {
+    return apiConnectionStore.apiConnections.some(connection => connection.sourceUrlId === apiId);
+}
+
+const unusedApiCount = computed(() => applicationApis.value.filter(applicationApi => !isApiUsed(applicationApi.id)).length);
+
+async function addApi(applicationId: string) {
+    const url = newApiUrl.value.trim();
+    if (!url) return;
+    await apiStore.commitApi(applicationId, url);
+    newApiUrl.value = '';
+}
+
 interface SendableField {
     id: string;
     fieldName: string;
@@ -232,13 +264,15 @@ function getApiObjects(applicationApi: Api) {
         .filter(informationObject => applicationApi.informationObjectIds?.includes(informationObject.id));
 }
 
-function onVersionChange() {
+// Only the changed property is sent; the information of the application has its own routes
+function updateProperty(property: 'version' | 'developer' | 'hosting' | 'websiteUrl', value: string) {
     if (!application.value) return;
+    applicationStore.updateApplication(application.value.id, { [property]: value });
+}
 
-    applicationStore.updateApplication(
-        application.value.id,
-        application.value
-    );
+// A website typed without a protocol is opened as https
+function websiteHref(url: string) {
+    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
 // <-- Information Field -->
@@ -416,25 +450,253 @@ function isInformationObjectExpanded(informationObjectId: string) {
                 <span class="type-label">Application</span>
                 <h2>{{ application.name }}</h2>
             </div>
-
-            <div class="version" title="Version">
-                <span>v</span>
-                <input
-                    v-model="application.version"
-                    type="text"
-                    @change="onVersionChange"
-                />
-            </div>
         </header>
 
-        <!-- Connections -->
-        <ConnectionsDetail
-            v-if="selectedNodeProjection.nodeInfo.value"
-            :connections-info="selectedNodeProjection.nodeInfo.value.connections"
-        />
+        <section v-collapsible class="information-section">
+            <div class="section-title">
+                <span>Properties</span>
+            </div>
+
+            <label class="detail-property">
+                <span class="detail-property-label">Version</span>
+                <input
+                    :value="application.version"
+                    type="text"
+                    class="detail-input"
+                    placeholder="e.g. 2.4.1"
+                    @change="updateProperty('version', ($event.target as HTMLInputElement).value)"
+                />
+            </label>
+
+            <label class="detail-property">
+                <span class="detail-property-label">Organisation</span>
+                <input
+                    :value="application.developer"
+                    type="text"
+                    class="detail-input"
+                    placeholder="The developer of the application"
+                    @change="updateProperty('developer', ($event.target as HTMLInputElement).value)"
+                />
+            </label>
+
+            <label class="detail-property">
+                <span class="detail-property-label">Hosting</span>
+                <select
+                    :value="application.hosting ?? 'unknown'"
+                    class="detail-select"
+                    @change="updateProperty('hosting', ($event.target as HTMLSelectElement).value)"
+                >
+                    <option
+                        v-for="option in APPLICATION_HOSTINGS"
+                        :key="option.hosting"
+                        :value="option.hosting"
+                    >
+                        {{ option.label }}
+                    </option>
+                </select>
+            </label>
+
+            <!-- A SaaS application runs elsewhere, so it has a website -->
+            <label
+                v-if="application.hosting === 'saas'"
+                class="detail-property"
+            >
+                <span class="detail-property-label">Website</span>
+                <input
+                    :value="application.websiteUrl"
+                    type="url"
+                    class="detail-input"
+                    placeholder="https://app.example.com"
+                    @change="updateProperty('websiteUrl', ($event.target as HTMLInputElement).value)"
+                />
+                <a
+                    v-if="application.websiteUrl"
+                    :href="websiteHref(application.websiteUrl)"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="website-link"
+                    title="Open the website"
+                >
+                    <i class="pi pi-external-link" />
+                </a>
+            </label>
+        </section>
+
+        <!-- APIs: which output information is sent through each api -->
+        <section v-collapsible class="information-section">
+            <div class="section-title">
+                <span>APIs</span>
+
+                <span class="field-count">
+                    {{ applicationApis.length }}
+                </span>
+
+                <span
+                    v-if="unusedApiCount"
+                    class="unused-api-count"
+                    :title="`${unusedApiCount} API url(s) not used in any API connection`"
+                >
+                    <i class="pi pi-exclamation-triangle" />
+                    {{ unusedApiCount }} unused
+                </span>
+            </div>
+
+            <div
+                v-if="!applicationApis.length"
+                class="empty-row"
+            >
+                No APIs yet. Add the urls this application offers below.
+            </div>
+
+            <div
+                v-for="applicationApi in applicationApis"
+                :key="applicationApi.id"
+                class="api-card"
+                :class="{ unused: !isApiUsed(applicationApi.id) }"
+            >
+                <div
+                    class="api-header"
+                    @click="toggleApi(applicationApi.id)"
+                >
+                    <i
+                        class="pi pi-chevron-right section-chevron"
+                        :class="{ expanded: expandedApis.has(applicationApi.id) }"
+                    />
+                    <i class="pi pi-globe api-icon" />
+
+                    <span class="api-url" :title="applicationApi.url">
+                        {{ applicationApi.url }}
+                    </span>
+
+                    <span
+                        v-if="applicationApi.hasAuthentication"
+                        class="api-auth-badge"
+                    >
+                        Auth
+                    </span>
+
+                    <span
+                        v-if="!isApiUsed(applicationApi.id)"
+                        class="api-unused-badge"
+                        title="No API connection uses this url"
+                    >
+                        Not used
+                    </span>
+
+                    <span
+                        class="field-count"
+                        title="Information objects and fields sent through this API"
+                    >
+                        {{ getApiObjects(applicationApi).length + getApiFields(applicationApi).length }} sent
+                    </span>
+                </div>
+
+                <template v-if="expandedApis.has(applicationApi.id)">
+                <div
+                    v-if="!getApiObjects(applicationApi).length && !getApiFields(applicationApi).length"
+                    class="empty-row"
+                >
+                    Nothing is sent through this API yet
+                </div>
+
+                <div class="api-chips">
+                    <span
+                        v-for="informationObject in getApiObjects(applicationApi)"
+                        :key="informationObject.id"
+                        class="api-chip object"
+                    >
+                        <span class="object-icon">▱</span>
+                        {{ informationObject.objectName }}
+                        <button
+                            type="button"
+                            title="Stop sending this object through the API"
+                            @click="apiStore.removeInformationObject(applicationApi.id, informationObject.id)"
+                        >
+                            ×
+                        </button>
+                    </span>
+
+                    <span
+                        v-for="field in getApiFields(applicationApi)"
+                        :key="field.id"
+                        class="api-chip"
+                        :title="field.objectNames.length ? `Part of ${field.objectNames.join(', ')}` : undefined"
+                    >
+                        {{ field.fieldName }}
+                        <span
+                            v-if="field.objectNames.length"
+                            class="api-chip-object"
+                        >
+                            ▱ {{ field.objectNames.join(', ') }}
+                        </span>
+                        <button
+                            type="button"
+                            title="Stop sending this field through the API"
+                            @click="apiStore.removeInformationField(applicationApi.id, field.id)"
+                        >
+                            ×
+                        </button>
+                    </span>
+                </div>
+
+                <!-- Only the output information of this application can be sent through its apis -->
+                <div class="api-add-row">
+                    <Select
+                        :model-value="undefined"
+                        :options="application.outputInformationObjects.map(reference => reference.informationObject)"
+                        option-label="objectName"
+                        :option-disabled="(informationObject: ResolvedInformationObject) =>
+                            applicationApi.informationObjectIds.includes(informationObject.id)"
+                        placeholder="+ Add output object"
+                        filter
+                        filter-placeholder="Search object"
+                        empty-message="No output objects"
+                        size="small"
+                        class="searchable-select"
+                        @change="event => event.value && apiStore.addInformationObject(applicationApi.id, event.value.id)"
+                    />
+
+                    <Select
+                        :model-value="undefined"
+                        :options="sendableFields"
+                        option-label="label"
+                        :option-disabled="(field: SendableField) =>
+                            applicationApi.informationFieldIds.includes(field.id)"
+                        placeholder="+ Add output field"
+                        filter
+                        filter-placeholder="Search field"
+                        empty-message="No output fields"
+                        size="small"
+                        class="searchable-select"
+                        @change="event => event.value && apiStore.addInformationField(applicationApi.id, event.value.id)"
+                    />
+                </div>
+                </template>
+            </div>
+
+            <div class="new-field-row">
+                <input
+                    v-model="newApiUrl"
+                    type="text"
+                    placeholder="+ New API url"
+                    @keyup.enter="addApi(application.id)"
+                />
+                <button
+                    v-if="newApiUrl.trim()"
+                    @click="addApi(application.id)"
+                >
+                    Add
+                </button>
+            </div>
+        </section>
+
+        <!-- The resources that send to this application, and the resources it sends to -->
+        <ConnectionPartnersSection :resource-id="application.id" direction="incoming" />
+        <ConnectionPartnersSection :resource-id="application.id" direction="outgoing" />
+
 
         <!-- INPUT -->
-        <section class="information-section">
+        <section v-collapsible class="information-section">
             <div class="section-title">
                 <span>Input</span>
 
@@ -721,7 +983,7 @@ function isInformationObjectExpanded(informationObjectId: string) {
         </section>
 
         <!-- OUTPUT -->
-        <section class="information-section">
+        <section v-collapsible class="information-section">
             <div class="section-title">
                 <span>Output</span>
 
@@ -913,125 +1175,6 @@ function isInformationObjectExpanded(informationObjectId: string) {
                     >
                         Add
                     </button>
-                </div>
-            </div>
-        </section>
-
-        <!-- APIs: which output information is sent through each api -->
-        <section class="information-section">
-            <div class="section-title">
-                <span>APIs</span>
-
-                <span class="field-count">
-                    {{ applicationApis.length }}
-                </span>
-            </div>
-
-            <div
-                v-if="!applicationApis.length"
-                class="empty-row"
-            >
-                No APIs. Add an API url to this application in the sidebar.
-            </div>
-
-            <div
-                v-for="applicationApi in applicationApis"
-                :key="applicationApi.id"
-                class="api-card"
-            >
-                <div class="api-header">
-                    <i class="pi pi-globe api-icon" />
-
-                    <span class="api-url" :title="applicationApi.url">
-                        {{ applicationApi.url }}
-                    </span>
-
-                    <span
-                        v-if="applicationApi.hasAuthentication"
-                        class="api-auth-badge"
-                    >
-                        Auth
-                    </span>
-                </div>
-
-                <div
-                    v-if="!getApiObjects(applicationApi).length && !getApiFields(applicationApi).length"
-                    class="empty-row"
-                >
-                    Nothing is sent through this API yet
-                </div>
-
-                <div class="api-chips">
-                    <span
-                        v-for="informationObject in getApiObjects(applicationApi)"
-                        :key="informationObject.id"
-                        class="api-chip object"
-                    >
-                        <span class="object-icon">▱</span>
-                        {{ informationObject.objectName }}
-                        <button
-                            type="button"
-                            title="Stop sending this object through the API"
-                            @click="apiStore.removeInformationObject(applicationApi.id, informationObject.id)"
-                        >
-                            ×
-                        </button>
-                    </span>
-
-                    <span
-                        v-for="field in getApiFields(applicationApi)"
-                        :key="field.id"
-                        class="api-chip"
-                        :title="field.objectNames.length ? `Part of ${field.objectNames.join(', ')}` : undefined"
-                    >
-                        {{ field.fieldName }}
-                        <span
-                            v-if="field.objectNames.length"
-                            class="api-chip-object"
-                        >
-                            ▱ {{ field.objectNames.join(', ') }}
-                        </span>
-                        <button
-                            type="button"
-                            title="Stop sending this field through the API"
-                            @click="apiStore.removeInformationField(applicationApi.id, field.id)"
-                        >
-                            ×
-                        </button>
-                    </span>
-                </div>
-
-                <!-- Only the output information of this application can be sent through its apis -->
-                <div class="api-add-row">
-                    <Select
-                        :model-value="undefined"
-                        :options="application.outputInformationObjects.map(reference => reference.informationObject)"
-                        option-label="objectName"
-                        :option-disabled="(informationObject: ResolvedInformationObject) =>
-                            applicationApi.informationObjectIds.includes(informationObject.id)"
-                        placeholder="+ Add output object"
-                        filter
-                        filter-placeholder="Search object"
-                        empty-message="No output objects"
-                        size="small"
-                        class="searchable-select"
-                        @change="event => event.value && apiStore.addInformationObject(applicationApi.id, event.value.id)"
-                    />
-
-                    <Select
-                        :model-value="undefined"
-                        :options="sendableFields"
-                        option-label="label"
-                        :option-disabled="(field: SendableField) =>
-                            applicationApi.informationFieldIds.includes(field.id)"
-                        placeholder="+ Add output field"
-                        filter
-                        filter-placeholder="Search field"
-                        empty-message="No output fields"
-                        size="small"
-                        class="searchable-select"
-                        @change="event => event.value && apiStore.addInformationField(applicationApi.id, event.value.id)"
-                    />
                 </div>
             </div>
         </section>
@@ -1532,7 +1675,77 @@ function isInformationObjectExpanded(informationObjectId: string) {
 }
 
 
+/* Properties */
+
+.website-link {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+
+    width: 28px;
+    height: 28px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+
+    color: #4f46e5;
+    font-size: 11px;
+    text-decoration: none;
+}
+
+.website-link:hover {
+    border-color: #a5b4fc;
+    background: #eef2ff;
+}
+
 /* APIs */
+
+.section-chevron {
+    color: #94a3b8;
+    font-size: 9px;
+
+    transition: transform 0.15s ease;
+}
+
+.section-chevron.expanded {
+    transform: rotate(90deg);
+}
+
+.unused-api-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: auto;
+    padding: 0 6px;
+    border-radius: 999px;
+
+    background: #fef3c7;
+    color: #b45309;
+    font-size: 10px;
+    letter-spacing: normal;
+    line-height: 16px;
+    text-transform: none;
+}
+
+.unused-api-count .pi {
+    font-size: 9px;
+}
+
+.api-card.unused {
+    border-color: #fcd34d;
+    background: #fffbeb;
+}
+
+.api-unused-badge {
+    padding: 0 6px;
+    border-radius: 999px;
+
+    background: #fef3c7;
+    color: #b45309;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 16px;
+}
 
 .api-card {
     margin: 6px 0 8px;
@@ -1547,7 +1760,11 @@ function isInformationObjectExpanded(informationObjectId: string) {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-bottom: 6px;
+    cursor: pointer;
+}
+
+.api-header + * {
+    margin-top: 6px;
 }
 
 .api-icon {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+    import { vCollapsible } from '../../directives/collapsible';
     import { computed, ref } from 'vue';
     import { Select } from 'primevue';
     import {
@@ -65,7 +66,7 @@
 </script>
 
 <template>
-    <section class="detail-section">
+    <section v-collapsible class="detail-section">
         <div class="detail-section-title">
             <span>Endpoints</span>
             <span class="detail-count">{{ endpoints.length }}</span>

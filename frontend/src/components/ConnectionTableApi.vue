@@ -9,8 +9,12 @@ import { useApiConnectionStore } from '../stores/apiConnection.store';
 import { useApiConnectionService } from '../services/apiConnection.service';
 import { useApiStore } from '../stores/api.store';
 import { useResourceService } from '../services/resources/resource.service';
+import type { ResourceType } from '../types/resource.type';
 
 const resourceService = useResourceService();
+
+// Applications and external elements can offer and call apis
+const apiResourceTypes: ResourceType[] = ['application', 'external'];
 const apiConnectionStore = useApiConnectionStore();
 const apiConnectionService = useApiConnectionService();
 const apiStore = useApiStore();
@@ -84,11 +88,11 @@ function deleteApiConnection(id: string) {
     <Column field="sourceId" header="From">
       <template #body="{ data }">
         <span
-          v-if="resourceService.getByType('application').find(a => a.id === data.sourceId)"
+          v-if="resourceService.getByType(apiResourceTypes).find(a => a.id === data.sourceId)"
           class="cell-resource"
         >
           <i class="pi pi-desktop" />
-          {{ resourceService.getByType('application').find(a => a.id === data.sourceId)?.name }}
+          {{ resourceService.getByType(apiResourceTypes).find(a => a.id === data.sourceId)?.name }}
         </span>
         <span v-else class="cell-empty">Select application</span>
       </template>
@@ -96,10 +100,10 @@ function deleteApiConnection(id: string) {
       <template #editor="{ data, field }">
         <Select 
           v-model="data[field]"
-          :options="resourceService.getByType('application').filter((app) => app.id !== data.targetId)"
+          :options="resourceService.getByType(apiResourceTypes).filter((app) => app.id !== data.targetId)"
           optionLabel="name"
           optionValue="id"
-          placeholder="Select application"
+          placeholder="Select application or external"
         />
       </template>
     </Column>
@@ -134,11 +138,11 @@ function deleteApiConnection(id: string) {
     <Column field="targetId" header="To">
       <template #body="{ data }">
         <span
-          v-if="resourceService.getByType('application').find(a => a.id === data.targetId)"
+          v-if="resourceService.getByType(apiResourceTypes).find(a => a.id === data.targetId)"
           class="cell-resource"
         >
           <i class="pi pi-desktop" />
-          {{ resourceService.getByType('application').find(a => a.id === data.targetId)?.name }}
+          {{ resourceService.getByType(apiResourceTypes).find(a => a.id === data.targetId)?.name }}
         </span>
         <span v-else class="cell-empty">Select application</span>
       </template>
@@ -146,10 +150,10 @@ function deleteApiConnection(id: string) {
       <template #editor="{ data, field }">
         <Select 
           v-model="data[field]"
-          :options="resourceService.getByType('application').filter((app) => app.id !== data.sourceId)"
+          :options="resourceService.getByType(apiResourceTypes).filter((app) => app.id !== data.sourceId)"
           optionLabel="name"
           optionValue="id"
-          placeholder="Select application"
+          placeholder="Select application or external"
         />
       </template>
     </Column>

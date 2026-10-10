@@ -1,12 +1,16 @@
 import { UserJwtPayload } from "../middelware";
 import Api from "../models/api.model";
 import Application, { IApplication } from "../models/resources/application.model";
+import External from "../models/resources/external.model";
 import InformationObject from "../models/information/informationObject.models";
 import OtherConnection from "../models/otherConnection.model";
 import { syncOtherConnectionRelations } from "./externalRelation.service";
 
-// Only the output information of the application the api belongs to can be sent through the api
-async function getApiWithApplication(user: UserJwtPayload, apiId: string) {
+// An api belongs to an application or to an external element (its applicationId is the id of the owner).
+// Only what the owner passes on can be sent through the api:
+// - an application: its output fields and objects, and the fields inside its output objects
+// - an external element: the fields and objects it provides, and the fields inside its provided objects
+async function getApiSendableInformation(user: UserJwtPayload, apiId: string) {
     const api = await Api.findOne({
         _id: apiId,
         organisationId: user.organisationId
@@ -19,11 +23,34 @@ async function getApiWithApplication(user: UserJwtPayload, apiId: string) {
         _id: api.applicationId,
         organisationId: user.organisationId
     });
-    if(!application) {
-        throw new Error("Application of the api not found");
+    if(application) {
+        return {
+            fieldIds: await getSendableFieldIds(user, application),
+            objectIds: new Set(application.outputInformationObjects.map((object) => object.informationObjectId.toString())),
+            ownerDescription: 'output information of the application'
+        };
     }
 
-    return { api, application };
+    const external = await External.findOne({
+        _id: api.applicationId,
+        organisationId: user.organisationId
+    });
+    if(external) {
+        const providedObjects = await InformationObject.find({
+            _id: { $in: external.providedInformationObjects.map((object) => object.informationObjectId) },
+            organisationId: user.organisationId
+        });
+        return {
+            fieldIds: new Set([
+                ...external.providedInformationFields.map((field) => field.informationFieldId.toString()),
+                ...providedObjects.flatMap((object) => object.informationFieldIds.map((fieldId) => fieldId.toString()))
+            ]),
+            objectIds: new Set(external.providedInformationObjects.map((object) => object.informationObjectId.toString())),
+            ownerDescription: 'information the external element provides'
+        };
+    }
+
+    throw new Error("Owner of the api not found");
 }
 
 // The fields an application can send through its apis: its standalone output fields
@@ -99,11 +126,9 @@ export async function cleanupApisForInformationObject(user: UserJwtPayload, info
 }
 
 export async function addApiInformationField(user: UserJwtPayload, apiId: string, informationFieldId: string) {
-    const { application } = await getApiWithApplication(user, apiId);
-
-    const sendableFieldIds = await getSendableFieldIds(user, application);
-    if(!sendableFieldIds.has(informationFieldId)) {
-        throw new Error("Only output information fields of the application can be sent through its api");
+    const sendable = await getApiSendableInformation(user, apiId);
+    if(!sendable.fieldIds.has(informationFieldId)) {
+        throw new Error(`Only ${sendable.ownerDescription} can be sent through its api`);
     }
 
     return await Api.findOneAndUpdate(
@@ -140,13 +165,9 @@ export async function removeApiInformationField(user: UserJwtPayload, apiId: str
 }
 
 export async function addApiInformationObject(user: UserJwtPayload, apiId: string, informationObjectId: string) {
-    const { application } = await getApiWithApplication(user, apiId);
-
-    const isOutputObject = application.outputInformationObjects.some(
-        (object) => object.informationObjectId.toString() === informationObjectId
-    );
-    if(!isOutputObject) {
-        throw new Error("Only output information objects of the application can be sent through its api");
+    const sendable = await getApiSendableInformation(user, apiId);
+    if(!sendable.objectIds.has(informationObjectId)) {
+        throw new Error(`Only ${sendable.ownerDescription} can be sent through its api`);
     }
 
     return await Api.findOneAndUpdate(

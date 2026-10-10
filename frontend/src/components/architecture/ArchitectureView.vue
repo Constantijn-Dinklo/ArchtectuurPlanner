@@ -26,7 +26,7 @@ import RightSidebar from '../layout/RightSidebar.vue';
     grid-template-columns:
         250px
         1fr
-        250px;
+        500px;
 
     height: 100%;
 }

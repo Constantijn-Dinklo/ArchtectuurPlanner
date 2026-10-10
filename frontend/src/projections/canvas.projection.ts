@@ -8,6 +8,7 @@ import { useScriptStore } from "../stores/script.store";
 import type { CanvasNode } from "./types/canvasNode";
 import type { CanvasEdge } from "./types/canvasEdge";
 import { useServerStore, type Server } from "../stores/resources/server.store";
+import type { FileLocation } from "../stores/resources/fileLocation.store";
 import { useUIStore } from "../stores/canvas/ui.store";
 import { getVisibleResourceTypes, isResourceTypeExpanded, isResourceTypeVisible, type LevelOfDetail } from "../types/levelOfDetail";
 import { useDatabaseStore, type Database } from "../stores/resources/database.store";
@@ -243,6 +244,9 @@ export function useCanvasProjection() {
         }
         else if (resolvedResoure.type === 'external') {
             projectedViewNode = projectExternalNode(resolvedResoure);
+        }
+        else if (resource.type === 'fileLocation') {
+            projectedViewNode = resolveFileLocationNode(resource);
         }
         if(!projectedViewNode) { return }
         const node: CanvasNode = {
@@ -488,6 +492,19 @@ export function useCanvasProjection() {
                 providedInformationObjects: external.providedInformationObjects,
                 receivedInformationFields: external.receivedInformationFields,
                 receivedInformationObjects: external.receivedInformationObjects
+            }
+        }
+    }
+
+    function resolveFileLocationNode(fileLocation: FileLocation) {
+        return {
+            type: 'fileLocation',
+            style: {
+                width: '150px'
+            },
+            data: {
+                label: fileLocation.name,
+                resourceId: fileLocation.id
             }
         }
     }
