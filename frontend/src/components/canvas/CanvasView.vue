@@ -10,6 +10,7 @@ import { markRaw, onMounted, watch } from "vue";
 import { useViewStore } from "../../stores/canvas/view.store";
 import { useCanvasProjection } from "../../projections/canvas.projection";
 import { useUIStore } from "../../stores/canvas/ui.store";
+import type { LevelOfDetail } from "../../types/levelOfDetail";
 import { useArchitectureViewService } from "../../services/architectureView.service";
 import TableNode from "../nodes/TableNode.vue";
 import ApplicationNode from "../nodes/ApplicationNode.vue";
@@ -102,17 +103,24 @@ function onEdgeClick(event: any) {
 
 const { viewport } = useVueFlow()
 
-// Zooming in past this level switches from the application level to the database level of detail
+// Zooming in past these levels switches to the next level of detail:
+// application -> database -> detail (which also shows the endpoints of applications)
 const DATABASE_LEVEL_ZOOM = 0.85;
+const DETAIL_LEVEL_ZOOM = 1.6;
+
+function getLevelOfDetailForZoom(zoom: number): LevelOfDetail {
+  if (zoom >= DETAIL_LEVEL_ZOOM) return 'detail';
+  if (zoom >= DATABASE_LEVEL_ZOOM) return 'database';
+  return 'application';
+}
 
 watch(
   () => viewport.value.zoom,
   (newZoom) => {
-    if(newZoom > DATABASE_LEVEL_ZOOM) {
-      architectureViewService.changeLevelOfDetail('database');
-    }
-    else if (newZoom < DATABASE_LEVEL_ZOOM) {
-      architectureViewService.changeLevelOfDetail('application');
+    // Only switch (and load the data of the level) when the level actually changes, not on every zoom step
+    const level = getLevelOfDetailForZoom(newZoom);
+    if(level !== UIStore.levelOfDetail) {
+      architectureViewService.changeLevelOfDetail(level);
     }
   }
 )
@@ -298,6 +306,21 @@ watch(
 
 .vue-flow__node.search-dimmed {
   opacity: 0.3;
+}
+
+/* Detail level of detail: the focus is on what is inside the resources, so the connections fade
+   in the same way as the nodes that do not match a search. Hovering or selecting a connection shows it again */
+.vue-flow__edge {
+  transition: opacity 0.15s ease;
+}
+
+.canvas-lod-detail .vue-flow__edge {
+  opacity: 0.3;
+}
+
+.canvas-lod-detail .vue-flow__edge:hover,
+.canvas-lod-detail .vue-flow__edge.selected {
+  opacity: 1;
 }
 
 </style>

@@ -68,4 +68,15 @@ export interface ApplicationNodeData {
 
     inputInformationObjects?: ResolvedInformationObjectReference[];
     outputInformationObjects?: ResolvedInformationObjectReference[];
+
+    // Only at the detail level of detail: the endpoints of the application
+    endpoints?: ApplicationNodeEndpoint[];
+}
+
+export interface ApplicationNodeEndpoint {
+    id: string;
+    name: string;
+    icon: string;
+    objectNames: string[];
+    fieldNames: string[];
 }

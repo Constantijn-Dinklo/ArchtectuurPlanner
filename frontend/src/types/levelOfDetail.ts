@@ -1,11 +1,14 @@
 import type { ResourceType } from "./resource.type"
 
-export type LevelOfDetail = 'strategy' | 'governance' | 'information' | 'application' | 'database' | 'technology'
+// 'detail' is the most zoomed in level: it also shows what is inside a resource, like the endpoints of an application
+export type LevelOfDetail = 'strategy' | 'governance' | 'information' | 'application' | 'database' | 'detail' | 'technology'
 
 type ResourceRenderRule = {
     visible: boolean
     expandable: boolean
     expanded: boolean
+    // Whether the endpoints (dashboards, maps, ...) of the resource are shown in its node
+    showEndpoints?: boolean
 }
 
 type LevelOfDetailConfig = Partial<Record<ResourceType, ResourceRenderRule>>
@@ -78,6 +81,39 @@ export const LevelOfDetailConfig: Record<LevelOfDetail, LevelOfDetailConfig> = {
             expanded: true
         }
     },
+    'detail': {
+        application: {
+            visible: true,
+            expandable: true,
+            expanded: true,
+            showEndpoints: true
+        },
+        database: {
+            visible: true,
+            expandable: true,
+            expanded: false,
+        },
+        fileLocation: {
+            visible: true,
+            expandable: false,
+            expanded: false,
+        },
+        server: {
+            visible: false,
+            expandable: true,
+            expanded: true,
+        },
+        table: {
+            visible: true,
+            expandable: false,
+            expanded: false
+        },
+        external: {
+            visible: true,
+            expandable: true,
+            expanded: true
+        }
+    },
     'technology': {}
 }
 
@@ -99,4 +135,10 @@ export function isResourceTypeExpanded(
   resourceType: ResourceType
 ): boolean {
   return LevelOfDetailConfig[level][resourceType]?.expanded ?? false
+}
+export function isResourceEndpointsVisible(
+  level: LevelOfDetail,
+  resourceType: ResourceType
+): boolean {
+  return LevelOfDetailConfig[level][resourceType]?.showEndpoints ?? false
 }

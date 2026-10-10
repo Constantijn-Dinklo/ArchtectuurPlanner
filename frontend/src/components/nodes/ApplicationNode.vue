@@ -173,6 +173,19 @@ import { useResourceService } from '../../services/resources/resource.service';
     function isInformationObjectExpanded(informationObjectId: string) {
         return expandedInformationObjects.value.has(informationObjectId);
     }
+
+    // At the detail level the endpoints are listed; each one starts collapsed and can be opened to see its information
+    const expandedEndpoints = ref<Set<string>>(new Set());
+
+    function toggleEndpoint(endpointId: string) {
+        const expanded = new Set(expandedEndpoints.value);
+        if (expanded.has(endpointId)) {
+            expanded.delete(endpointId);
+        } else {
+            expanded.add(endpointId);
+        }
+        expandedEndpoints.value = expanded;
+    }
 </script>
 
 <template>
@@ -378,6 +391,74 @@ import { useResourceService } from '../../services/resources/resource.service';
                         @dragend="onFieldDragEnd"
                     >
                         {{ informationField.informationField.fieldName }}
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Endpoints: only at the detail level of detail -->
+        <div
+            v-if="props.data.endpoints"
+            class="endpoints-section"
+        >
+            <div class="information-title endpoints-title">
+                <span class="title-dot endpoint-dot" />
+                Endpoints
+            </div>
+
+            <div
+                v-if="!props.data.endpoints.length"
+                class="endpoints-empty"
+            >
+                No endpoints
+            </div>
+
+            <div
+                v-for="endpoint in props.data.endpoints"
+                :key="endpoint.id"
+                class="endpoint"
+            >
+                <div
+                    class="endpoint-row nodrag"
+                    @click.stop="toggleEndpoint(endpoint.id)"
+                >
+                    <span
+                        class="expand-icon"
+                        :class="{ expanded: expandedEndpoints.has(endpoint.id) }"
+                    >
+                        <svg viewBox="0 0 8 8" aria-hidden="true">
+                            <path d="M3 1.5 5.5 4 3 6.5" />
+                        </svg>
+                    </span>
+                    <i :class="endpoint.icon" class="endpoint-icon" />
+                    <span class="endpoint-name">{{ endpoint.name }}</span>
+                    <span class="object-field-count endpoint-count">
+                        {{ endpoint.objectNames.length + endpoint.fieldNames.length }}
+                    </span>
+                </div>
+
+                <ul
+                    v-if="expandedEndpoints.has(endpoint.id)"
+                    class="object-information-fields endpoint-information"
+                >
+                    <li
+                        v-for="objectName in endpoint.objectNames"
+                        :key="`object:${objectName}`"
+                        class="endpoint-object"
+                    >
+                        ▱ {{ objectName }}
+                    </li>
+                    <li
+                        v-for="fieldName in endpoint.fieldNames"
+                        :key="`field:${fieldName}`"
+                    >
+                        {{ fieldName }}
+                    </li>
+                    <li
+                        v-if="!endpoint.objectNames.length && !endpoint.fieldNames.length"
+                        class="endpoints-empty"
+                    >
+                        No information
                     </li>
                 </ul>
             </div>
@@ -696,6 +777,85 @@ import { useResourceService } from '../../services/resources/resource.service';
     color: #d97706;
 }
 
+
+/* Endpoints (detail level of detail) */
+
+.endpoints-section {
+    padding: 3px 4px 4px;
+    border-top: 1px solid #eef2f7;
+
+    font-size: 6px;
+    line-height: 1.2;
+}
+
+.endpoint-dot {
+    background: #7c3aed;
+}
+
+.endpoint {
+    min-width: 0;
+    margin-bottom: 2px;
+
+    border: 1px solid #ddd6fe;
+    border-radius: 3px;
+    background: #faf5ff;
+}
+
+.endpoint-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 1.5px 2px;
+
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.endpoint-row:hover {
+    background: #ede9fe;
+}
+
+.endpoint .expand-icon svg {
+    stroke: #7c3aed;
+}
+
+.endpoint-icon {
+    flex: 0 0 auto;
+    color: #7c3aed;
+    font-size: 5px;
+}
+
+.endpoint-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+
+    color: #5b21b6;
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.endpoint-count {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.endpoint-information li {
+    border-left-color: #ddd6fe;
+    cursor: default;
+}
+
+.endpoint-object {
+    font-weight: 700;
+}
+
+.endpoints-empty {
+    padding: 1.5px 2px;
+    color: #94a3b8;
+    font-style: italic;
+}
 
 /* Fields belonging to an InformationObject */
 

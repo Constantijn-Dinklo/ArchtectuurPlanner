@@ -10,7 +10,10 @@ import type { CanvasEdge } from "./types/canvasEdge";
 import { useServerStore, type Server } from "../stores/resources/server.store";
 import type { FileLocation } from "../stores/resources/fileLocation.store";
 import { useUIStore } from "../stores/canvas/ui.store";
-import { getVisibleResourceTypes, isResourceTypeExpanded, isResourceTypeVisible, type LevelOfDetail } from "../types/levelOfDetail";
+import { getVisibleResourceTypes, isResourceEndpointsVisible, isResourceTypeExpanded, isResourceTypeVisible, type LevelOfDetail } from "../types/levelOfDetail";
+import { useEndpointStore, getEndpointTypeInfo } from "../stores/endpoint.store";
+import { useInformationFieldStore } from "../stores/information/informationField.store";
+import { useInformationObjectStore } from "../stores/information/informationObject.store";
 import { useDatabaseStore, type Database } from "../stores/resources/database.store";
 import { useTableStore, type Table } from "../stores/resources/table.store";
 import { useApplicationStore } from "../stores/resources/application.store";
@@ -64,6 +67,9 @@ export function useCanvasProjection() {
     const databaseStore = useDatabaseStore();
     const tableStore = useTableStore();
     const applicationStore = useApplicationStore();
+    const endpointStore = useEndpointStore();
+    const informationFieldStore = useInformationFieldStore();
+    const informationObjectStore = useInformationObjectStore();
     const otherConnectionStore = useOtherConnectionStore();
     const informationTransferService = useInformationTransferService();
 
@@ -433,6 +439,21 @@ export function useCanvasProjection() {
             outputInformationObjects = application.outputInformationObjects;
         }
 
+        // At the detail level the node also lists the endpoints of the application
+        const endpoints = isResourceEndpointsVisible(UIStore.levelOfDetail, 'application')
+            ? endpointStore.getResourceEndpoints(application.id).map((endpoint) => ({
+                id: endpoint.id,
+                name: endpoint.name,
+                icon: getEndpointTypeInfo(endpoint.type).icon,
+                objectNames: endpoint.informationObjectIds
+                    .map((objectId) => informationObjectStore.getInformationObject(objectId)?.objectName)
+                    .filter((name) => name !== undefined),
+                fieldNames: endpoint.informationFieldIds
+                    .map((fieldId) => informationFieldStore.getInformationField(fieldId)?.fieldName)
+                    .filter((name) => name !== undefined)
+            }))
+            : undefined;
+
         return {
             type: 'application',
             style,
@@ -443,6 +464,7 @@ export function useCanvasProjection() {
                 outputInformationFields,
                 inputInformationObjects,
                 outputInformationObjects,
+                endpoints,
             }
         }
     }

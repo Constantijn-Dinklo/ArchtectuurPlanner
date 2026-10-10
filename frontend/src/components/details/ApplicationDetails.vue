@@ -16,14 +16,13 @@ import type {
 import { useApplicationService } from '../../services/resources/application.service.ts';
 import { useInformationObjectService } from '../../services/informationObject.service.ts';
 import { useInformationEndpointService } from '../../services/informationEndpoint.service.ts';
-import { useApiStore, type Api } from '../../stores/api.store.ts';
 import { useInformationTransferService } from '../../services/informationTransfer.service.ts';
 import { useInformationSourceService, type CandidateConnection } from '../../services/informationSource.service.ts';
 import { useInformationRelationStore } from '../../stores/information/informationRelation.store.ts';
 import ViaConnection from './ViaConnection.vue';
 import EndpointsSection from './EndpointsSection.vue';
+import ApisSection from './ApisSection.vue';
 import ConnectionPartnersSection from './ConnectionPartnersSection.vue';
-import { useApiConnectionStore } from '../../stores/apiConnection.store.ts';
 import { APPLICATION_HOSTINGS, type ResolvedApplication } from '../../types/application.types.ts';
 
 const resourceService = useResourceService();
@@ -32,8 +31,6 @@ const applicationStore = useApplicationStore();
 const applicationService = useApplicationService();
 const informationObjectService = useInformationObjectService();
 const informationEndpointService = useInformationEndpointService();
-const apiStore = useApiStore();
-const apiConnectionStore = useApiConnectionStore();
 const informationTransferService = useInformationTransferService();
 const informationSourceService = useInformationSourceService();
 const informationRelationStore = useInformationRelationStore();
@@ -179,90 +176,6 @@ function getInputObjectRelation(informationObjectId: string) {
     );
 }
 
-// <-- APIs -->
-const applicationApis = computed(() =>
-    application.value ? apiStore.getApplicationApis(application.value.id) : []
-);
-
-
-// Every api card starts collapsed and can be opened to see and edit what is sent through it
-const expandedApis = ref<Set<string>>(new Set());
-
-function toggleApi(apiId: string) {
-    const expanded = new Set(expandedApis.value);
-    if (expanded.has(apiId)) {
-        expanded.delete(apiId);
-    } else {
-        expanded.add(apiId);
-    }
-    expandedApis.value = expanded;
-}
-const newApiUrl = ref('');
-
-// An api url that no api connection uses is shown in a warning colour
-function isApiUsed(apiId: string) {
-    return apiConnectionStore.apiConnections.some(connection => connection.sourceUrlId === apiId);
-}
-
-const unusedApiCount = computed(() => applicationApis.value.filter(applicationApi => !isApiUsed(applicationApi.id)).length);
-
-async function addApi(applicationId: string) {
-    const url = newApiUrl.value.trim();
-    if (!url) return;
-    await apiStore.commitApi(applicationId, url);
-    newApiUrl.value = '';
-}
-
-interface SendableField {
-    id: string;
-    fieldName: string;
-    // The output objects the field is part of; empty when it is only a standalone output field
-    objectNames: string[];
-    label: string;
-}
-
-// An api can send the standalone output fields, and also the fields of the output objects individually
-const sendableFields = computed<SendableField[]>(() => {
-    if (!application.value) return [];
-
-    const fields = new Map<string, SendableField>();
-
-    for (const reference of application.value.outputInformationFields) {
-        fields.set(reference.informationField.id, {
-            id: reference.informationField.id,
-            fieldName: reference.informationField.fieldName,
-            objectNames: [],
-            label: reference.informationField.fieldName
-        });
-    }
-
-    for (const reference of application.value.outputInformationObjects) {
-        for (const field of reference.informationObject.informationFields) {
-            const sendableField = fields.get(field.id) ?? {
-                id: field.id,
-                fieldName: field.fieldName,
-                objectNames: [],
-                label: field.fieldName
-            };
-            sendableField.objectNames.push(reference.informationObject.objectName);
-            sendableField.label = `${field.fieldName} (${sendableField.objectNames.join(', ')})`;
-            fields.set(field.id, sendableField);
-        }
-    }
-
-    return [...fields.values()];
-});
-
-// Only shows information that the application can still send
-function getApiFields(applicationApi: Api) {
-    return sendableFields.value.filter(field => applicationApi.informationFieldIds?.includes(field.id));
-}
-
-function getApiObjects(applicationApi: Api) {
-    return (application.value?.outputInformationObjects ?? [])
-        .map(reference => reference.informationObject)
-        .filter(informationObject => applicationApi.informationObjectIds?.includes(informationObject.id));
-}
 
 // Only the changed property is sent; the information of the application has its own routes
 function updateProperty(property: 'version' | 'developer' | 'hosting' | 'websiteUrl', value: string) {
@@ -523,172 +436,7 @@ function isInformationObjectExpanded(informationObjectId: string) {
         </section>
 
         <!-- APIs: which output information is sent through each api -->
-        <section v-collapsible class="information-section">
-            <div class="section-title">
-                <span>APIs</span>
-
-                <span class="field-count">
-                    {{ applicationApis.length }}
-                </span>
-
-                <span
-                    v-if="unusedApiCount"
-                    class="unused-api-count"
-                    :title="`${unusedApiCount} API url(s) not used in any API connection`"
-                >
-                    <i class="pi pi-exclamation-triangle" />
-                    {{ unusedApiCount }} unused
-                </span>
-            </div>
-
-            <div
-                v-if="!applicationApis.length"
-                class="empty-row"
-            >
-                No APIs yet. Add the urls this application offers below.
-            </div>
-
-            <div
-                v-for="applicationApi in applicationApis"
-                :key="applicationApi.id"
-                class="api-card"
-                :class="{ unused: !isApiUsed(applicationApi.id) }"
-            >
-                <div
-                    class="api-header"
-                    @click="toggleApi(applicationApi.id)"
-                >
-                    <i
-                        class="pi pi-chevron-right section-chevron"
-                        :class="{ expanded: expandedApis.has(applicationApi.id) }"
-                    />
-                    <i class="pi pi-globe api-icon" />
-
-                    <span class="api-url" :title="applicationApi.url">
-                        {{ applicationApi.url }}
-                    </span>
-
-                    <span
-                        v-if="applicationApi.hasAuthentication"
-                        class="api-auth-badge"
-                    >
-                        Auth
-                    </span>
-
-                    <span
-                        v-if="!isApiUsed(applicationApi.id)"
-                        class="api-unused-badge"
-                        title="No API connection uses this url"
-                    >
-                        Not used
-                    </span>
-
-                    <span
-                        class="field-count"
-                        title="Information objects and fields sent through this API"
-                    >
-                        {{ getApiObjects(applicationApi).length + getApiFields(applicationApi).length }} sent
-                    </span>
-                </div>
-
-                <template v-if="expandedApis.has(applicationApi.id)">
-                <div
-                    v-if="!getApiObjects(applicationApi).length && !getApiFields(applicationApi).length"
-                    class="empty-row"
-                >
-                    Nothing is sent through this API yet
-                </div>
-
-                <div class="api-chips">
-                    <span
-                        v-for="informationObject in getApiObjects(applicationApi)"
-                        :key="informationObject.id"
-                        class="api-chip object"
-                    >
-                        <span class="object-icon">▱</span>
-                        {{ informationObject.objectName }}
-                        <button
-                            type="button"
-                            title="Stop sending this object through the API"
-                            @click="apiStore.removeInformationObject(applicationApi.id, informationObject.id)"
-                        >
-                            ×
-                        </button>
-                    </span>
-
-                    <span
-                        v-for="field in getApiFields(applicationApi)"
-                        :key="field.id"
-                        class="api-chip"
-                        :title="field.objectNames.length ? `Part of ${field.objectNames.join(', ')}` : undefined"
-                    >
-                        {{ field.fieldName }}
-                        <span
-                            v-if="field.objectNames.length"
-                            class="api-chip-object"
-                        >
-                            ▱ {{ field.objectNames.join(', ') }}
-                        </span>
-                        <button
-                            type="button"
-                            title="Stop sending this field through the API"
-                            @click="apiStore.removeInformationField(applicationApi.id, field.id)"
-                        >
-                            ×
-                        </button>
-                    </span>
-                </div>
-
-                <!-- Only the output information of this application can be sent through its apis -->
-                <div class="api-add-row">
-                    <Select
-                        :model-value="undefined"
-                        :options="application.outputInformationObjects.map(reference => reference.informationObject)"
-                        option-label="objectName"
-                        :option-disabled="(informationObject: ResolvedInformationObject) =>
-                            applicationApi.informationObjectIds.includes(informationObject.id)"
-                        placeholder="+ Add output object"
-                        filter
-                        filter-placeholder="Search object"
-                        empty-message="No output objects"
-                        size="small"
-                        class="searchable-select"
-                        @change="event => event.value && apiStore.addInformationObject(applicationApi.id, event.value.id)"
-                    />
-
-                    <Select
-                        :model-value="undefined"
-                        :options="sendableFields"
-                        option-label="label"
-                        :option-disabled="(field: SendableField) =>
-                            applicationApi.informationFieldIds.includes(field.id)"
-                        placeholder="+ Add output field"
-                        filter
-                        filter-placeholder="Search field"
-                        empty-message="No output fields"
-                        size="small"
-                        class="searchable-select"
-                        @change="event => event.value && apiStore.addInformationField(applicationApi.id, event.value.id)"
-                    />
-                </div>
-                </template>
-            </div>
-
-            <div class="new-field-row">
-                <input
-                    v-model="newApiUrl"
-                    type="text"
-                    placeholder="+ New API url"
-                    @keyup.enter="addApi(application.id)"
-                />
-                <button
-                    v-if="newApiUrl.trim()"
-                    @click="addApi(application.id)"
-                >
-                    Add
-                </button>
-            </div>
-        </section>
+        <ApisSection :resource-id="application.id" />
 
         <!-- The resources that send to this application, and the resources it sends to -->
         <ConnectionPartnersSection :resource-id="application.id" direction="incoming" />
