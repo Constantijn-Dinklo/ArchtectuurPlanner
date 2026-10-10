@@ -1,3 +1,4 @@
+import { removeResourceRelations } from "./externalRelation.service";
 import { UserJwtPayload } from "../middelware";
 import ApiConnection from "../models/apiConnection.model";
 import Application from "../models/resources/application.model";
@@ -57,6 +58,7 @@ export async function deleteFileLocation(user: UserJwtPayload, resourceId: strin
                 message: 'The File Location was not deleted correctly.',
             }
         }
+        await removeResourceRelations(user, [resourceId]);
         return {
             status: 200,
             success: true,

@@ -1,9 +1,14 @@
 <script setup lang="ts">
     import type { ConnectionWarning } from '../../services/informationTransfer.service';
 
-    defineProps<{
+    import { computed } from 'vue';
+
+    const props = defineProps<{
         warnings: ConnectionWarning[]
     }>();
+
+    // An error (information moved without any connection) makes the whole card red
+    const hasError = computed(() => props.warnings.some(warning => warning.severity === 'error'));
 </script>
 
 <!-- The problems with a connection, each with what is affected and how to fix it -->
@@ -11,10 +16,11 @@
     <section
         v-if="warnings.length"
         class="detail-section connection-warnings"
+        :class="{ error: hasError }"
     >
         <div class="detail-section-title warnings-title">
-            <i class="pi pi-exclamation-triangle" />
-            <span>Warnings</span>
+            <i :class="hasError ? 'pi pi-times-circle' : 'pi pi-exclamation-triangle'" />
+            <span>{{ hasError ? 'Errors' : 'Warnings' }}</span>
             <span class="detail-count warnings-count">{{ warnings.length }}</span>
         </div>
 
@@ -22,6 +28,7 @@
             v-for="warning in warnings"
             :key="warning.title"
             class="connection-warning"
+            :class="{ error: warning.severity === 'error' }"
         >
             <div class="warning-title">{{ warning.title }}</div>
 
@@ -44,6 +51,38 @@
 </template>
 
 <style scoped>
+/* Errors: information is moved without any connection */
+.connection-warnings.error {
+    border-color: #fca5a5;
+    background: #fef2f2;
+}
+
+.connection-warnings.error .warnings-title {
+    color: #b91c1c;
+}
+
+.connection-warnings.error .warnings-count {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.connection-warning.error .warning-title {
+    color: #991b1b;
+}
+
+.connection-warning.error .warning-item {
+    border-color: #fca5a5;
+    color: #991b1b;
+}
+
+.connection-warning.error .warning-hint {
+    color: #7f1d1d;
+}
+
+.connection-warning.error .warning-hint .pi {
+    color: #dc2626;
+}
+
 .connection-warnings {
     border-color: #fcd34d;
     background: #fffbeb;

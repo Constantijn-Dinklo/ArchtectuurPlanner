@@ -95,7 +95,8 @@ export function useCanvasProjection() {
                     otherConnectionMethods: [],
                     sourceResourceId,
                     targetResourceId,
-                    warnings: []
+                    warnings: [],
+                    hasError: false
                 },
                 zIndex: 10,
             };
@@ -187,9 +188,9 @@ export function useCanvasProjection() {
 
         // The same warnings are shown in the connection details when the edge is selected
         for(const edge of edges.values()) {
-            edge.data.warnings = informationTransferService
-                .getConnectionWarnings(edge.data.sourceResourceId, edge.data.targetResourceId)
-                .map((warning) => warning.title);
+            const warnings = informationTransferService.getConnectionWarnings(edge.data.sourceResourceId, edge.data.targetResourceId);
+            edge.data.warnings = warnings.map((warning) => warning.title);
+            edge.data.hasError = warnings.some((warning) => warning.severity === 'error');
         }
 
         // The arrow head gets the same color as the edge line in ConnectionEdge.vue
@@ -197,7 +198,7 @@ export function useCanvasProjection() {
             ...edge,
             markerEnd: {
                 type: MarkerType.ArrowClosed,
-                color: edge.data.warnings.length ? '#f59e0b' : '#94a3b8',
+                color: edge.data.hasError ? '#ef4444' : edge.data.warnings.length ? '#f59e0b' : '#94a3b8',
                 width: 14,
                 height: 14
             }

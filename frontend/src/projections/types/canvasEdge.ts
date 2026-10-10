@@ -22,6 +22,8 @@ export interface CanvasEdge {
 
         // Problems with the information transfer over this edge, shown as a yellow warning
         warnings: string[];
+        // Information moves over this edge without any connection, shown in red
+        hasError: boolean;
     };
 
     label?: string;

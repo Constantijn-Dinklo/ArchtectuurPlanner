@@ -6,6 +6,7 @@ import Application from "../models/resources/application.model";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import { cleanupApplicationApis } from "./api.service";
+import { removeResourceRelations } from "./externalRelation.service";
 import { createInformationObject, resourceObjectInformation } from "./resourceObject.service";
 import InformationField from "../models/information/informationField.model";
 import InformationObject from "../models/information/informationObject.models";
@@ -117,6 +118,7 @@ export async function deleteApplication(user: UserJwtPayload, resourceId: string
                 message: 'The Application was not deleted correctly.',
             }
         }
+        await removeResourceRelations(user, [resourceId]);
         return {
             status: 200,
             success: true,

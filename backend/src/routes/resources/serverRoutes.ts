@@ -1,3 +1,4 @@
+import { removeResourceRelations } from "../../services/externalRelation.service";
 import express, { Router, Response } from "express";
 import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
 import Server from "../../models/resources/server.model";
@@ -84,6 +85,7 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
         }
 
         await server.deleteOne();
+        await removeResourceRelations(user, [req.params.id as string]);
 
         res.status(200).json({
             success: true,

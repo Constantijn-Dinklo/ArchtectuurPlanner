@@ -16,6 +16,21 @@
     );
 
     const tableService = useTableService();
+
+    // Deleting asks for a second click, so a table is not removed by accident
+    const isConfirmingDelete = ref(false);
+    let confirmTimeout: ReturnType<typeof setTimeout> | undefined;
+
+    function onDeleteClick() {
+        if (!isConfirmingDelete.value) {
+            isConfirmingDelete.value = true;
+            confirmTimeout = setTimeout(() => { isConfirmingDelete.value = false; }, 3000);
+            return;
+        }
+        clearTimeout(confirmTimeout);
+        isConfirmingDelete.value = false;
+        tableService.deleteTable(props.data.resourceId);
+    }
     const UIStore = useUIStore();
 
     const nameInput = ref<HTMLInputElement>();
@@ -93,6 +108,16 @@
             >
                 {{ table.columns.length }}
             </span>
+
+            <button
+                type="button"
+                class="table-delete-button nodrag"
+                :class="{ confirming: isConfirmingDelete }"
+                :title="isConfirmingDelete ? 'Click again to delete this table' : 'Delete table'"
+                @click.stop="onDeleteClick"
+            >
+                {{ isConfirmingDelete ? 'Delete?' : '×' }}
+            </button>
         </header>
 
         <ul
@@ -209,6 +234,44 @@
     color: #1e293b;
     font: inherit;
     font-weight: 600;
+}
+
+.table-delete-button {
+    display: none;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+
+    min-width: 12px;
+    height: 12px;
+    padding: 0 2px;
+
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+
+    color: #94a3b8;
+    font: inherit;
+    font-size: 9px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.table-node:hover .table-delete-button,
+.table-delete-button.confirming {
+    display: inline-flex;
+}
+
+.table-delete-button:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.table-delete-button.confirming {
+    background: #dc2626;
+    color: #ffffff;
+    font-size: 7px;
+    font-weight: 700;
 }
 
 .column-count {

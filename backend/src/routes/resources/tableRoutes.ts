@@ -1,3 +1,4 @@
+import { removeResourceRelations } from "../../services/externalRelation.service";
 import express, { Router, Response } from "express";
 
 import Table from "../../models/resources/table.model";
@@ -78,12 +79,13 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
         });
 
         if (!deleted || !deletedNode) {
-            res.json({
+            return res.json({
                 status: 403,
                 success: false,
                 message: 'The Table was not deleted correctly.',
             });
         }
+        await removeResourceRelations(user, [req.params.id as string]);
 
         res.json({
             status: 200,

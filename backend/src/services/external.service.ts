@@ -5,6 +5,7 @@ import InformationField from "../models/information/informationField.model";
 import InformationObject from "../models/information/informationObject.models";
 import { createInformationField } from "./resourceField.service";
 import { createInformationObject } from "./resourceObject.service";
+import { removeResourceRelations } from "./externalRelation.service";
 
 // The information fields and objects an external element refers to, so the frontend can resolve them
 async function getReferencedInformation(user: UserJwtPayload, externals: IExternal[]) {
@@ -119,6 +120,7 @@ export async function deleteExternal(user: UserJwtPayload, externalId: string) {
     if(!deleted) {
         throw new Error("External element not found");
     }
+    await removeResourceRelations(user, [externalId]);
 
     return {
         resourceId: deleted._id,

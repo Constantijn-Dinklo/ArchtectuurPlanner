@@ -6,9 +6,14 @@ import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useApiStore, type Api } from "../stores/api.store";
 import { useOtherConnectionStore } from "../stores/otherConnection.store";
 import { useResourceService } from "./resources/resource.service";
+import { useScriptStore } from "../stores/script.store";
+import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 
-// A problem with the information transfer between two resources, with what to do about it
+// A problem with the information transfer between two resources, with what to do about it.
+// error: information moves between the resources without any connection at all
+// warning: there is a connection, but something about it is incomplete
 export interface ConnectionWarning {
+    severity: 'error' | 'warning';
     title: string;
     // The information or connections the warning is about
     items: string[];
@@ -33,6 +38,19 @@ export function useInformationTransferService() {
     const apiStore = useApiStore();
     const otherConnectionStore = useOtherConnectionStore();
     const resourceService = useResourceService();
+    const scriptStore = useScriptStore();
+    const databaseConnectionStore = useDatabaseConnectionStore();
+
+    // Whether there is any kind of connection from the source to the target
+    function hasAnyConnection(sourceId: string, targetId: string) {
+        return apiConnectionStore.apiConnections.some(connection => connection.sourceId === sourceId && connection.targetId === targetId)
+            || otherConnectionStore.otherConnections.some(connection => connection.sourceId === sourceId && connection.targetId === targetId)
+            || scriptStore.scripts.some(script => script.inputIds.includes(sourceId) && script.outputIds.includes(targetId))
+            || databaseConnectionStore.databaseConnections.some(connection =>
+                (connection.operation.includes('read') && connection.databaseId === sourceId && connection.entityId === targetId) ||
+                (connection.operation.includes('write') && connection.entityId === sourceId && connection.databaseId === targetId)
+            );
+    }
 
     function getUrlsBetween(sourceId: string, targetId: string): Api[] {
         return apiConnectionStore.apiConnections
@@ -134,6 +152,7 @@ export function useInformationTransferService() {
         );
         if (connectionsWithoutUrl.length) {
             warnings.push({
+                severity: 'warning',
                 title: connectionsWithoutUrl.length === 1
                     ? 'An API connection has no url'
                     : `${connectionsWithoutUrl.length} API connections have no url`,
@@ -143,10 +162,26 @@ export function useInformationTransferService() {
         }
 
         const transferWarnings = getTransferWarnings(sourceId, targetId);
+
+        // Information moves while there is no connection at all: that is an error, not just something incomplete
+        if (transferWarnings && !hasAnyConnection(sourceId, targetId)) {
+            warnings.push({
+                severity: 'error',
+                title: 'Information is moved without any connection',
+                items: [
+                    ...transferWarnings.objectNames.map(objectName => `▱ ${objectName}`),
+                    ...transferWarnings.fieldNames
+                ],
+                hint: `Add a connection from ${sourceName} to ${targetName} (an API, script, database or other connection) that carries this information.`
+            });
+            return warnings;
+        }
+
         const fixHint = `Add them to an API url of ${sourceName} that is connected to ${targetName}, or to an other connection (Other tab) from ${sourceName} to ${targetName}.`;
 
         if (transferWarnings?.objectNames.length) {
             warnings.push({
+                severity: 'warning',
                 title: 'Objects sent without an API url or other connection',
                 items: transferWarnings.objectNames,
                 hint: fixHint
@@ -154,6 +189,7 @@ export function useInformationTransferService() {
         }
         if (transferWarnings?.fieldNames.length) {
             warnings.push({
+                severity: 'warning',
                 title: 'Fields sent without an API url or other connection',
                 items: transferWarnings.fieldNames,
                 hint: fixHint

@@ -129,3 +129,31 @@ export async function syncOtherConnectionRelations(user: UserJwtPayload, connect
         await updateReceivedInformation(user, previousTargetId);
     }
 }
+
+// A resource was removed: removes the relations of all its fields and objects, whether the resource was the source
+// or the target. External elements that received information from the resource get their received lists updated.
+export async function removeResourceRelations(user: UserJwtPayload, resourceIds: string[]) {
+    if(!resourceIds.length) return;
+
+    const touchingResources = {
+        organisationId: user.organisationId,
+        $or: [
+            { sourceResourceId: { $in: resourceIds } },
+            { targetResourceId: { $in: resourceIds } }
+        ]
+    };
+
+    const receivingExternalIds = new Set<string>([
+        ...(await ResourceFieldRelation.distinct('targetResourceId', { ...touchingResources, targetResourceType: 'external' })),
+        ...(await ResourceObjectRelation.distinct('targetResourceId', { ...touchingResources, targetResourceType: 'external' }))
+    ].map((id) => id.toString()));
+
+    await ResourceFieldRelation.deleteMany(touchingResources);
+    await ResourceObjectRelation.deleteMany(touchingResources);
+
+    for(const externalId of receivingExternalIds) {
+        if(!resourceIds.includes(externalId)) {
+            await updateReceivedInformation(user, externalId);
+        }
+    }
+}

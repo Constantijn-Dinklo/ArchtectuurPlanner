@@ -17,6 +17,8 @@
     }));
 
     const warningCount = computed(() => props.data?.warnings.length ?? 0);
+    // Information is moved without any connection: an error instead of a warning
+    const hasError = computed(() => props.data?.hasError ?? false);
 
     const otherCount = computed(() => props.data?.otherConnectionIds.length ?? 0);
 
@@ -58,11 +60,12 @@
         if (!hasConnections.value) parts.push('No connection');
 
         const text = parts.join(' · ');
+        if (hasError.value) return `✕ ${text} · error`;
         return warningCount.value ? `⚠ ${text} · ${plural(warningCount.value, 'warning', 'warnings')}` : text;
     });
 
     const edgeStyle = computed(() => ({
-        stroke: warningCount.value ? '#f59e0b' : props.selected ? '#6366f1' : '#94a3b8',
+        stroke: hasError.value ? '#ef4444' : warningCount.value ? '#f59e0b' : props.selected ? '#6366f1' : '#94a3b8',
         strokeWidth: props.selected ? 2 : 1.5,
         // Dashed: other connections (by hand, a send button, ...). Dotted: information flows without any connection
         strokeDasharray: isOtherOnly.value ? '6 4' : hasConnections.value ? undefined : '1.5 4',
@@ -70,14 +73,14 @@
     }));
 
     const labelStyle = computed(() => ({
-        fill: warningCount.value ? '#92400e' : props.selected ? '#4338ca' : '#475569',
+        fill: hasError.value ? '#b91c1c' : warningCount.value ? '#92400e' : props.selected ? '#4338ca' : '#475569',
         fontSize: '9px',
         fontWeight: 600
     }));
 
     const labelBgStyle = computed(() => ({
-        fill: warningCount.value ? '#fffbeb' : '#ffffff',
-        stroke: warningCount.value ? '#fcd34d' : props.selected ? '#a5b4fc' : '#e2e8f0',
+        fill: hasError.value ? '#fef2f2' : warningCount.value ? '#fffbeb' : '#ffffff',
+        stroke: hasError.value ? '#fca5a5' : warningCount.value ? '#fcd34d' : props.selected ? '#a5b4fc' : '#e2e8f0',
         strokeWidth: 1
     }));
 </script>

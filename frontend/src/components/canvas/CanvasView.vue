@@ -20,6 +20,10 @@ import { useInformationRelationStore } from "../../stores/information/informatio
 import { useEndpointStore } from "../../stores/endpoint.store";
 import { useApplicationStore } from "../../stores/resources/application.store";
 import { useTableStore } from "../../stores/resources/table.store";
+import { useDatabaseStore } from "../../stores/resources/database.store";
+import { useFileLocationStore } from "../../stores/resources/fileLocation.store";
+import { useServerStore } from "../../stores/resources/server.store";
+import { useExternalStore } from "../../stores/resources/external.store";
 
 const viewStore = useViewStore();
 const UIStore = useUIStore();
@@ -28,6 +32,10 @@ const informationRelationStore = useInformationRelationStore();
 const endpointStore = useEndpointStore();
 const applicationStore = useApplicationStore();
 const tableStore = useTableStore();
+const databaseStore = useDatabaseStore();
+const fileLocationStore = useFileLocationStore();
+const serverStore = useServerStore();
+const externalStore = useExternalStore();
 
 const { getNodes } = useVueFlow();
 const nodeTypes = {
@@ -49,9 +57,17 @@ onMounted(() => {
   endpointStore.fetchEndpoints();
 })
 
-// The relations are changed in the backend whenever information is added to or removed from a resource
+// The relations are changed in the backend whenever information is added to or removed from a resource,
+// and when a resource is removed (its relations are removed with it)
 watch(
-  () => [applicationStore.applications, tableStore.tables],
+  () => [
+    applicationStore.applications,
+    tableStore.tables,
+    databaseStore.databases.length,
+    fileLocationStore.fileLocations.length,
+    serverStore.servers.length,
+    externalStore.externals.length
+  ],
   () => informationRelationStore.fetchInformationRelations(),
   { deep: true }
 );

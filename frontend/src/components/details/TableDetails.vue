@@ -4,6 +4,7 @@
     import { useSelectedNodeProjection } from '../../projections/selectedNode.projection';
     import { useTableStore, type Table } from '../../stores/resources/table.store';
     import { useResourceService } from '../../services/resources/resource.service';
+    import { useTableService } from '../../services/resources/table.service';
 import type { AccessibleInformationField } from '../../types/informationField.type';
     import EndpointsSection from './EndpointsSection.vue';
 
@@ -11,6 +12,22 @@ import type { AccessibleInformationField } from '../../types/informationField.ty
 
     const selectedNodeProjection = useSelectedNodeProjection();
     const tableStore = useTableStore();
+    const tableService = useTableService();
+
+    // Deleting asks for a second click, so a table is not removed by accident
+    const isConfirmingDelete = ref(false);
+    let confirmTimeout: ReturnType<typeof setTimeout> | undefined;
+
+    function onDeleteClick(tableId: string) {
+        if (!isConfirmingDelete.value) {
+            isConfirmingDelete.value = true;
+            confirmTimeout = setTimeout(() => { isConfirmingDelete.value = false; }, 3000);
+            return;
+        }
+        clearTimeout(confirmTimeout);
+        isConfirmingDelete.value = false;
+        tableService.deleteTable(tableId);
+    }
 
     const newColumnName = ref('');
     const inputColumn = ref<AccessibleInformationField | undefined>();
@@ -60,6 +77,17 @@ import type { AccessibleInformationField } from '../../types/informationField.ty
                 <span class="detail-type-label">Table</span>
                 <h2>{{ table.name }}</h2>
             </div>
+
+            <button
+                type="button"
+                class="delete-table-button"
+                :class="{ confirming: isConfirmingDelete }"
+                :title="isConfirmingDelete ? 'Click again to delete this table' : 'Delete table'"
+                @click="onDeleteClick(table.id)"
+            >
+                <i class="pi pi-trash" />
+                {{ isConfirmingDelete ? 'Click again to delete' : 'Delete' }}
+            </button>
         </header>
 
         <section class="detail-section">
@@ -132,3 +160,42 @@ import type { AccessibleInformationField } from '../../types/informationField.ty
         />
     </div>
 </template>
+
+<style scoped>
+.delete-table-button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 5px;
+
+    height: 26px;
+    padding: 0 9px;
+
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #ffffff;
+
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.delete-table-button:hover {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.delete-table-button.confirming {
+    border-color: #dc2626;
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.delete-table-button .pi {
+    font-size: 11px;
+}
+</style>
