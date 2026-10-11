@@ -29,7 +29,22 @@ function removeServer(serverId: string) {
     serverService.removeServer(serverId);
 }
 
+// The databases of a server start hidden and can be shown per server
+const expandedServers = ref<Set<string>>(new Set());
+
+function toggleServer(serverId: string) {
+    const expanded = new Set(expandedServers.value);
+    if (expanded.has(serverId)) {
+        expanded.delete(serverId);
+    } else {
+        expanded.add(serverId);
+    }
+    expandedServers.value = expanded;
+}
+
 function addTempEntity(serverId: string) {
+    // Show the databases of the server, so the new one appears where it belongs
+    expandedServers.value = new Set([...expandedServers.value, serverId]);
     tempServerId.value = serverId;
     tempId.value = '';
 }
@@ -91,6 +106,18 @@ function removeEntity(serverId: string, index: number) {
             <ul class="sidebar-list">
                 <li v-for="server in serverStore.servers" :key="server.id">
                     <div class="sidebar-item">
+                        <button
+                            v-if="server.entityIds.length"
+                            type="button"
+                            class="sidebar-expand-button"
+                            :class="{ expanded: expandedServers.has(server.id) }"
+                            :title="expandedServers.has(server.id) ? 'Hide databases' : 'Show databases'"
+                            @click="toggleServer(server.id)"
+                        >
+                            <i class="pi pi-chevron-right" />
+                        </button>
+                        <span v-else class="sidebar-expand-spacer" />
+
                         <span class="sidebar-item-name">{{ server.name }}</span>
 
                         <span class="sidebar-item-actions">
@@ -114,11 +141,11 @@ function removeEntity(serverId: string, index: number) {
                     </div>
 
                     <ul
-                        v-if="server.entityIds.length || tempServerId === server.id"
+                        v-if="(expandedServers.has(server.id) && server.entityIds.length) || tempServerId === server.id"
                         class="sidebar-sublist"
                     >
                         <li
-                            v-for="(entityId, index) in server.entityIds"
+                            v-for="(entityId, index) in expandedServers.has(server.id) ? server.entityIds : []"
                             :key="entityId"
                             class="sidebar-item"
                         >

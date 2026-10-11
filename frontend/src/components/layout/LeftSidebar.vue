@@ -265,6 +265,80 @@ import ExternalBar from '../ExternalBar.vue';
     color: #dc2626;
 }
 
+/* Expanding a resource to show its extra information (API urls, databases) */
+.sidebar-expand-button,
+.sidebar-expand-spacer {
+    flex: 0 0 auto;
+    width: 14px;
+}
+
+.sidebar-expand-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 18px;
+    margin-left: -4px;
+    padding: 0;
+
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+
+    color: #94a3b8;
+    font-size: 8px;
+    cursor: pointer;
+}
+
+.sidebar-expand-button:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.sidebar-expand-button .pi {
+    transition: transform 0.15s ease;
+}
+
+.sidebar-expand-button.expanded .pi {
+    transform: rotate(90deg);
+}
+
+.sidebar-expand-spacer {
+    margin-left: -4px;
+}
+
+/* Warnings, e.g. an API url that is not used in any API connection */
+.sidebar-item.warning {
+    background: #fffbeb;
+    color: #b45309;
+}
+
+.sidebar-item.warning:hover {
+    background: #fef3c7;
+}
+
+.sidebar-item.warning .sidebar-sub-icon {
+    color: #d97706;
+}
+
+.sidebar-warning-badge {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 3px;
+    padding: 0 6px;
+    border-radius: 999px;
+
+    background: #fef3c7;
+    color: #b45309;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 16px;
+}
+
+.sidebar-warning-badge .pi {
+    font-size: 9px;
+}
+
 .sidebar-sublist {
     margin: 0 0 4px 14px;
     padding-left: 8px;

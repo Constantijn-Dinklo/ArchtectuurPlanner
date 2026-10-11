@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import { Menu, Button } from 'primevue'
 
 import { useApiStore, type Api } from '../stores/api.store';
+import { useApiConnectionStore } from '../stores/apiConnection.store';
 import { useApplicationStore } from '../stores/resources/application.store';
 import { useApplicationService } from '../services/resources/application.service';
 import { exportToCsv } from '../helpers/export';
@@ -19,6 +20,30 @@ const expanded = ref(true);
 const vFocus = { mounted: (el: HTMLElement) => el.focus() };
 
 const tempApplicationId = ref<string | null>(null);
+
+const apiConnectionStore = useApiConnectionStore();
+
+// The API urls of an application start hidden and can be shown per application
+const expandedApplications = ref<Set<string>>(new Set());
+
+function toggleApplication(applicationId: string) {
+    const expanded = new Set(expandedApplications.value);
+    if (expanded.has(applicationId)) {
+        expanded.delete(applicationId);
+    } else {
+        expanded.add(applicationId);
+    }
+    expandedApplications.value = expanded;
+}
+
+// An API url that no API connection uses is shown as a warning
+function isApiUsed(apiId: string) {
+    return apiConnectionStore.apiConnections.some(connection => connection.sourceUrlId === apiId);
+}
+
+function getUnusedApiCount(applicationId: string) {
+    return apiStore.getApplicationApis(applicationId).filter(api => !isApiUsed(api.id)).length;
+}
 const tempUrl = ref<string | null>(null);
 
 const menu = ref();
@@ -59,6 +84,8 @@ function removeApplication(id: string){
 }
 
 function addTempApi(applicationId: string) {
+    // Show the urls of the application, so the new one appears where it belongs
+    expandedApplications.value = new Set([...expandedApplications.value, applicationId]);
     tempApplicationId.value = applicationId;
     tempUrl.value = '';
 }
@@ -130,7 +157,29 @@ function deleteApi(id: string) {
             <ul class="sidebar-list">
                 <li v-for="application in applicationStore.applications" :key="application.id">
                     <div class="sidebar-item">
+                        <button
+                            v-if="apiStore.getApplicationApis(application.id).length"
+                            type="button"
+                            class="sidebar-expand-button"
+                            :class="{ expanded: expandedApplications.has(application.id) }"
+                            :title="expandedApplications.has(application.id) ? 'Hide API urls' : 'Show API urls'"
+                            @click="toggleApplication(application.id)"
+                        >
+                            <i class="pi pi-chevron-right" />
+                        </button>
+                        <span v-else class="sidebar-expand-spacer" />
+
                         <span class="sidebar-item-name">{{ application.name }}</span>
+
+                        <!-- Also visible while the API urls are hidden -->
+                        <span
+                            v-if="getUnusedApiCount(application.id)"
+                            class="sidebar-warning-badge"
+                            :title="`${getUnusedApiCount(application.id)} API url(s) not used in any API connection`"
+                        >
+                            <i class="pi pi-exclamation-triangle" />
+                            {{ getUnusedApiCount(application.id) }}
+                        </span>
 
                         <span class="sidebar-item-actions">
                             <button
@@ -153,13 +202,15 @@ function deleteApi(id: string) {
                     </div>
 
                     <ul
-                        v-if="apiStore.getApplicationApis(application.id).length || tempApplicationId === application.id"
+                        v-if="(expandedApplications.has(application.id) && apiStore.getApplicationApis(application.id).length) || tempApplicationId === application.id"
                         class="sidebar-sublist"
                     >
                         <li
-                            v-for="api in apiStore.getApplicationApis(application.id)"
+                            v-for="api in expandedApplications.has(application.id) ? apiStore.getApplicationApis(application.id) : []"
                             :key="api.id"
                             class="sidebar-item"
+                            :class="{ warning: !isApiUsed(api.id) }"
+                            :title="isApiUsed(api.id) ? undefined : 'Not used in any API connection'"
                         >
                             <i class="pi pi-globe sidebar-sub-icon" />
                             <span class="sidebar-item-name" :title="api.url">{{ api.url }}</span>
