@@ -8,7 +8,7 @@ export type OtherConnectionMethod = typeof OTHER_CONNECTION_METHODS[number];
 // For example a person entering information by hand, a 'send' button in an application of which we do not know
 // how it works, a file or an e-mail. It is also the fallback when it is unclear how information is transferred.
 export interface IOtherConnection extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     sourceId: Types.ObjectId | null;
     targetId: Types.ObjectId | null;
     method: OtherConnectionMethod;
@@ -20,9 +20,9 @@ export interface IOtherConnection extends Document {
 }
 
 const OtherConnectionSchema = new Schema<IOtherConnection>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },
@@ -67,7 +67,7 @@ const OtherConnectionSchema = new Schema<IOtherConnection>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
+            delete ret.environmentId
             delete ret.createdAt
             delete ret.updatedAt
 

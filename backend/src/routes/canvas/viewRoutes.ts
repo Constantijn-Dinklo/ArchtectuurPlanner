@@ -1,16 +1,16 @@
 import express, { Router, Response } from "express";
-import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
+import { AuthenticatedRequest, getUser } from "../../middelware";
 import View from "../../models/canvas/view.model";
 import ViewNode from "../../models/canvas/viewNode.model";
 
 const router: Router = express.Router();
 
-router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
     
     try {
         const views = await View.find({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         });
         res.json(views);
     }
@@ -19,12 +19,12 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
     }
 });
 
-router.get('/:viewId/nodes', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:viewId/nodes', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
         const viewNodes = await ViewNode.find({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             viewId: req.params.viewId
         });
         res.json(viewNodes);
@@ -34,7 +34,7 @@ router.get('/:viewId/nodes', authenticateToken, async (req: AuthenticatedRequest
     }
 });
 
-router.patch('/:viewId/nodes/:nodeId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:viewId/nodes/:nodeId', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -42,7 +42,7 @@ router.patch('/:viewId/nodes/:nodeId', authenticateToken, async (req: Authentica
             {
                 _id: req.params.nodeId,
                 viewId: req.params.viewId,
-                organisationId: user.organisationId,
+                environmentId: user.environmentId,
             },
             { $set: req.body },
             { returnDocument: 'after'}

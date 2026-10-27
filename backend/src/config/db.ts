@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { migrateHumanToOtherConnections } from '../migrations/humanToOtherConnections';
+import { migrateOrganisationsToEnvironments } from '../migrations/organisationsToEnvironments';
 
 const uri = process.env.MONGO_URI;
 
@@ -13,6 +14,8 @@ const connectDB = async (): Promise<void> => {
     await mongoose.connect(uri);
     console.log('✅ MongoDB connected');
     await migrateHumanToOtherConnections();
+    // After the connection migration, so the moved connections get an environment as well
+    await migrateOrganisationsToEnvironments();
   } catch (err: any) {
     console.error('❌ MongoDB connection error:', err.message);
     process.exit(1); // stop server if DB fails

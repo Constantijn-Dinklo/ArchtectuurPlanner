@@ -6,7 +6,7 @@ export const APPLICATION_HOSTINGS = ['unknown', 'saas', 'onPremise'] as const;
 export type ApplicationHosting = typeof APPLICATION_HOSTINGS[number];
 
 export interface IApplication extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     name: string;
     version: string;
     // The organisation that develops the application
@@ -22,9 +22,9 @@ export interface IApplication extends Document {
 }
 
 const ApplicationSchema = new Schema<IApplication>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },
@@ -76,7 +76,7 @@ const ApplicationSchema = new Schema<IApplication>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
+            delete ret.environmentId
             delete ret.createdAt
             delete ret.updatedAt
 

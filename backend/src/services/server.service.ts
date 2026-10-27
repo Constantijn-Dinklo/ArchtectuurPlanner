@@ -7,7 +7,7 @@ export async function createServer(user: UserJwtPayload, name: string, viewId: s
     
     try {
         const serverBody = {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             name: name,
             ip: '',
             entityIds: []
@@ -17,7 +17,7 @@ export async function createServer(user: UserJwtPayload, name: string, viewId: s
         await server.save();
 
         const nodeBody = {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             viewId: viewId,
             entityId: server._id,
             entityType: 'server',
@@ -43,7 +43,7 @@ export async function addEntity(user: UserJwtPayload, serverId: string, entityId
     const server = await Server.findOneAndUpdate(
         {
             _id: serverId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         },
         {
             $addToSet: {
@@ -64,7 +64,7 @@ export async function updateServerEntityIds(user: UserJwtPayload, serverId: stri
     const server = await Server.findOneAndUpdate(
         {
             _id: serverId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         },
         {
             $set: {

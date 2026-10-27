@@ -3,16 +3,16 @@ import { IResourceField, ResourceFieldSchema } from '../information/resourceFiel
 
 
 export interface ITable extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     databaseId: Types.ObjectId;
     name: string;
     columns: IResourceField[];
 }
 
 const TableSchema = new Schema<ITable>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },
@@ -42,7 +42,7 @@ const TableSchema = new Schema<ITable>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
+            delete ret.environmentId
             delete ret.createdAt
             delete ret.updatedAt
 

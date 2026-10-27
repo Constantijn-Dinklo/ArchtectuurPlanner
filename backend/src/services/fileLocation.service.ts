@@ -9,14 +9,14 @@ import FileLocation from "../models/resources/fileLocation.model";
 export async function createFileLocation(user: UserJwtPayload, name: string, viewId: string) {
     try {
         const fileLocationBody = {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             name: name,
         }
         const fileLocation = new FileLocation(fileLocationBody);
         await fileLocation.save();
 
         const nodeBody = {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             viewId: viewId,
             entityId: fileLocation._id,
             entityType: 'fileLocation',
@@ -42,13 +42,13 @@ export async function deleteFileLocation(user: UserJwtPayload, resourceId: strin
     
     try {
         const deletedNode = await ViewNode.findOneAndDelete({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             entityId: resourceId
         });
 
         const deleted = await FileLocation.findOneAndDelete({
             _id: resourceId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         });
 
         if (!deleted || !deletedNode) {

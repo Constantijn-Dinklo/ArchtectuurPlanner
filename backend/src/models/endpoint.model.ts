@@ -6,7 +6,7 @@ export type EndpointType = typeof ENDPOINT_TYPES[number];
 // A place inside a resource where information is used by people, for example a dashboard, a map or a download.
 // Information that reaches an endpoint has a purpose there, so it does not count as an unused dead end.
 export interface IEndpoint extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     resourceId: Types.ObjectId;
     resourceType: string;
 
@@ -19,9 +19,9 @@ export interface IEndpoint extends Document {
 }
 
 const EndpointSchema = new Schema<IEndpoint>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },
@@ -65,7 +65,7 @@ const EndpointSchema = new Schema<IEndpoint>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
+            delete ret.environmentId
             delete ret.createdAt
             delete ret.updatedAt
 

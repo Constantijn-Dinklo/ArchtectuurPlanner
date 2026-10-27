@@ -1,20 +1,20 @@
 import express, { Router, Response } from "express";
 
-import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
+import { AuthenticatedRequest, getUser } from "../middelware";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 
 const router: Router = express.Router();
 
-router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
         const fieldRelations = await ResourceFieldRelation.find({
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         });
         const objectRelations = await ResourceObjectRelation.find({
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         });
         res.json({ fieldRelations, objectRelations });
     }
@@ -35,14 +35,14 @@ function getViaPatch(body: any) {
     };
 }
 
-router.patch('/fields/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/fields/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
         const updated = await ResourceFieldRelation.findOneAndUpdate(
             {
                 _id: req.params.id,
-                organisationId: user.organisationId
+                environmentId: user.environmentId
             },
             { $set: getViaPatch(req.body) },
             { returnDocument: 'after' }
@@ -55,14 +55,14 @@ router.patch('/fields/:id', authenticateToken, async (req: AuthenticatedRequest,
     }
 });
 
-router.patch('/objects/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/objects/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
         const updated = await ResourceObjectRelation.findOneAndUpdate(
             {
                 _id: req.params.id,
-                organisationId: user.organisationId
+                environmentId: user.environmentId
             },
             { $set: getViaPatch(req.body) },
             { returnDocument: 'after' }

@@ -1,18 +1,18 @@
 import { removeResourceRelations } from "../../services/externalRelation.service";
 import express, { Router, Response } from "express";
-import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
+import { AuthenticatedRequest, getUser } from "../../middelware";
 import Server from "../../models/resources/server.model";
 import { addEntity, createServer, updateServerEntityIds } from "../../services/server.service";
 import ViewNode from "../../models/canvas/viewNode.model";
 
 const router: Router = express.Router();
 
-router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
     
     try {
         const servers = await Server.find({
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         });
         res.json(servers);
     }
@@ -21,7 +21,7 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
     }
 });
 
-router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -33,14 +33,14 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
     }
 });
 
-router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
         const updated = await Server.findOneAndUpdate(
             {
                 _id: req.params.id,
-                organisationId: user.organisationId
+                environmentId: user.environmentId
             },
             { $set: req.body },
             { returnDocument: 'after'}
@@ -52,14 +52,14 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
     }
 });
 
-router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     //Should be moved to server.service.ts
     try {
         const server = await Server.findOne({
             _id: req.params.id,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         });
 
         if (!server) {
@@ -73,7 +73,7 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
         }
 
         const deletedNode = await ViewNode.findOneAndDelete({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             entityId: req.params.id
         });
 
@@ -99,13 +99,13 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
     }
 })
 
-router.post('/:id/entity', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/entity', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
     const result = await addEntity(user, req.params.id as string, req.body.entityId);
     res.status(201).json(result?.entityIds);
 });
 
-router.patch('/:id/entity', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id/entity', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
     const result = await updateServerEntityIds(user, req.params.id as string, req.body.entityIds);
     res.status(201).json(result);

@@ -11,7 +11,7 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
     
     try {
         const informationFields = await InformationField.find({
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         });
         res.json(informationFields);
     }

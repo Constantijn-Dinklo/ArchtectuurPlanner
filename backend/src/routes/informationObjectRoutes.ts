@@ -1,13 +1,13 @@
 import express, { Router, Response } from "express";
 
-import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
+import { AuthenticatedRequest, getUser } from "../middelware";
 import { addInformationFieldToInformationObject, deleteInformationFieldFromInformationObject } from "../services/resourceObject.service";
 import { moveApplicationInformationFieldToInformationObject, moveInformationFieldFromInformationObjectToApplication } from "../services/application.service";
 import { cleanupApisForInformationObject, cleanupApplicationApis } from "../services/api.service";
 
 const router: Router = express.Router();
 
-router.post('/:id/informationFields', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/informationFields', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -34,7 +34,7 @@ router.post('/:id/informationFields', authenticateToken, async (req: Authenticat
     }
 });
 
-router.delete('/:id/informationFields/:informationFieldId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id/informationFields/:informationFieldId', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {

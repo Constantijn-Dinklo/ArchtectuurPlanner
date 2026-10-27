@@ -10,14 +10,14 @@ import Server from "../models/resources/server.model";
 export async function createDatabase(user: UserJwtPayload, name: string, viewId: string) {
     try {
         const databaseBody = {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             name: name,
         }
         const database = new Database(databaseBody);
         await database.save();
 
         const nodeBody = {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             viewId: viewId,
             entityId: database._id,
             entityType: 'database',
@@ -46,13 +46,13 @@ export async function deleteDatabase(user: UserJwtPayload, resourceId: string) {
         if(!result.success) return result;
 
         const deletedNode = await ViewNode.findOneAndDelete({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             entityId: resourceId
         });
 
         const deleted = await Database.findOneAndDelete({
             _id: resourceId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         });
 
         if (!deleted || !deletedNode) {
@@ -63,12 +63,12 @@ export async function deleteDatabase(user: UserJwtPayload, resourceId: string) {
             }
         }
         // The tables of the database are removed with it, including their nodes on the canvas and their relations
-        const tables = await Table.find({ organisationId: user.organisationId, databaseId: resourceId });
+        const tables = await Table.find({ environmentId: user.environmentId, databaseId: resourceId });
         const tableIds = tables.map((table) => table._id.toString());
-        const tableViewNodes = await ViewNode.find({ organisationId: user.organisationId, entityId: { $in: tableIds } });
+        const tableViewNodes = await ViewNode.find({ environmentId: user.environmentId, entityId: { $in: tableIds } });
 
-        await ViewNode.deleteMany({ organisationId: user.organisationId, entityId: { $in: tableIds } });
-        await Table.deleteMany({ organisationId: user.organisationId, databaseId: resourceId });
+        await ViewNode.deleteMany({ environmentId: user.environmentId, entityId: { $in: tableIds } });
+        await Table.deleteMany({ environmentId: user.environmentId, databaseId: resourceId });
         await removeResourceRelations(user, [resourceId, ...tableIds]);
 
         return {
@@ -88,7 +88,7 @@ export async function deleteDatabase(user: UserJwtPayload, resourceId: string) {
 
 async function canDatabaseBeRemoved(user: UserJwtPayload, databaseId: string) {
     const databaseConnections = await DatabaseConnection.find({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         databaseId: databaseId
     });
     if(databaseConnections.length > 0){
@@ -105,7 +105,7 @@ async function canDatabaseBeRemoved(user: UserJwtPayload, databaseId: string) {
     }
 
     const servers = await Server.find({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         entityIds: {
             $in: [databaseId]
         }

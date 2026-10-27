@@ -2,14 +2,14 @@ import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
 
 export interface IView extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     name: string;
 }
 
 const ViewSchema = new Schema<IView>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },

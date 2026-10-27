@@ -3,6 +3,8 @@ import cors from "cors";
 import cookieParser from 'cookie-parser';
 
 import connectDB from './config/db';
+import { authenticateToken, requireEnvironment } from './middelware';
+import environmentRoutes from './routes/environmentRoutes';
 
 import orgRoutes from './routes/organisationRoutes';
 import authRoutes from './routes/auth';
@@ -35,6 +37,7 @@ app.use(
   cors({
     origin: 'http://localhost:5173',
     credentials: true,
+    allowedHeaders: ['Content-Type', 'X-Environment-Id'],
   })
 );
 app.use(express.json());
@@ -47,28 +50,36 @@ app.get('/test', (req, res) => {
 app.use('/org', orgRoutes);
 app.use('/auth', authRoutes);
 
-// ** Resources ** //
-app.use('/applications', applicationRoutes);
-app.use('/databases', databaseRoutes);
-app.use('/fileLocations', fileLocationsRoutes);
-app.use('/servers', serverRoutes);
-app.use('/tables', tableRoutes);
-app.use('/externals', externalRoutes);
+// ** Environments ** //
+app.use('/environments', environmentRoutes);
 
-app.use('/apis', apiRoutes);
+// All architecture data belongs to an environment: these routes need the X-Environment-Id header
+// and only work for users with access to that environment. Logging in is checked here once, so the
+// routers themselves do not use authenticateToken. Public routes are mounted without inEnvironment
+const inEnvironment = [authenticateToken, requireEnvironment];
+
+// ** Resources ** //
+app.use('/applications', inEnvironment, applicationRoutes);
+app.use('/databases', inEnvironment, databaseRoutes);
+app.use('/fileLocations', inEnvironment, fileLocationsRoutes);
+app.use('/servers', inEnvironment, serverRoutes);
+app.use('/tables', inEnvironment, tableRoutes);
+app.use('/externals', inEnvironment, externalRoutes);
+
+app.use('/apis', inEnvironment, apiRoutes);
 
 // ** Information ** //
-app.use('/informationObjects', informationObjectRoutes);
-app.use('/informationRelations', informationRelationRoutes);
-app.use('/endpoints', endpointRoutes);
+app.use('/informationObjects', inEnvironment, informationObjectRoutes);
+app.use('/informationRelations', inEnvironment, informationRelationRoutes);
+app.use('/endpoints', inEnvironment, endpointRoutes);
 
 // ** Connections ** //
-app.use('/apiConnections', apiConnectionRoutes);
-app.use('/databaseConnections', databaseConnectionRoutes);
-app.use('/scripts', scriptRoutes);
-app.use('/otherConnections', otherConnectionRoutes);
+app.use('/apiConnections', inEnvironment, apiConnectionRoutes);
+app.use('/databaseConnections', inEnvironment, databaseConnectionRoutes);
+app.use('/scripts', inEnvironment, scriptRoutes);
+app.use('/otherConnections', inEnvironment, otherConnectionRoutes);
 
 
-app.use('/views', viewRoutes);
+app.use('/views', inEnvironment, viewRoutes);
 
 export default app;

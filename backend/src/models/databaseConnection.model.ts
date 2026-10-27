@@ -2,16 +2,16 @@ import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
 
 export interface IDatabaseConnection extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     databaseId: Types.ObjectId;
     entityId: Types.ObjectId;
     operation: string[];
 }
 
 const DatabaseConnectionSchema = new Schema<IDatabaseConnection>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },
@@ -42,7 +42,7 @@ const DatabaseConnectionSchema = new Schema<IDatabaseConnection>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
+            delete ret.environmentId
             delete ret.createdAt
             delete ret.updatedAt
 

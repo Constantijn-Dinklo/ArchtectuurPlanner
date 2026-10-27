@@ -2,7 +2,7 @@ import mongoose, { Model, Schema, Types } from 'mongoose';
 
 
 export interface IResourceObjectRelation {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     informationObjectId: Types.ObjectId;
     sourceResourceId: Types.ObjectId;
     sourceResourceType: string;
@@ -17,9 +17,9 @@ export interface IResourceObjectRelation {
 
 export const ResourceObjectRelationSchema = new Schema<IResourceObjectRelation>(
     {
-        organisationId: {
+        environmentId: {
             type: Schema.Types.ObjectId,
-            ref: 'Organisation',
+            ref: 'Environment',
             required: true,
             index: true
         },

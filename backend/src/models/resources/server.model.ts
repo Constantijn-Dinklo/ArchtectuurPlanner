@@ -3,16 +3,16 @@ import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
 export interface IServer extends Document {
     // resourceId: Types.ObjectId;
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     name: string;
     ip: string;
     entityIds: Types.ObjectId[];
 }
 
 const ServerSchema = new Schema<IServer>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },
@@ -38,7 +38,7 @@ const ServerSchema = new Schema<IServer>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
+            delete ret.environmentId
             delete ret.createdAt
             delete ret.updatedAt
 

@@ -1,14 +1,14 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
 export interface IInformationField extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     fieldName: string;
 }
 
 const InformationFieldSchema = new Schema<IInformationField>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },
@@ -28,7 +28,7 @@ const InformationFieldSchema = new Schema<IInformationField>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
+            delete ret.environmentId
             delete ret.createdAt
             delete ret.updatedAt
 

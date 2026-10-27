@@ -14,7 +14,7 @@ import InformationObject from "../models/information/informationObject.models";
 
 export async function getApplications(user: UserJwtPayload) {
     const applications = await Application.find({
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
 
     const informationObjectIds = applications.flatMap(
@@ -28,7 +28,7 @@ export async function getApplications(user: UserJwtPayload) {
 
     const informationObjects = await InformationObject.find({
         _id: { $in: informationObjectIds },
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
     
     const informationFieldIds = new Set<string>();
@@ -53,7 +53,7 @@ export async function getApplications(user: UserJwtPayload) {
         _id: {
             $in: [...informationFieldIds]
         },
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
 
     return {
@@ -66,14 +66,14 @@ export async function getApplications(user: UserJwtPayload) {
 export async function createAppliction(user: UserJwtPayload, name: string, viewId: string) {
     try {
         const applicationBody = {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             name: name,
         }
         const application = new Application(applicationBody);
         await application.save();
 
         const nodeBody = {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             viewId: viewId,
             entityId: application._id,
             entityType: 'application',
@@ -102,13 +102,13 @@ export async function deleteApplication(user: UserJwtPayload, resourceId: string
         if(!result.success) return result;
 
         const deletedNode = await ViewNode.findOneAndDelete({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             entityId: resourceId
         });
 
         const deleted = await Application.findOneAndDelete({
             _id: resourceId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         });
 
         if (!deleted || !deletedNode) {
@@ -145,7 +145,7 @@ export async function addApplicationInputInformationField(user: UserJwtPayload, 
     }
     else {
         const newResourceFieldRelation = await new ResourceFieldRelation({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             informationFieldId: resourceFieldInformation.informationFieldId,
             sourceResourceId: resourceFieldInformation.sourceResourceId,
             sourceResourceType: resourceFieldInformation.sourceResourceType,
@@ -158,7 +158,7 @@ export async function addApplicationInputInformationField(user: UserJwtPayload, 
 
         informationFieldId = resourceFieldInformation.informationFieldId;
         informationField = await InformationField.findOne({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             _id: informationFieldId
         });
         position = 1;
@@ -166,7 +166,7 @@ export async function addApplicationInputInformationField(user: UserJwtPayload, 
     const application = await Application.findOneAndUpdate(
         {
             _id: applicationId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         },
         {
             $push: {
@@ -199,7 +199,7 @@ export async function deleteApplicationInputInformationField(user: UserJwtPayloa
     const application = await Application.findOneAndUpdate(
     {
         _id: applicationId,
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
     },
     {
         $pull: {
@@ -221,7 +221,7 @@ export async function deleteApplicationInputInformationField(user: UserJwtPayloa
     // Removes the direct relations of the input: source -> application (input)
     // and application (input) -> application (output). application (output) -> other resource is kept.
     await ResourceFieldRelation.deleteMany({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         informationFieldId: informationFieldId,
         targetResourceId: applicationId,
         targetResourceType: 'application'
@@ -242,7 +242,7 @@ export async function addApplicationOutputInformationField(user: UserJwtPayload,
     else {
         // Add a new ResourceFieldRelation
         const newResourceFieldRelation = await new ResourceFieldRelation({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             informationFieldId: resourceFieldInformation.informationFieldId,
             sourceResourceId: resourceFieldInformation.sourceResourceId,
             sourceResourceType: resourceFieldInformation.sourceResourceType,
@@ -255,7 +255,7 @@ export async function addApplicationOutputInformationField(user: UserJwtPayload,
 
         informationFieldId = resourceFieldInformation.informationFieldId;
         informationField = await InformationField.findOne({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             _id: informationFieldId
         });
         position = 1;
@@ -263,7 +263,7 @@ export async function addApplicationOutputInformationField(user: UserJwtPayload,
     const application = await Application.findOneAndUpdate(
         {
             _id: applicationId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         },
         {
             $push: {
@@ -297,7 +297,7 @@ export async function deleteApplicationOutputInformationField(user: UserJwtPaylo
     const application = await Application.findOneAndUpdate(
         {
             _id: applicationId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         },
         {
             $pull: {
@@ -321,7 +321,7 @@ export async function deleteApplicationOutputInformationField(user: UserJwtPaylo
     // and application (output) -> other resource. source -> application (input) is kept.
     await ResourceFieldRelation.deleteMany(
         {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             informationFieldId: informationFieldId,
             sourceResourceId: applicationId,
             sourceResourceType: 'application'
@@ -340,7 +340,7 @@ export async function moveApplicationInformationFieldToInformationObject(user: U
     const application = await Application.findOneAndUpdate(
         {
             _id: applicationId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         },
         {
             $pull: {
@@ -365,7 +365,7 @@ export async function moveInformationFieldFromInformationObjectToApplication(use
     const fieldList = direction === 'input' ? 'inputInformationFields' : 'outputInformationFields';
 
     const resourceFieldRelation = await ResourceFieldRelation.findOne({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         informationFieldId: informationFieldId,
         targetResourceId: applicationId,
         targetResourceType: 'application'
@@ -374,7 +374,7 @@ export async function moveInformationFieldFromInformationObjectToApplication(use
     const application = await Application.findOneAndUpdate(
         {
             _id: applicationId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             // Do not add the field a second time
             [`${fieldList}.informationFieldId`]: { $ne: informationFieldId }
         },
@@ -391,7 +391,7 @@ export async function moveInformationFieldFromInformationObjectToApplication(use
         }
     ) ?? await Application.findOne({
         _id: applicationId,
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
     });
     if(!application) {
         throw new Error("Application not found");
@@ -413,7 +413,7 @@ export async function addApplicationInputInformationObject(user: UserJwtPayload,
     else {
         // source -> application (input)
         const newResourceObjectRelation = new ResourceObjectRelation({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             informationObjectId: resourceObjectInformation.informationObjectId,
             sourceResourceId: resourceObjectInformation.sourceResourceId,
             sourceResourceType: resourceObjectInformation.sourceResourceType,
@@ -426,7 +426,7 @@ export async function addApplicationInputInformationObject(user: UserJwtPayload,
 
         informationObjectId = resourceObjectInformation.informationObjectId;
         informationObject = await InformationObject.findOne({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             _id: informationObjectId
         });
         position = 1;
@@ -434,7 +434,7 @@ export async function addApplicationInputInformationObject(user: UserJwtPayload,
     const application = await Application.findOneAndUpdate(
         {
             _id: applicationId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         },
         {
             $push: {
@@ -466,7 +466,7 @@ export async function deleteApplicationInputInformationObject(user: UserJwtPaylo
     const application = await Application.findOneAndUpdate(
         {
             _id: applicationId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         },
         {
             $pull: {
@@ -490,7 +490,7 @@ export async function deleteApplicationInputInformationObject(user: UserJwtPaylo
     // Removes the direct relations of the input: source -> application (input)
     // and application (input) -> application (output). application (output) -> other resource is kept.
     await ResourceObjectRelation.deleteMany({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         informationObjectId: objectInformationid,
         targetResourceId: applicationId,
         targetResourceType: 'application'
@@ -511,7 +511,7 @@ export async function addApplicationOutputInformationObject(user: UserJwtPayload
     else {
         // application (input) -> application (output) when the object is forwarded
         const newResourceObjectRelation = new ResourceObjectRelation({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             informationObjectId: resourceObjectInformation.informationObjectId,
             sourceResourceId: resourceObjectInformation.sourceResourceId,
             sourceResourceType: resourceObjectInformation.sourceResourceType,
@@ -524,7 +524,7 @@ export async function addApplicationOutputInformationObject(user: UserJwtPayload
 
         informationObjectId = resourceObjectInformation.informationObjectId;
         informationObject = await InformationObject.findOne({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             _id: informationObjectId
         });
         position = 1;
@@ -532,7 +532,7 @@ export async function addApplicationOutputInformationObject(user: UserJwtPayload
     const application = await Application.findOneAndUpdate(
         {
             _id: applicationId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         },
         {
             $push: {
@@ -564,7 +564,7 @@ export async function deleteApplicationOutputInformationObject(user: UserJwtPayl
     const application = await Application.findOneAndUpdate(
         {
             _id: applicationId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         },
         {
             $pull: {
@@ -588,7 +588,7 @@ export async function deleteApplicationOutputInformationObject(user: UserJwtPayl
     // Removes the direct relations of the output: application (input) -> application (output)
     // and application (output) -> other resource. source -> application (input) is kept.
     await ResourceObjectRelation.deleteMany({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         informationObjectId: objectInformationid,
         sourceResourceId: applicationId,
         sourceResourceType: 'application'
@@ -600,7 +600,7 @@ export async function deleteApplicationOutputInformationObject(user: UserJwtPayl
 
 async function canApplicationBeRemoved(user: UserJwtPayload, resourceId: string) {
     const apiConnections = await ApiConnection.find({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         $or: [ 
             { sourceId: resourceId },
             { targetId: resourceId }

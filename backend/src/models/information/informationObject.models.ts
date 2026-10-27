@@ -1,15 +1,15 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
 export interface IInformationObject extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     objectName: string;
     informationFieldIds: Types.ObjectId[];
 }
 
 const InformationObjectSchema = new Schema<IInformationObject>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },
@@ -34,7 +34,7 @@ const InformationObjectSchema = new Schema<IInformationObject>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
+            delete ret.environmentId
             delete ret.createdAt
             delete ret.updatedAt
 

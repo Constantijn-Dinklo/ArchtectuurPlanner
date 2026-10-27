@@ -5,7 +5,7 @@ const VIEW_NODE_TYPES = ['application', 'database', 'fileLocation', 'server', 't
 export type ViewNodeType = typeof VIEW_NODE_TYPES[number];
 
 export interface IViewNode extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     viewId: Types.ObjectId;
     entityId: Types.ObjectId;
     entityType: ViewNodeType,
@@ -16,9 +16,9 @@ export interface IViewNode extends Document {
 }
 
 const ViewNodeSchema = new Schema<IViewNode>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },

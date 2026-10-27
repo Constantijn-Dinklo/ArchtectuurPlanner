@@ -14,7 +14,7 @@ import ResourceObjectRelation from "../models/information/resourceObjectRelation
 // to the external element, and the external element's received lists follow those relations.
 
 export async function getResourceType(user: UserJwtPayload, resourceId: string): Promise<string | undefined> {
-    const filter = { _id: resourceId, organisationId: user.organisationId };
+    const filter = { _id: resourceId, environmentId: user.environmentId };
     const models = [
         ['application', Application],
         ['database', Database],
@@ -33,16 +33,16 @@ export async function getResourceType(user: UserJwtPayload, resourceId: string):
 // Rebuilds the received lists of the external element from the relations that point to it
 async function updateReceivedInformation(user: UserJwtPayload, externalId: string) {
     const fieldIds = await ResourceFieldRelation.distinct('informationFieldId', {
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         targetResourceId: externalId
     });
     const objectIds = await ResourceObjectRelation.distinct('informationObjectId', {
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         targetResourceId: externalId
     });
 
     await External.updateOne(
-        { _id: externalId, organisationId: user.organisationId },
+        { _id: externalId, environmentId: user.environmentId },
         {
             $set: {
                 receivedInformationFields: fieldIds.map((informationFieldId) => ({ informationFieldId, position: 1 })),
@@ -55,10 +55,10 @@ async function updateReceivedInformation(user: UserJwtPayload, externalId: strin
 // Makes the relations of an other connection match what it carries to an external element.
 // previousTargetId: the target before the connection was changed, so that external element is updated as well
 export async function syncOtherConnectionRelations(user: UserJwtPayload, connectionId: string, previousTargetId?: string | null) {
-    const connection = await OtherConnection.findOne({ _id: connectionId, organisationId: user.organisationId });
+    const connection = await OtherConnection.findOne({ _id: connectionId, environmentId: user.environmentId });
 
     const viaThisConnection = {
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         viaConnectionType: 'other' as const,
         viaConnectionId: connectionId
     };
@@ -99,7 +99,7 @@ export async function syncOtherConnectionRelations(user: UserJwtPayload, connect
         });
 
         const relation = {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             sourceResourceId: sourceId,
             sourceResourceType: sourceType,
             targetResourceId: targetId,
@@ -136,7 +136,7 @@ export async function removeResourceRelations(user: UserJwtPayload, resourceIds:
     if(!resourceIds.length) return;
 
     const touchingResources = {
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         $or: [
             { sourceResourceId: { $in: resourceIds } },
             { targetResourceId: { $in: resourceIds } }

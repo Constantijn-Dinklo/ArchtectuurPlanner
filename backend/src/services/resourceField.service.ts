@@ -24,7 +24,7 @@ export type ResourceFieldInformation =
 //             case 'table':
 //                 const resource = await Table.findOne({
 //                     _id: resourceFieldInformation.sourceResourceId,
-//                     organisationId: user.organisationId
+//                     environmentId: user.environmentId
 //                 });
 //                 if(!resource) return undefined;
 
@@ -36,7 +36,7 @@ export type ResourceFieldInformation =
 //     else {
 //         //Create new information field since
 //         const newInformationField = await new InformationField({
-//             organisationId: user.organisationId,
+//             environmentId: user.environmentId,
 //             fieldName: resourceFieldInformation.fieldName
 //         });
 //         newInformationField.save();
@@ -51,7 +51,7 @@ export type ResourceFieldInformation =
 export async function createInformationField(user: UserJwtPayload, fieldName: string) {
     //Create new information field since
     const newInformationField = await new InformationField({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         fieldName: fieldName
     });
     newInformationField.save();

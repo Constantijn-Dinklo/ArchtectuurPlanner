@@ -1,17 +1,17 @@
 import express, { Router, Response } from "express";
-import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
+import { AuthenticatedRequest, getUser } from "../../middelware";
 import FileLocation from "../../models/resources/fileLocation.model";
 import { createFileLocation, deleteFileLocation } from "../../services/fileLocation.service";
 
 
 const router: Router = express.Router();
 
-router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
         const fileLocations = await FileLocation.find({
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         });
         res.json(fileLocations);
     }
@@ -20,7 +20,7 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
     }
 });
 
-router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -32,7 +32,7 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
     }
 });
 
-router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {

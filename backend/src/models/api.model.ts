@@ -1,7 +1,7 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
 export interface IApi extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     applicationId: Types.ObjectId | null;
     
     url: string;
@@ -13,9 +13,9 @@ export interface IApi extends Document {
 }
 
 const ApiSchema = new Schema<IApi>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },
@@ -54,7 +54,7 @@ const ApiSchema = new Schema<IApi>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
+            delete ret.environmentId
             delete ret.createdAt
             delete ret.updatedAt
 

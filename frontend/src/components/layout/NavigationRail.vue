@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
+import EnvironmentSwitcher from './EnvironmentSwitcher.vue';
 
 const router = useRouter();
 
@@ -23,6 +24,9 @@ const items = computed(() =>
             <span class="rail-logo-mark">A</span>
             <span class="rail-label rail-logo-text">Architectuur Planner</span>
         </div>
+
+        <!-- The environment (architecture) the user works in, and switching to another one -->
+        <EnvironmentSwitcher />
 
         <RouterLink
             v-for="item in items"
@@ -140,7 +144,8 @@ const items = computed(() =>
     text-align: center;
 }
 
-.rail-label {
+/* :deep, so the labels of child components (the environment switcher) fade in as well */
+.navigation-rail :deep(.rail-label) {
     overflow: hidden;
     white-space: nowrap;
 
@@ -148,7 +153,7 @@ const items = computed(() =>
     transition: opacity 0.12s ease;
 }
 
-.navigation-rail:hover .rail-label {
+.navigation-rail:hover :deep(.rail-label) {
     opacity: 1;
 }
 </style>

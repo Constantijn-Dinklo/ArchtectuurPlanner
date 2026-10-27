@@ -2,19 +2,19 @@ import { removeResourceRelations } from "../../services/externalRelation.service
 import express, { Router, Response } from "express";
 
 import Table from "../../models/resources/table.model";
-import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
+import { AuthenticatedRequest, getUser } from "../../middelware";
 import { createTable, addTableColumn, removeTableColumn } from "../../services/table.service";
 import ViewNode from "../../models/canvas/viewNode.model";
 import { IResourceFieldExpanded, resolveResourceField } from "../../models/information/resourceField.model";
 
 const router: Router = express.Router();
 
-router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
     
     try {
         const tables = await Table.find({
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         }).populate<{ columns: IResourceFieldExpanded[] }>('columns.informationFieldId');
 
         const result = tables.map(table => ({
@@ -30,7 +30,7 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
     }
 });
 
-router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -42,14 +42,14 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
     }
 });
 
-router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
         const updated = await Table.findOneAndUpdate(
             {
                 _id: req.params.id,
-                organisationId: user.organisationId
+                environmentId: user.environmentId
             },
             { $set: req.body },
             { returnDocument: 'after'}
@@ -61,20 +61,20 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
     }
 });
 
-router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
     
     try {
         const deleted = await Table.findOneAndDelete(
             {
                 _id: req.params.id,
-                organisationId: user.organisationId
+                environmentId: user.environmentId
             },
             { returnDocument: 'after' }
         );
 
         const deletedNode = await ViewNode.findOneAndDelete({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             entityId: req.params.id
         });
 
@@ -100,7 +100,7 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
     }
 })
 
-router.post('/:id/columns', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/columns', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -112,7 +112,7 @@ router.post('/:id/columns', authenticateToken, async (req: AuthenticatedRequest,
     }
 });
 
-router.patch('/:id/columns', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id/columns', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {

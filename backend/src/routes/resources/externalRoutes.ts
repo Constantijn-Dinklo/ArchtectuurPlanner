@@ -1,5 +1,5 @@
 import express, { Router, Response } from "express";
-import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
+import { AuthenticatedRequest, getUser } from "../../middelware";
 import {
     addProvidedInformationField,
     addProvidedInformationObject,
@@ -13,7 +13,7 @@ import {
 
 const router: Router = express.Router();
 
-router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     try {
         res.json(await getExternals(getUser(req)));
     }
@@ -22,7 +22,7 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
     }
 });
 
-router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     try {
         const result = await createExternal(getUser(req), req.body.name, req.body.viewId);
         res.status(201).json(result);
@@ -32,7 +32,7 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
     }
 });
 
-router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
     try {
         res.json(await updateExternal(getUser(req), req.params.id as string, req.body));
     }
@@ -41,7 +41,7 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
     }
 });
 
-router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
     try {
         res.json(await deleteExternal(getUser(req), req.params.id as string));
     }
@@ -51,7 +51,7 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
 });
 
 // <-- Information the external element provides -->
-router.post('/:id/providedInformationFields', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/providedInformationFields', async (req: AuthenticatedRequest, res: Response) => {
     try {
         res.status(201).json(await addProvidedInformationField(getUser(req), req.params.id as string, req.body.informationField));
     }
@@ -60,7 +60,7 @@ router.post('/:id/providedInformationFields', authenticateToken, async (req: Aut
     }
 });
 
-router.delete('/:id/providedInformationFields/:informationFieldId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id/providedInformationFields/:informationFieldId', async (req: AuthenticatedRequest, res: Response) => {
     try {
         res.json(await removeProvidedInformationField(getUser(req), req.params.id as string, req.params.informationFieldId as string));
     }
@@ -69,7 +69,7 @@ router.delete('/:id/providedInformationFields/:informationFieldId', authenticate
     }
 });
 
-router.post('/:id/providedInformationObjects', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/providedInformationObjects', async (req: AuthenticatedRequest, res: Response) => {
     try {
         res.status(201).json(await addProvidedInformationObject(getUser(req), req.params.id as string, req.body.informationObject));
     }
@@ -78,7 +78,7 @@ router.post('/:id/providedInformationObjects', authenticateToken, async (req: Au
     }
 });
 
-router.delete('/:id/providedInformationObjects/:informationObjectId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id/providedInformationObjects/:informationObjectId', async (req: AuthenticatedRequest, res: Response) => {
     try {
         res.json(await removeProvidedInformationObject(getUser(req), req.params.id as string, req.params.informationObjectId as string));
     }

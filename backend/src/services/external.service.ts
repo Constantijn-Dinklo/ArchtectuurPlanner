@@ -18,7 +18,7 @@ async function getReferencedInformation(user: UserJwtPayload, externals: IExtern
 
     const informationObjects = await InformationObject.find({
         _id: { $in: informationObjectIds },
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
 
     const informationFieldIds = new Set<string>();
@@ -32,7 +32,7 @@ async function getReferencedInformation(user: UserJwtPayload, externals: IExtern
 
     const informationFields = await InformationField.find({
         _id: { $in: [...informationFieldIds] },
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
 
     return { informationFields, informationObjects };
@@ -48,7 +48,7 @@ async function withReferencedInformation(user: UserJwtPayload, external: IExtern
 
 export async function getExternals(user: UserJwtPayload) {
     const externals = await External.find({
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
     const { informationFields, informationObjects } = await getReferencedInformation(user, externals);
     return { externals, informationFields, informationObjects };
@@ -60,13 +60,13 @@ export async function createExternal(user: UserJwtPayload, name: string, viewId:
     }
 
     const external = new External({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         name: name.trim()
     });
     await external.save();
 
     const viewNode = new ViewNode({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         viewId: viewId,
         entityId: external._id,
         entityType: 'external',
@@ -98,7 +98,7 @@ export async function updateExternal(user: UserJwtPayload, externalId: string, b
     const external = await External.findOneAndUpdate(
         {
             _id: externalId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         },
         { $set: patch },
         { returnDocument: 'after' }
@@ -112,7 +112,7 @@ export async function updateExternal(user: UserJwtPayload, externalId: string, b
 export async function deleteExternal(user: UserJwtPayload, externalId: string) {
     // Just like an application, an external element that is still used by an api connection cannot be removed
     const apiConnections = await ApiConnection.find({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         $or: [
             { sourceId: externalId },
             { targetId: externalId }
@@ -123,19 +123,19 @@ export async function deleteExternal(user: UserJwtPayload, externalId: string) {
     }
 
     const deletedNode = await ViewNode.findOneAndDelete({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         entityId: externalId
     });
 
     const deleted = await External.findOneAndDelete({
         _id: externalId,
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
     if(!deleted) {
         throw new Error("External element not found");
     }
     await removeResourceRelations(user, [externalId]);
-    await Api.deleteMany({ organisationId: user.organisationId, applicationId: externalId });
+    await Api.deleteMany({ environmentId: user.environmentId, applicationId: externalId });
 
     return {
         resourceId: deleted._id,
@@ -168,7 +168,7 @@ export async function addProvidedInformationField(user: UserJwtPayload, external
     const external = await External.findOneAndUpdate(
         {
             _id: externalId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             // Do not add the field a second time
             'providedInformationFields.informationFieldId': { $ne: informationFieldId }
         },
@@ -178,7 +178,7 @@ export async function addProvidedInformationField(user: UserJwtPayload, external
             }
         },
         { returnDocument: 'after' }
-    ) ?? await External.findOne({ _id: externalId, organisationId: user.organisationId });
+    ) ?? await External.findOne({ _id: externalId, environmentId: user.environmentId });
 
     return withReferencedInformation(user, external);
 }
@@ -187,7 +187,7 @@ export async function removeProvidedInformationField(user: UserJwtPayload, exter
     const external = await External.findOneAndUpdate(
         {
             _id: externalId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         },
         {
             $pull: {
@@ -213,7 +213,7 @@ export async function addProvidedInformationObject(user: UserJwtPayload, externa
     const external = await External.findOneAndUpdate(
         {
             _id: externalId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             // Do not add the object a second time
             'providedInformationObjects.informationObjectId': { $ne: informationObjectId }
         },
@@ -223,7 +223,7 @@ export async function addProvidedInformationObject(user: UserJwtPayload, externa
             }
         },
         { returnDocument: 'after' }
-    ) ?? await External.findOne({ _id: externalId, organisationId: user.organisationId });
+    ) ?? await External.findOne({ _id: externalId, environmentId: user.environmentId });
 
     return withReferencedInformation(user, external);
 }
@@ -232,7 +232,7 @@ export async function removeProvidedInformationObject(user: UserJwtPayload, exte
     const external = await External.findOneAndUpdate(
         {
             _id: externalId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         },
         {
             $pull: {

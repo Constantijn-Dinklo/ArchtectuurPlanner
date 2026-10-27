@@ -8,7 +8,7 @@ export type ExternalKind = typeof EXTERNAL_KINDS[number];
 // An element outside the domain (company). It is a black box: we only know which information we send to it
 // (received) and which information we read from it (provided), not what happens inside.
 export interface IExternal extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     name: string;
     // The organisation the external element belongs to, e.g. "Belastingdienst", and who owns it there
     externalOrganisation: string;
@@ -24,9 +24,9 @@ export interface IExternal extends Document {
 }
 
 const ExternalSchema = new Schema<IExternal>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },
@@ -79,7 +79,7 @@ const ExternalSchema = new Schema<IExternal>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
+            delete ret.environmentId
             delete ret.createdAt
             delete ret.updatedAt
 

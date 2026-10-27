@@ -1,16 +1,16 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
 export interface IScript extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     name: string;
     inputIds: Types.ObjectId[];
     outputIds: Types.ObjectId[];
 }
 
 const ScriptSchema = new Schema<IScript>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },
@@ -36,7 +36,7 @@ const ScriptSchema = new Schema<IScript>({
             delete ret._id
             delete ret.__v
 
-            delete ret.organisationId
+            delete ret.environmentId
             delete ret.createdAt
             delete ret.updatedAt
 

@@ -9,7 +9,7 @@ import { syncOtherConnectionRelations } from "./externalRelation.service";
 async function getOtherConnection(user: UserJwtPayload, otherConnectionId: string) {
     const otherConnection = await OtherConnection.findOne({
         _id: otherConnectionId,
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
     if(!otherConnection) {
         throw new Error("Connection not found");
@@ -19,13 +19,13 @@ async function getOtherConnection(user: UserJwtPayload, otherConnectionId: strin
 
 export async function getOtherConnections(user: UserJwtPayload) {
     return await OtherConnection.find({
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
 }
 
 export async function createOtherConnection(user: UserJwtPayload, body: any) {
     const otherConnection = new OtherConnection({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         sourceId: body.sourceId || null,
         targetId: body.targetId || null,
         method: OTHER_CONNECTION_METHODS.includes(body.method) ? body.method : 'unknown',
@@ -57,7 +57,7 @@ export async function updateOtherConnection(user: UserJwtPayload, otherConnectio
     const updated = await OtherConnection.findOneAndUpdate(
         {
             _id: otherConnectionId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         },
         { $set: patch },
         { returnDocument: 'after' }
@@ -70,7 +70,7 @@ export async function updateOtherConnection(user: UserJwtPayload, otherConnectio
 export async function deleteOtherConnection(user: UserJwtPayload, otherConnectionId: string) {
     const deleted = await OtherConnection.findOneAndDelete({
         _id: otherConnectionId,
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
     // Removes the relations to an external element that came through this connection
     await syncOtherConnectionRelations(user, otherConnectionId, deleted?.targetId?.toString());
@@ -83,7 +83,7 @@ export async function deleteOtherConnection(user: UserJwtPayload, otherConnectio
 // Other resources (databases, tables, file locations) are not checked.
 
 async function checkSourceCanSendField(user: UserJwtPayload, sourceId: string, informationFieldId: string) {
-    const application = await Application.findOne({ _id: sourceId, organisationId: user.organisationId });
+    const application = await Application.findOne({ _id: sourceId, environmentId: user.environmentId });
     if(application) {
         const sendableFieldIds = await getSendableFieldIds(user, application);
         if(!sendableFieldIds.has(informationFieldId)) {
@@ -92,11 +92,11 @@ async function checkSourceCanSendField(user: UserJwtPayload, sourceId: string, i
         return;
     }
 
-    const external = await External.findOne({ _id: sourceId, organisationId: user.organisationId });
+    const external = await External.findOne({ _id: sourceId, environmentId: user.environmentId });
     if(external) {
         const providedObjects = await InformationObject.find({
             _id: { $in: external.providedInformationObjects.map((object) => object.informationObjectId) },
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         });
         const providedFieldIds = new Set([
             ...external.providedInformationFields.map((field) => field.informationFieldId.toString()),
@@ -109,7 +109,7 @@ async function checkSourceCanSendField(user: UserJwtPayload, sourceId: string, i
 }
 
 async function checkSourceCanSendObject(user: UserJwtPayload, sourceId: string, informationObjectId: string) {
-    const application = await Application.findOne({ _id: sourceId, organisationId: user.organisationId });
+    const application = await Application.findOne({ _id: sourceId, environmentId: user.environmentId });
     if(application) {
         const isOutputObject = application.outputInformationObjects.some(
             (object) => object.informationObjectId.toString() === informationObjectId
@@ -120,7 +120,7 @@ async function checkSourceCanSendObject(user: UserJwtPayload, sourceId: string, 
         return;
     }
 
-    const external = await External.findOne({ _id: sourceId, organisationId: user.organisationId });
+    const external = await External.findOne({ _id: sourceId, environmentId: user.environmentId });
     if(external) {
         const isProvided = external.providedInformationObjects.some(
             (object) => object.informationObjectId.toString() === informationObjectId
@@ -135,7 +135,7 @@ async function updateCarriedInformation(user: UserJwtPayload, otherConnectionId:
     const otherConnection = await OtherConnection.findOneAndUpdate(
         {
             _id: otherConnectionId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         },
         update,
         { returnDocument: 'after' }

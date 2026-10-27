@@ -1,15 +1,15 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
 export interface IDatabase extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     name: string;
     engine: string;
 }
 
 const DatabaseSchema = new Schema<IDatabase>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },

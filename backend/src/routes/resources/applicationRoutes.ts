@@ -1,12 +1,12 @@
 import express, { Router, Response } from "express";
-import { AuthenticatedRequest, authenticateToken, getUser } from "../../middelware";
+import { AuthenticatedRequest, getUser } from "../../middelware";
 import Application, { APPLICATION_HOSTINGS } from "../../models/resources/application.model";
 import { createAppliction, deleteApplication, addApplicationInputInformationField, deleteApplicationInputInformationField, addApplicationOutputInformationField, deleteApplicationOutputInformationField, getApplications, addApplicationInputInformationObject, deleteApplicationInputInformationObject, addApplicationOutputInformationObject, deleteApplicationOutputInformationObject } from "../../services/application.service";
 
 
 const router: Router = express.Router();
 
-router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -18,7 +18,7 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
     }
 });
 
-router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -30,7 +30,7 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
     }
 });
 
-router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -47,7 +47,7 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
         const updatedApplication = await Application.findOneAndUpdate(
             {
                 _id: req.params.id,
-                organisationId: user.organisationId
+                environmentId: user.environmentId
             },
             { $set: patch },
             { returnDocument: 'after'}
@@ -60,7 +60,7 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
     }
 });
 
-router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -72,7 +72,7 @@ router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: 
     }
 });
 
-router.post('/:id/informationFields', authenticateToken,  async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/informationFields', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -91,7 +91,7 @@ router.post('/:id/informationFields', authenticateToken,  async (req: Authentica
     }
 });
 
-router.patch('/:id/informationFields', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id/informationFields', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -111,7 +111,7 @@ router.patch('/:id/informationFields', authenticateToken, async (req: Authentica
     }
 });
 
-router.post('/:id/informationObjects', authenticateToken,  async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/informationObjects', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
@@ -130,7 +130,7 @@ router.post('/:id/informationObjects', authenticateToken,  async (req: Authentic
     }
 });
 
-router.patch('/:id/informationObjects', authenticateToken,  async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id/informationObjects', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {

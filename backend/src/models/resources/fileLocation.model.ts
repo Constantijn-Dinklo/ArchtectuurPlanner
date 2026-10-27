@@ -1,14 +1,14 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
 export interface IFileLocation extends Document {
-    organisationId: Types.ObjectId;
+    environmentId: Types.ObjectId;
     name: string;
 }
 
 const FileLocationSchema = new Schema<IFileLocation>({
-    organisationId: {
+    environmentId: {
         type: Schema.Types.ObjectId,
-        ref: 'Organisation',
+        ref: 'Environment',
         required: true,
         index: true
     },

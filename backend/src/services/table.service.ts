@@ -9,7 +9,7 @@ import ResourceFieldRelation from "../models/information/resourceFieldRelation.m
 export async function createTable(user: UserJwtPayload, name: string, databaseId: string, viewId: string) {
     try {
         const tableBody = {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             databaseId: databaseId,
             name: name,
             columns: []
@@ -18,7 +18,7 @@ export async function createTable(user: UserJwtPayload, name: string, databaseId
         await table.save();
 
         const nodeBody = {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             viewId: viewId,
             entityId: table._id,
             entityType: 'table',
@@ -51,7 +51,7 @@ export async function addTableColumn(user: UserJwtPayload, tableId: string, reso
     else {
         // Add a new ResourceFieldRelation
         const newResourceFieldRelation = await new ResourceFieldRelation({
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             informationFieldId: resourceFieldInformation.informationFieldId,
             sourceResourceId: resourceFieldInformation.sourceResourceId,
             sourceResourceType: resourceFieldInformation.sourceResourceType,
@@ -67,7 +67,7 @@ export async function addTableColumn(user: UserJwtPayload, tableId: string, reso
     const updatedTable = await Table.findOneAndUpdate( 
         {
             _id: tableId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         },
         {
             $push: {
@@ -96,7 +96,7 @@ export async function removeTableColumn(user: UserJwtPayload, tableId: string, i
     const updatedTable = await Table.findOneAndUpdate(
         {
             _id: tableId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         },
         {
             $pull: {

@@ -20,7 +20,7 @@ export type resourceObjectInformation =
 export async function createInformationObject(user: UserJwtPayload, objectName: string) {
     //Create new information field since
     const newInformationObject = await new InformationObject({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         objectName: objectName
     });
     newInformationObject.save();
@@ -43,7 +43,7 @@ export async function addInformationFieldToInformationObject(user: UserJwtPayloa
     else {
         informationField = await InformationField.findOne({
             _id: objectFieldInformation.informationFieldId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         });
     }
     if(!informationField) {
@@ -53,7 +53,7 @@ export async function addInformationFieldToInformationObject(user: UserJwtPayloa
     const informationObject = await InformationObject.findOneAndUpdate(
         {
             _id: informationObjectId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         },
         {
             $addToSet: {
@@ -78,7 +78,7 @@ export async function deleteInformationFieldFromInformationObject(user: UserJwtP
     const informationObject = await InformationObject.findOneAndUpdate(
         {
             _id: informationObjectId,
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
         },
         {
             $pull: {

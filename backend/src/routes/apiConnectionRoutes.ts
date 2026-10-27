@@ -1,15 +1,15 @@
 import express, { Router, Response } from "express";
 import ApiConnection from "../models/apiConnection.model";
-import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
+import { AuthenticatedRequest, getUser } from "../middelware";
 
 const router: Router = express.Router();
 
-router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
         const apiConnections = await ApiConnection.find({
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         });
         res.json(apiConnections);
     }
@@ -18,12 +18,12 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Respon
     }
 });
 
-router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
         const apiConnectionBody = {
-            organisationId: user.organisationId,
+            environmentId: user.environmentId,
             sourceId: req.body.sourceId === '' ? null : req.body.sourceId,
             sourceUrlId: req.body.sourceUrlId === '' ? null : req.body.sourceUrlId,
             targetId: req.body.targetId === '' ? null : req.body.targetId
@@ -43,14 +43,14 @@ router.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Respo
     }
 })
 
-router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
         const updated = await ApiConnection.findOneAndUpdate(
             {
                 _id: req.params.id,
-                organisationId: user.organisationId
+                environmentId: user.environmentId
             },
             { $set: req.body},
             { returnDocument: 'after'}
@@ -62,14 +62,14 @@ router.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res: R
     }
 })
 
-router.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
     
     try {
         const deleted = await ApiConnection.findOneAndDelete(
             {
                 _id: req.params.id,
-                organisationId: user.organisationId
+                environmentId: user.environmentId
             },
             { returnDocument: 'after'}
         )

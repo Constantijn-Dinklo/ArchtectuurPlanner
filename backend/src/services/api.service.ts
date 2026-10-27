@@ -13,7 +13,7 @@ import { syncOtherConnectionRelations } from "./externalRelation.service";
 async function getApiSendableInformation(user: UserJwtPayload, apiId: string) {
     const api = await Api.findOne({
         _id: apiId,
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
     if(!api) {
         throw new Error("Api not found");
@@ -21,7 +21,7 @@ async function getApiSendableInformation(user: UserJwtPayload, apiId: string) {
 
     const application = await Application.findOne({
         _id: api.applicationId,
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
     if(application) {
         return {
@@ -33,12 +33,12 @@ async function getApiSendableInformation(user: UserJwtPayload, apiId: string) {
 
     const external = await External.findOne({
         _id: api.applicationId,
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
     if(external) {
         const providedObjects = await InformationObject.find({
             _id: { $in: external.providedInformationObjects.map((object) => object.informationObjectId) },
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         });
         return {
             fieldIds: new Set([
@@ -58,7 +58,7 @@ async function getApiSendableInformation(user: UserJwtPayload, apiId: string) {
 export async function getSendableFieldIds(user: UserJwtPayload, application: IApplication): Promise<Set<string>> {
     const outputObjects = await InformationObject.find({
         _id: { $in: application.outputInformationObjects.map((object) => object.informationObjectId) },
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
 
     return new Set([
@@ -71,7 +71,7 @@ export async function getSendableFieldIds(user: UserJwtPayload, application: IAp
 export async function cleanupApplicationApis(user: UserJwtPayload, applicationId: string) {
     const application = await Application.findOne({
         _id: applicationId,
-        organisationId: user.organisationId
+        environmentId: user.environmentId
     });
     if(!application) return;
 
@@ -79,7 +79,7 @@ export async function cleanupApplicationApis(user: UserJwtPayload, applicationId
     const outputObjectIds = application.outputInformationObjects.map((object) => object.informationObjectId.toString());
 
     const apis = await Api.find({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         applicationId: applicationId
     });
     for(const api of apis) {
@@ -96,7 +96,7 @@ export async function cleanupApplicationApis(user: UserJwtPayload, applicationId
 
     // Other connections from the application can only carry what the application outputs as well
     const otherConnections = await OtherConnection.find({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         sourceId: applicationId
     });
     for(const otherConnection of otherConnections) {
@@ -117,7 +117,7 @@ export async function cleanupApplicationApis(user: UserJwtPayload, applicationId
 // An InformationObject changed, so every application that outputs it might no longer be able to send some fields
 export async function cleanupApisForInformationObject(user: UserJwtPayload, informationObjectId: string) {
     const applications = await Application.find({
-        organisationId: user.organisationId,
+        environmentId: user.environmentId,
         'outputInformationObjects.informationObjectId': informationObjectId
     });
     for(const application of applications) {
@@ -134,7 +134,7 @@ export async function addApiInformationField(user: UserJwtPayload, apiId: string
     return await Api.findOneAndUpdate(
         {
             _id: apiId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         },
         {
             $addToSet: { informationFieldIds: informationFieldId }
@@ -149,7 +149,7 @@ export async function removeApiInformationField(user: UserJwtPayload, apiId: str
     const api = await Api.findOneAndUpdate(
         {
             _id: apiId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         },
         {
             $pull: { informationFieldIds: informationFieldId }
@@ -173,7 +173,7 @@ export async function addApiInformationObject(user: UserJwtPayload, apiId: strin
     return await Api.findOneAndUpdate(
         {
             _id: apiId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         },
         {
             $addToSet: { informationObjectIds: informationObjectId }
@@ -188,7 +188,7 @@ export async function removeApiInformationObject(user: UserJwtPayload, apiId: st
     const api = await Api.findOneAndUpdate(
         {
             _id: apiId,
-            organisationId: user.organisationId
+            environmentId: user.environmentId
         },
         {
             $pull: { informationObjectIds: informationObjectId }
