@@ -86,7 +86,7 @@
 
     const labelStyle = computed(() => ({
         fill: hasError.value ? '#b91c1c' : warningCount.value ? '#92400e' : props.selected ? '#4338ca' : '#475569',
-        fontSize: '9px',
+        fontSize: 'var(--canvas-type-edge-label)',
         fontWeight: 600
     }));
 

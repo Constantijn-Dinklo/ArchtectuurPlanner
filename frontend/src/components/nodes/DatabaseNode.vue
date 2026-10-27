@@ -125,7 +125,7 @@
     padding: 0 10px;
 
     color: #14532d;
-    font-size: 12px;
+    font-size: var(--canvas-type-container-title);
 }
 
 .database-icon {
@@ -159,7 +159,7 @@
 
     background: #dcf2e4;
     color: #166534;
-    font-size: 10px;
+    font-size: var(--canvas-type-container-meta);
     font-weight: 600;
 }
 
@@ -168,7 +168,7 @@
     margin-left: auto;
 
     color: #4d7c5f;
-    font-size: 11px;
+    font-size: var(--canvas-type-container-meta);
 }
 
 .add-table-button {

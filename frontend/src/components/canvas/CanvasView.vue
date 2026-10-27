@@ -199,7 +199,7 @@ watch(
 
 .canvas-lod-application .vue-flow__node-application .application-header {
   gap: 8px;
-  font-size: 16px;
+  font-size: var(--canvas-type-resource-title);
 }
 
 .canvas-lod-application .vue-flow__node-database .database-node {
@@ -213,7 +213,7 @@ watch(
   justify-content: center;
   align-content: center;
   height: 100%;
-  font-size: 16px;
+  font-size: var(--canvas-type-resource-title);
 }
 
 .canvas-lod-application .vue-flow__node-database .database-icon {
@@ -223,7 +223,7 @@ watch(
 
 .canvas-lod-application .vue-flow__node-database .engine-badge,
 .canvas-lod-application .vue-flow__node-database .table-count {
-  font-size: 12px;
+  font-size: var(--canvas-type-resource-meta);
 }
 
 /* External elements and file locations look like the application node: a centred icon and name.
@@ -254,13 +254,13 @@ watch(
 
 .canvas-lod-application .vue-flow__node-external .external-name,
 .canvas-lod-application .vue-flow__node-fileLocation .file-location-name {
-  font-size: 16px;
+  font-size: var(--canvas-type-resource-title);
 }
 
 /* The icon sits right next to the name, without a box around it, like on the application node */
 .canvas-lod-application .vue-flow__node-external .external-header,
 .canvas-lod-application .vue-flow__node-fileLocation .file-location-node {
-  font-size: 16px;
+  font-size: var(--canvas-type-resource-title);
 }
 
 .canvas-lod-application .vue-flow__node-external .external-icon,
@@ -288,7 +288,7 @@ watch(
 }
 
 .canvas-lod-application .vue-flow__node-default {
-  font-size: 15px;
+  font-size: var(--canvas-type-resource-title);
 }
 
 .search-panel {

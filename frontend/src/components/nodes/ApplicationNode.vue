@@ -517,7 +517,7 @@ import { useResourceService } from '../../services/resources/resource.service';
 
     padding: 7px 10px;
 
-    font-size: 11px;
+    font-size: var(--canvas-type-container-title);
 }
 
 .application-header.has-information {
@@ -528,7 +528,7 @@ import { useResourceService } from '../../services/resources/resource.service';
     border-radius: 7px 7px 0 0;
     background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
 
-    font-size: 8px;
+    font-size: var(--canvas-type-node-title);
 }
 
 .application-icon {
@@ -574,7 +574,7 @@ import { useResourceService } from '../../services/resources/resource.service';
     min-width: 0;
     padding: 0 4px;
 
-    font-size: 6px;
+    font-size: var(--canvas-type-detail-text);
     line-height: 1.2;
 }
 
@@ -590,7 +590,7 @@ import { useResourceService } from '../../services/resources/resource.service';
     margin-bottom: 3px;
 
     color: #64748b;
-    font-size: 5px;
+    font-size: var(--canvas-type-detail-meta);
     font-weight: 700;
     letter-spacing: 0.08em;
     line-height: 1.2;
@@ -681,7 +681,7 @@ import { useResourceService } from '../../services/resources/resource.service';
 
     background: #e0e7ff;
     color: #4f46e5;
-    font-size: 4.5px;
+    font-size: var(--canvas-type-detail-meta);
     font-weight: 600;
 }
 
@@ -784,7 +784,7 @@ import { useResourceService } from '../../services/resources/resource.service';
     padding: 3px 4px 4px;
     border-top: 1px solid #eef2f7;
 
-    font-size: 6px;
+    font-size: var(--canvas-type-detail-text);
     line-height: 1.2;
 }
 
@@ -823,7 +823,7 @@ import { useResourceService } from '../../services/resources/resource.service';
 .endpoint-icon {
     flex: 0 0 auto;
     color: #7c3aed;
-    font-size: 5px;
+    font-size: var(--canvas-type-detail-meta);
 }
 
 .endpoint-name {

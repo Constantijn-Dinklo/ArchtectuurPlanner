@@ -98,7 +98,7 @@
     border-radius: 7px 7px 0 0;
     background: linear-gradient(180deg, #f8faff 0%, #eef2ff 100%);
 
-    font-size: 8px;
+    font-size: var(--canvas-type-node-title);
 }
 
 .component-node.file .component-banner {
@@ -133,7 +133,7 @@
 
     background: #e0e7ff;
     color: #4338ca;
-    font-size: 5px;
+    font-size: var(--canvas-type-detail-meta);
     font-weight: 700;
     letter-spacing: 0.1em;
     line-height: 9px;
@@ -153,7 +153,7 @@
     padding: 3px 7px 5px;
 
     color: #64748b;
-    font-size: 6px;
+    font-size: var(--canvas-type-detail-text);
 }
 
 .component-host {
@@ -166,6 +166,6 @@
 }
 
 .component-host .pi {
-    font-size: 5px;
+    font-size: var(--canvas-type-detail-meta);
 }
 </style>

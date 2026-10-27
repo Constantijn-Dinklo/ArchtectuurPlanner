@@ -127,7 +127,7 @@
     border-radius: 9px 9px 0 0;
     background: linear-gradient(180deg, #fffaf5 0%, #fff7ed 100%);
 
-    font-size: 8px;
+    font-size: var(--canvas-type-node-title);
 }
 
 .banner-icon {
@@ -158,7 +158,7 @@
 
     background: #ffedd5;
     color: #c2410c;
-    font-size: 5px;
+    font-size: var(--canvas-type-detail-meta);
     font-weight: 700;
     letter-spacing: 0.1em;
     line-height: 9px;
@@ -169,7 +169,7 @@
     padding: 4px 7px 5px;
 
     color: #64748b;
-    font-size: 6px;
+    font-size: var(--canvas-type-detail-text);
 }
 
 .file-location-node {
@@ -212,7 +212,7 @@
 
 .file-location-badge {
     color: #c2410c;
-    font-size: 7px;
+    font-size: var(--canvas-type-node-meta);
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -221,7 +221,7 @@
 .file-location-name {
     overflow: hidden;
 
-    font-size: 11px;
+    font-size: var(--canvas-type-container-title);
     font-weight: 600;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -234,7 +234,7 @@
 
     background: #ffedd5;
     color: #c2410c;
-    font-size: 9px;
+    font-size: var(--canvas-type-container-meta);
     font-weight: 600;
     line-height: 15px;
 }

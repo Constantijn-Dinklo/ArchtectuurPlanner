@@ -181,7 +181,7 @@
 
     background: #e2e8f0;
     color: #475569;
-    font-size: 5px;
+    font-size: var(--canvas-type-detail-meta);
     font-weight: 700;
     letter-spacing: 0.1em;
     line-height: 9px;
@@ -193,7 +193,7 @@
 
     overflow: hidden;
     color: #64748b;
-    font-size: 6px;
+    font-size: var(--canvas-type-detail-text);
     white-space: nowrap;
     text-overflow: ellipsis;
 }
@@ -210,7 +210,7 @@
 
     background: #e2e8f0;
     color: #475569;
-    font-size: 11px;
+    font-size: var(--canvas-type-container-title);
 }
 
 .external-node.expanded .external-icon {
@@ -219,7 +219,7 @@
     border-radius: 3px;
 
     background: transparent;
-    font-size: 8px;
+    font-size: var(--canvas-type-node-title);
 }
 
 .external-title {
@@ -230,7 +230,7 @@
 
 .external-badge {
     color: #94a3b8;
-    font-size: 7px;
+    font-size: var(--canvas-type-node-meta);
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -239,7 +239,7 @@
 .external-name {
     overflow: hidden;
 
-    font-size: 11px;
+    font-size: var(--canvas-type-container-title);
     font-weight: 600;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -249,21 +249,21 @@
     overflow: hidden;
 
     color: #64748b;
-    font-size: 8px;
+    font-size: var(--canvas-type-node-text);
     white-space: nowrap;
     text-overflow: ellipsis;
 }
 
 .external-node.expanded .external-name {
-    font-size: 8px;
+    font-size: var(--canvas-type-node-title);
 }
 
 .external-node.expanded .external-organisation {
-    font-size: 6px;
+    font-size: var(--canvas-type-detail-text);
 }
 
 .external-node.expanded .external-badge {
-    font-size: 5px;
+    font-size: var(--canvas-type-detail-meta);
 }
 
 /* Information going in and out of the black box */
@@ -278,7 +278,7 @@
     min-width: 0;
     padding: 0 4px;
 
-    font-size: 6px;
+    font-size: var(--canvas-type-detail-text);
     line-height: 1.2;
 }
 
@@ -290,7 +290,7 @@
     margin-bottom: 3px;
 
     color: #64748b;
-    font-size: 5px;
+    font-size: var(--canvas-type-detail-meta);
     font-weight: 700;
     letter-spacing: 0.08em;
     text-align: center;

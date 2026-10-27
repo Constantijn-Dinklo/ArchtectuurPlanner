@@ -1,0 +1,41 @@
+/*
+ * Type scale of the canvas.
+ *
+ * Every text on the canvas uses one of these sizes, chosen by the level of detail at which the text first appears.
+ * Sizes are in canvas units, so they shrink and grow with the zoom. Something that should read as about 11-12px on
+ * screen at the zoom where it appears gets roughly 12 / zoom:
+ *
+ *   level         zoom      shows
+ *   technology    ~0.4      servers
+ *   application   < 0.85    the names of resources
+ *   database      0.85-1.6  resources with their contents: tables, scripts, files, information
+ *   detail        >= 1.6    endpoints and the information inside them
+ *
+ * Within a level: a title (names, bold), text (rows and lists) and meta (badges, counts, small labels).
+ * Change the sizes here, not in the nodes.
+ */
+:root {
+    /* Technology level: servers (for the servers as frames, not used yet) */
+    --canvas-type-server-title: 30px;
+    --canvas-type-server-meta: 20px;
+
+    /* Application level: a resource only shows its name */
+    --canvas-type-resource-title: 16px;
+    --canvas-type-resource-meta: 12px;
+
+    /* Database level: a container shows its contents as child nodes (a database around its tables) */
+    --canvas-type-container-title: 11px;
+    --canvas-type-container-meta: 9px;
+
+    /* Database level: the nodes themselves (the banner of a resource, a table, a script or file) */
+    --canvas-type-node-title: 9px;
+    --canvas-type-node-text: 8px;
+    --canvas-type-node-meta: 7px;
+
+    /* Database and detail level: the information inside a node (fields, objects, endpoints) */
+    --canvas-type-detail-text: 6px;
+    --canvas-type-detail-meta: 5px;
+
+    /* Edge labels are shown at every level */
+    --canvas-type-edge-label: 9px;
+}

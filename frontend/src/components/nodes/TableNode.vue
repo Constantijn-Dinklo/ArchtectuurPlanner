@@ -171,7 +171,7 @@
 <style scoped>
 .table-node {
     color: #1e293b;
-    font-size: 8px;
+    font-size: var(--canvas-type-node-text);
     line-height: 1.2;
 }
 
@@ -184,7 +184,7 @@
     height: 20px;
     padding: 0 6px;
 
-    font-size: 9px;
+    font-size: var(--canvas-type-node-title);
 
     border-bottom: 1px solid #eef2f7;
     background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
@@ -252,7 +252,7 @@
 
     color: #94a3b8;
     font: inherit;
-    font-size: 9px;
+    font-size: var(--canvas-type-node-title);
     line-height: 1;
     cursor: pointer;
 }
@@ -270,7 +270,7 @@
 .table-delete-button.confirming {
     background: #dc2626;
     color: #ffffff;
-    font-size: 7px;
+    font-size: var(--canvas-type-node-meta);
     font-weight: 700;
 }
 
@@ -281,7 +281,7 @@
 
     background: #eef2ff;
     color: #4f46e5;
-    font-size: 7px;
+    font-size: var(--canvas-type-node-meta);
     font-weight: 600;
     line-height: 11px;
 }
@@ -332,7 +332,7 @@
     padding: 0 6px;
 
     color: #94a3b8;
-    font-size: 7px;
+    font-size: var(--canvas-type-node-meta);
     font-style: italic;
 }
 </style>
