@@ -11,7 +11,10 @@ type ResourceRenderRule = {
     showEndpoints?: boolean
 }
 
-type LevelOfDetailConfig = Partial<Record<ResourceType, ResourceRenderRule>>
+// What can be a node on the canvas: a resource, or a component inside a resource (a script, a file)
+export type CanvasEntityType = ResourceType | 'component'
+
+type LevelOfDetailConfig = Partial<Record<CanvasEntityType, ResourceRenderRule>>
 
 export const LevelOfDetailConfig: Record<LevelOfDetail, LevelOfDetailConfig> = {
     'strategy': {},
@@ -47,6 +50,11 @@ export const LevelOfDetailConfig: Record<LevelOfDetail, LevelOfDetailConfig> = {
             visible: true,
             expandable: true,
             expanded: false
+        },
+        component: {
+            visible: false,
+            expandable: false,
+            expanded: false
         }
     },
     'database': {
@@ -79,6 +87,11 @@ export const LevelOfDetailConfig: Record<LevelOfDetail, LevelOfDetailConfig> = {
             visible: true,
             expandable: true,
             expanded: true
+        },
+        component: {
+            visible: true,
+            expandable: false,
+            expanded: false
         }
     },
     'detail': {
@@ -112,33 +125,38 @@ export const LevelOfDetailConfig: Record<LevelOfDetail, LevelOfDetailConfig> = {
             visible: true,
             expandable: true,
             expanded: true
+        },
+        component: {
+            visible: true,
+            expandable: false,
+            expanded: false
         }
     },
     'technology': {}
 }
 
-export function getVisibleResourceTypes(level: LevelOfDetail): ResourceType[] {
+export function getVisibleResourceTypes(level: LevelOfDetail): CanvasEntityType[] {
   return Object.entries(LevelOfDetailConfig[level])
     .filter(([, rule]) => rule.visible)
-    .map(([resourceType]) => resourceType as ResourceType)
+    .map(([resourceType]) => resourceType as CanvasEntityType)
 }
 
 export function isResourceTypeVisible(
   level: LevelOfDetail,
-  resourceType: ResourceType
+  resourceType: CanvasEntityType
 ): boolean {
   return LevelOfDetailConfig[level][resourceType]?.visible ?? false
 }
 
 export function isResourceTypeExpanded(
   level: LevelOfDetail,
-  resourceType: ResourceType
+  resourceType: CanvasEntityType
 ): boolean {
   return LevelOfDetailConfig[level][resourceType]?.expanded ?? false
 }
 export function isResourceEndpointsVisible(
   level: LevelOfDetail,
-  resourceType: ResourceType
+  resourceType: CanvasEntityType
 ): boolean {
   return LevelOfDetailConfig[level][resourceType]?.showEndpoints ?? false
 }

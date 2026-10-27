@@ -6,6 +6,7 @@ import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useApiStore, type Api } from "../stores/api.store";
 import { useOtherConnectionStore } from "../stores/otherConnection.store";
 import { useResourceService } from "./resources/resource.service";
+import { useComponentStore } from "../stores/resources/component.store";
 import { useScriptStore } from "../stores/script.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 
@@ -38,6 +39,7 @@ export function useInformationTransferService() {
     const apiStore = useApiStore();
     const otherConnectionStore = useOtherConnectionStore();
     const resourceService = useResourceService();
+    const componentStore = useComponentStore();
     const scriptStore = useScriptStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
 
@@ -46,6 +48,7 @@ export function useInformationTransferService() {
         return apiConnectionStore.apiConnections.some(connection => connection.sourceId === sourceId && connection.targetId === targetId)
             || otherConnectionStore.otherConnections.some(connection => connection.sourceId === sourceId && connection.targetId === targetId)
             || scriptStore.scripts.some(script => script.inputIds.includes(sourceId) && script.outputIds.includes(targetId))
+            || componentStore.getScriptsBetween([sourceId], [targetId]).length > 0
             || databaseConnectionStore.databaseConnections.some(connection =>
                 (connection.operation.includes('read') && connection.databaseId === sourceId && connection.entityId === targetId) ||
                 (connection.operation.includes('write') && connection.entityId === sourceId && connection.databaseId === targetId)
@@ -63,7 +66,7 @@ export function useInformationTransferService() {
     function getCarriersBetween(sourceId: string, targetId: string): Pick<Api, 'informationFieldIds' | 'informationObjectIds'>[] {
         const otherConnections = otherConnectionStore.otherConnections
             .filter(connection => connection.sourceId === sourceId && connection.targetId === targetId);
-        return [...getUrlsBetween(sourceId, targetId), ...otherConnections];
+        return [...getUrlsBetween(sourceId, targetId), ...otherConnections, ...componentStore.getScriptsBetween([sourceId], [targetId])];
     }
 
     function carriesField(carrier: Pick<Api, 'informationFieldIds' | 'informationObjectIds'>, informationFieldId: string) {

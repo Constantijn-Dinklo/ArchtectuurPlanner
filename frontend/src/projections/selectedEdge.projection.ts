@@ -8,6 +8,8 @@ import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useDatabaseConnectionService } from "../services/databaseConnection.service";
 import { useOtherConnectionStore } from "../stores/otherConnection.store";
 import { useResourceService } from "../services/resources/resource.service";
+import { useComponentStore } from "../stores/resources/component.store";
+import { useTableStore } from "../stores/resources/table.store";
 import { useInformationTransferService } from "../services/informationTransfer.service";
 
 
@@ -21,6 +23,8 @@ export function useSelectedEdgeProjection() {
     const databaseConnectionStore = useDatabaseConnectionStore();
     const otherConnectionStore = useOtherConnectionStore();
     const resourceService = useResourceService();
+    const componentStore = useComponentStore();
+    const tableStore = useTableStore();
     const informationTransferService = useInformationTransferService();
     
     const apiConnectionService = useApiConnectionService();
@@ -110,6 +114,25 @@ export function useSelectedEdgeProjection() {
             }));
     }
 
+    // Script components on the edge: the edge goes to or from the script node itself (from the database level on),
+    // or from something the script reads to something it writes (at the application level)
+    function getSelectedEdgeComponentScripts(inputEntityId: string, outputEntityId: string) {
+        const scriptOnEdge = [inputEntityId, outputEntityId]
+            .map((entityId) => componentStore.getComponent(entityId))
+            .find((component) => component?.kind === 'script');
+        if (scriptOnEdge) return [scriptOnEdge.id];
+
+        const inputIds = [inputEntityId, ...tableStore.getTables(inputEntityId).map((table) => table.id)];
+        const outputIds = [outputEntityId, ...tableStore.getTables(outputEntityId).map((table) => table.id)];
+        return componentStore.components
+            .filter((component) =>
+                component.kind === 'script' &&
+                component.inputs.some((end) => inputIds.includes(end.resourceId) || end.componentId === inputEntityId) &&
+                component.outputs.some((end) => outputIds.includes(end.resourceId) || end.componentId === outputEntityId)
+            )
+            .map((component) => component.id);
+    }
+
     const connectionsInfo = computed(() => {
         const selectedEdgeId = getSelectedEdgeId();
         if(!selectedEdgeId) { return }
@@ -131,10 +154,11 @@ export function useSelectedEdgeProjection() {
             databaseConnections,
             otherConnections,
             warnings: informationTransferService.getConnectionWarnings(inputEntityId, outputEntityId),
+            componentScriptIds: getSelectedEdgeComponentScripts(inputEntityId, outputEntityId),
             sourceId: inputEntityId,
             targetId: outputEntityId,
-            sourceName: resourceService.getResource(inputEntityId)?.name,
-            targetName: resourceService.getResource(outputEntityId)?.name
+            sourceName: resourceService.getResource(inputEntityId)?.name ?? componentStore.getComponent(inputEntityId)?.name,
+            targetName: resourceService.getResource(outputEntityId)?.name ?? componentStore.getComponent(outputEntityId)?.name
         }
     });
 

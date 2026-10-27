@@ -22,6 +22,7 @@ import otherConnectionRoutes from './routes/otherConnectionRoutes';
 import endpointRoutes from './routes/endpointRoutes';
 import informationObjectRoutes from './routes/informationObjectRoutes';
 import informationRelationRoutes from './routes/informationRelationRoutes';
+import componentRoutes from './routes/componentRoutes';
 
 
 import viewRoutes from './routes/canvas/viewRoutes';
@@ -65,6 +66,9 @@ app.use('/fileLocations', inEnvironment, fileLocationsRoutes);
 app.use('/servers', inEnvironment, serverRoutes);
 app.use('/tables', inEnvironment, tableRoutes);
 app.use('/externals', inEnvironment, externalRoutes);
+
+// ** Components: the parts of a resource (scripts, files) ** //
+app.use('/components', inEnvironment, componentRoutes);
 
 app.use('/apis', inEnvironment, apiRoutes);
 

@@ -17,6 +17,8 @@ import ApplicationNode from "../nodes/ApplicationNode.vue";
 import DatabaseNode from "../nodes/DatabaseNode.vue";
 import ExternalNode from "../nodes/ExternalNode.vue";
 import FileLocationNode from "../nodes/FileLocationNode.vue";
+import ComponentNode from "../nodes/ComponentNode.vue";
+import { useComponentStore } from "../../stores/resources/component.store";
 import ConnectionEdge from "../edges/ConnectionEdge.vue";
 import { useInformationRelationStore } from "../../stores/information/informationRelation.store";
 import { useEndpointStore } from "../../stores/endpoint.store";
@@ -32,6 +34,7 @@ const UIStore = useUIStore();
 const architectureViewService = useArchitectureViewService();
 const informationRelationStore = useInformationRelationStore();
 const endpointStore = useEndpointStore();
+const componentStore = useComponentStore();
 const applicationStore = useApplicationStore();
 const tableStore = useTableStore();
 const databaseStore = useDatabaseStore();
@@ -45,7 +48,8 @@ const nodeTypes = {
   database: markRaw(DatabaseNode),
   table: markRaw(TableNode),
   external: markRaw(ExternalNode),
-  fileLocation: markRaw(FileLocationNode)
+  fileLocation: markRaw(FileLocationNode),
+  component: markRaw(ComponentNode)
 }
 const edgeTypes = {
   connection: markRaw(ConnectionEdge)
@@ -58,7 +62,14 @@ onMounted(() => {
   viewStore.fetchViews();
   informationRelationStore.fetchInformationRelations();
   endpointStore.fetchEndpoints();
+  componentStore.fetchComponents();
 })
+
+// Removing an application or file location also removes its components (scripts, files)
+watch(
+  () => [applicationStore.applications.length, fileLocationStore.fileLocations.length],
+  () => componentStore.fetchComponents()
+);
 
 // The relations are changed in the backend whenever information is added to or removed from a resource,
 // and when a resource is removed (its relations are removed with it)
@@ -198,6 +209,9 @@ watch(
 
 .canvas-lod-application .vue-flow__node-database .database-header {
   flex: 1;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
   height: 100%;
   font-size: 16px;
 }

@@ -13,6 +13,7 @@ import { useApiConnectionStore } from "../../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../../stores/databaseConnection.store";
 import { useScriptStore } from "../../stores/script.store";
 import { useOtherConnectionStore } from "../../stores/otherConnection.store";
+import { useComponentStore } from "../../stores/resources/component.store";
 import { useDatabaseService } from "./database.service";
 import type { Application, ResolvedApplication } from "../../types/application.types";
 import type { External, ResolvedExternal } from "../../types/external.types";
@@ -38,6 +39,7 @@ export function useResourceService() {
     const databaseConnectionStore = useDatabaseConnectionStore();
     const scriptStore = useScriptStore();
     const otherConnectionStore = useOtherConnectionStore();
+    const componentStore = useComponentStore();
     
     const resources = computed(() => {
         return [
@@ -114,13 +116,19 @@ export function useResourceService() {
         const otherConnectedResources = otherConnectionStore.otherConnections
             .filter((otherConnection) => otherConnection.targetId === resourceId && otherConnection.sourceId)
             .map((otherConnection) => otherConnection.sourceId as string);
+        // A script component that writes to the resource (or to one of its tables) brings in what it reads
+        const scriptTargetIds = [resourceId, ...databaseService.getDatabaseTables(resourceId).map((table) => table.id)];
+        const scriptComponentResources = componentStore.components
+            .filter((component) => component.kind === 'script' && component.outputs.some((end) => scriptTargetIds.includes(end.resourceId)))
+            .flatMap((component) => component.inputs.map((end) => end.resourceId));
 
         return [
             ...new Set([
                 ...apiConnectedResources,
                 ...upstreamResourceIdsViaDatabaseConnections,
                 ...scriptConnectedResources,
-                ...otherConnectedResources
+                ...otherConnectedResources,
+                ...scriptComponentResources
             ])
         ]
     }

@@ -1,3 +1,4 @@
+import { removeComponentEndReferences, removeResourceComponents } from "./component.service";
 import { UserJwtPayload } from "../middelware";
 import External from "../models/resources/external.model";
 import Application from "../models/resources/application.model";
@@ -134,6 +135,10 @@ export async function syncOtherConnectionRelations(user: UserJwtPayload, connect
 // or the target. External elements that received information from the resource get their received lists updated.
 export async function removeResourceRelations(user: UserJwtPayload, resourceIds: string[]) {
     if(!resourceIds.length) return;
+
+    // The components of the resources go with them, and scripts no longer read from or write to them
+    await removeResourceComponents(user, resourceIds);
+    await removeComponentEndReferences(user, resourceIds);
 
     const touchingResources = {
         environmentId: user.environmentId,

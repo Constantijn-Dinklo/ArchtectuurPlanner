@@ -24,6 +24,9 @@ import type { ResolvedInformationObjectReference } from "../types/informationObj
 import { useResourceResolver } from "../resolvers/resource.resolver";
 import type { ApplicationNode, ResolvedApplication } from "../types/application.types";
 import type { ResolvedExternal } from "../types/external.types";
+import { useComponentStore } from "../stores/resources/component.store";
+import { getComponentIcon, type ComponentEnd } from "../types/component.types";
+
 
 
 // The default width of the resource nodes at the application level of detail. For now the database level of detail
@@ -67,6 +70,7 @@ export function useCanvasProjection() {
     const databaseStore = useDatabaseStore();
     const tableStore = useTableStore();
     const applicationStore = useApplicationStore();
+    const componentStore = useComponentStore();
     const endpointStore = useEndpointStore();
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
@@ -111,6 +115,8 @@ export function useCanvasProjection() {
                     databaseConnectionIds: [],
                     scriptIds: [],
                     otherConnectionIds: [],
+                    componentScriptIds: [],
+                    partOf: false,
                     otherConnectionMethods: [],
                     sourceResourceId,
                     targetResourceId,
@@ -144,7 +150,7 @@ export function useCanvasProjection() {
             connectionId: string,
             field: keyof Pick<
             CanvasEdge["data"],
-            'apiIds' | 'databaseConnectionIds' | 'scriptIds' | 'otherConnectionIds'
+            'apiIds' | 'databaseConnectionIds' | 'scriptIds' | 'otherConnectionIds' | 'componentScriptIds'
             >
         ) {
             getOrCreateEdge(sourceResourceId, targetResourceId)?.data[field].push(connectionId);
@@ -205,6 +211,44 @@ export function useCanvasProjection() {
             })
         }
 
+        // Components (scripts and files inside a resource). From the database level on they are nodes of their own:
+        // a script gets an edge from everything it reads and to everything it writes (input -> script -> output),
+        // and every component is tied to the resource it is part of. At the application level they are hidden,
+        // so a script becomes an edge from each input to each output
+        const componentsVisible = isResourceTypeVisible(UIStore.levelOfDetail, 'component');
+        for(const component of componentStore.components) {
+            if(componentsVisible) {
+                const parentViewNodeId = entityIdToNodeMap.value.get(component.resourceId)?.id;
+                const componentViewNodeId = entityIdToNodeMap.value.get(component.id)?.id;
+                if(parentViewNodeId && componentViewNodeId) {
+                    const edgeId = `partof-${parentViewNodeId}-${componentViewNodeId}`;
+                    const edge = createEdge(edgeId, parentViewNodeId, componentViewNodeId, component.resourceId, component.id);
+                    edge.data.partOf = true;
+                    edges.set(edgeId, edge);
+                }
+            }
+
+            if(component.kind !== 'script') continue;
+
+            if(componentsVisible) {
+                for(const input of component.inputs) {
+                    addConnection(getVisibleEndId(input), component.id, component.id, 'componentScriptIds');
+                }
+                for(const output of component.outputs) {
+                    addConnection(component.id, getVisibleEndId(output), component.id, 'componentScriptIds');
+                }
+            }
+            else {
+                for(const input of component.inputs) {
+                    for(const output of component.outputs) {
+                        const sourceId = getVisibleEndId(input);
+                        const targetId = getVisibleEndId(output);
+                        if(sourceId !== targetId) addConnection(sourceId, targetId, component.id, 'componentScriptIds');
+                    }
+                }
+            }
+        }
+
         // The same warnings are shown in the connection details when the edge is selected
         for(const edge of edges.values()) {
             const warnings = informationTransferService.getConnectionWarnings(edge.data.sourceResourceId, edge.data.targetResourceId);
@@ -212,8 +256,12 @@ export function useCanvasProjection() {
             edge.data.hasError = warnings.some((warning) => warning.severity === 'error');
         }
 
+        const visibleViewNodeIds = new Set(flowNodes.value.map((node) => node.id));
+
         // The arrow head gets the same color as the edge line in ConnectionEdge.vue
-        return Array.from(edges.values()).map((edge) => ({
+        return Array.from(edges.values())
+            .filter((edge) => visibleViewNodeIds.has(edge.source) && visibleViewNodeIds.has(edge.target))
+            .map((edge) => edge.data.partOf ? edge : ({
             ...edge,
             markerEnd: {
                 type: MarkerType.ArrowClosed,
@@ -230,7 +278,51 @@ export function useCanvasProjection() {
         return visibleNodes;
     }
 
+    // Where an end of a script is shown on the canvas: a file in a file location when components are visible,
+    // otherwise its file location. A table when tables are visible, otherwise its database
+    function getVisibleEndId(end: ComponentEnd): string {
+        if(end.componentId && isResourceTypeVisible(UIStore.levelOfDetail, 'component')) {
+            return end.componentId;
+        }
+        const resource = resourceService.getResource(end.resourceId);
+        if(resource?.type === 'table' && !isResourceTypeVisible(UIStore.levelOfDetail, 'table')) {
+            return resource.databaseId;
+        }
+        return end.resourceId;
+    }
+
+    // A component is a small node next to the resource it is part of
+    function projectComponentNode(viewNode: ViewNode): CanvasNode | undefined {
+        const component = componentStore.getComponent(viewNode.entityId);
+        if(!component) return;
+
+        const host = resourceService.getResource(component.resourceId);
+        const informationCount = component.informationFieldIds.length + component.informationObjectIds.length;
+
+        return {
+            id: viewNode.id,
+            type: 'component',
+            position: viewNode.position,
+            style: { width: '160px' },
+            class: 'component',
+            data: {
+                label: component.name,
+                resourceId: component.id,
+                kind: component.kind,
+                icon: getComponentIcon(component),
+                hostName: host?.name ?? '',
+                readsCount: component.inputs.length,
+                writesCount: component.outputs.length,
+                informationCount
+            }
+        } as CanvasNode;
+    }
+
     function resolveViewNode(viewNode: ViewNode): CanvasNode | undefined {
+        if(viewNode.entityType === 'component') {
+            return projectComponentNode(viewNode);
+        }
+
         const resource = resourceService.getResource(viewNode.entityId);
         if(!resource) { return; }
         const parent = getResourceParent(resource);
@@ -476,13 +568,12 @@ export function useCanvasProjection() {
 
         return {
             type: 'database',
-            style: showTables && layout
-                ? {
-                    width: `${layout.width}px`,
-                    height: `${layout.height}px`
-                }
-                // Without its tables the database only shows its header
-                : { ...OVERVIEW_NODE_STYLE },
+            // The database has the same size at every level of detail, so it stays in place while zooming.
+            // At the application level it only shows its name, from the database level on also its tables
+            style: {
+                width: `${layout?.width ?? TABLE_LAYOUT.emptyDatabaseWidth}px`,
+                height: `${layout?.height ?? TABLE_LAYOUT.emptyDatabaseHeight}px`
+            },
             data: {
                 label: database.name,
                 engine: database.engine,

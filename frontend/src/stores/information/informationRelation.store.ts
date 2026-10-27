@@ -16,7 +16,8 @@ export interface ResourceRelation {
     viaConnectionId?: string | null;
 }
 
-export type ConnectionType = 'api' | 'script' | 'database' | 'other';
+// 'script' is a script of the Scripts tab, 'component' a script component inside an application or file location
+export type ConnectionType = 'api' | 'script' | 'database' | 'other' | 'component';
 
 export interface ViaConnection {
     type: ConnectionType;

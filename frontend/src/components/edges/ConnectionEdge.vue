@@ -22,11 +22,17 @@
 
     const otherCount = computed(() => props.data?.otherConnectionIds.length ?? 0);
 
+    // Scripts of the Scripts tab and script components inside an application or file location
+    const scriptCount = computed(() => (props.data?.scriptIds.length ?? 0) + (props.data?.componentScriptIds.length ?? 0));
+
     const systemConnectionCount = computed(() =>
         (props.data?.apiIds.length ?? 0) +
         (props.data?.databaseConnectionIds.length ?? 0) +
-        (props.data?.scriptIds.length ?? 0)
+        scriptCount.value
     );
+
+    // Not a connection: the component at the end is part of the resource at the start
+    const isPartOf = computed(() => props.data?.partOf ?? false);
 
     // An edge without any connection only exists to show that information is sent without a connection
     const hasConnections = computed(() => systemConnectionCount.value + otherCount.value > 0);
@@ -39,15 +45,15 @@
     }
 
     const label = computed(() => {
+        if (isPartOf.value) return '';
         const parts: string[] = [];
 
         const apiCount = props.data?.apiIds.length ?? 0;
         const databaseCount = props.data?.databaseConnectionIds.length ?? 0;
-        const scriptCount = props.data?.scriptIds.length ?? 0;
 
         if (apiCount) parts.push(plural(apiCount, 'API', "API's"));
         if (databaseCount) parts.push(plural(databaseCount, 'DB', "DB's"));
-        if (scriptCount) parts.push(plural(scriptCount, 'script', 'scripts'));
+        if (scriptCount.value) parts.push(plural(scriptCount.value, 'script', 'scripts'));
         // Other connections are counted per method, e.g. "1 by hand · 2 send function"
         const methodCounts = new Map<string, number>();
         for (const method of props.data?.otherConnectionMethods ?? []) {
@@ -64,7 +70,13 @@
         return warningCount.value ? `⚠ ${text} · ${plural(warningCount.value, 'warning', 'warnings')}` : text;
     });
 
-    const edgeStyle = computed(() => ({
+    const edgeStyle = computed(() => isPartOf.value ? {
+        // A thin dotted line, like a tether: it shows where the component belongs, no information flows over it
+        stroke: '#cbd5e1',
+        strokeWidth: 1,
+        strokeDasharray: '2 3',
+        strokeLinecap: 'round' as const
+    } : ({
         stroke: hasError.value ? '#ef4444' : warningCount.value ? '#f59e0b' : props.selected ? '#6366f1' : '#94a3b8',
         strokeWidth: props.selected ? 2 : 1.5,
         // Dashed: other connections (by hand, a send button, ...). Dotted: information flows without any connection
@@ -93,7 +105,7 @@
         :marker-end="markerEnd"
         :style="edgeStyle"
         :interaction-width="20"
-        :label="label"
+        :label="label || undefined"
         :label-x="path[1]"
         :label-y="path[2]"
         :label-style="labelStyle"

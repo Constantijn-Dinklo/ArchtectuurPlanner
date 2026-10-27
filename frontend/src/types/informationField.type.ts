@@ -10,7 +10,7 @@ export type AddInformationFieldRequest =
           sourceResourceId: string;
           sourceResourceType: ResourceType;
           // The connection the information comes through, when the user picked one
-          viaConnectionType?: 'api' | 'script' | 'database' | 'other' | null;
+          viaConnectionType?: 'api' | 'script' | 'database' | 'other' | 'component' | null;
           viaConnectionId?: string | null;
       };
 

@@ -1,0 +1,115 @@
+import express, { Router, Response } from "express";
+import { AuthenticatedRequest, getUser } from "../middelware";
+import {
+    addComponentEnd,
+    addComponentInformationField,
+    addComponentInformationObject,
+    createComponent,
+    deleteComponent,
+    getComponents,
+    removeComponentEnd,
+    removeComponentInformationField,
+    removeComponentInformationObject,
+    updateComponent
+} from "../services/component.service";
+
+const router: Router = express.Router();
+
+function getSide(side: string) {
+    if(side !== 'inputs' && side !== 'outputs') throw new Error("Unknown side, use inputs or outputs");
+    return side;
+}
+
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.json(await getComponents(getUser(req)));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.post('/', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.status(201).json(await createComponent(getUser(req), req.body));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.json(await updateComponent(getUser(req), req.params.id as string, req.body));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.json(await deleteComponent(getUser(req), req.params.id as string));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// <-- What a script reads from (inputs) and writes to (outputs) -->
+router.post('/:id/:side', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.status(201).json(await addComponentEnd(getUser(req), req.params.id as string, getSide(req.params.side as string), req.body));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.delete('/:id/:side/:index', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.json(await removeComponentEnd(getUser(req), req.params.id as string, getSide(req.params.side as string), Number(req.params.index)));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// <-- The information a script carries or a file contains -->
+router.post('/:id/information/fields', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.status(201).json(await addComponentInformationField(getUser(req), req.params.id as string, req.body.informationField));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.delete('/:id/information/fields/:informationFieldId', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.json(await removeComponentInformationField(getUser(req), req.params.id as string, req.params.informationFieldId as string));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.post('/:id/information/objects', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.status(201).json(await addComponentInformationObject(getUser(req), req.params.id as string, req.body.informationObject));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.delete('/:id/information/objects/:informationObjectId', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.json(await removeComponentInformationObject(getUser(req), req.params.id as string, req.params.informationObjectId as string));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+export default router;

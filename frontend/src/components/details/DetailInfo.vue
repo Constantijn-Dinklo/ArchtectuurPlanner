@@ -11,14 +11,35 @@
     import ConnectionWarnings from './ConnectionWarnings.vue';
     import EdgeConnectionsDetail from './EdgeConnectionsDetail.vue';
     import EndpointsSection from './EndpointsSection.vue';
+    import ComponentDetails from './ComponentDetails.vue';
+    import ComponentsSection from './ComponentsSection.vue';
+    import { computed } from 'vue';
+    import { useUIStore } from '../../stores/canvas/ui.store';
+    import { useViewStore } from '../../stores/canvas/view.store';
 
     const selectedNodeProjection = useSelectedNodeProjection();
     const selectedEdgeProjection = useSelectedEdgeProjection();
+
+    const UIStore = useUIStore();
+    const viewStore = useViewStore();
+
+    // A selected node can also be a component (a script or a file) instead of a resource
+    const selectedComponentId = computed(() => {
+        if (UIStore.selectedEntityType !== 'node') return undefined;
+        const viewNode = viewStore.viewNodes.find(node => node.id === UIStore.selectedEntityId);
+        return viewNode?.entityType === 'component' ? viewNode.entityId : undefined;
+    });
 </script>
 
 <template>
     <div class="detail-panel">
-        <template v-if="selectedNodeProjection.isNodeSelected() && selectedNodeProjection.nodeInfo.value">
+        <ComponentDetails
+            v-if="selectedComponentId"
+            :key="selectedComponentId"
+            :component-id="selectedComponentId"
+        />
+
+        <template v-else-if="selectedNodeProjection.isNodeSelected() && selectedNodeProjection.nodeInfo.value">
             <ApplicationDetails v-if="selectedNodeProjection.nodeInfo.value.node.type === 'application'" />
 
             <DatabaseDetails v-else-if="selectedNodeProjection.nodeInfo.value.node.type === 'database'" />
@@ -37,6 +58,11 @@
                         <h2>{{ selectedNodeProjection.nodeInfo.value.node.name }}</h2>
                     </div>
                 </header>
+                <ComponentsSection
+                    v-if="selectedNodeProjection.nodeInfo.value.node.type === 'fileLocation'"
+                    :resource-id="selectedNodeProjection.nodeInfo.value.node.id"
+                    resource-type="fileLocation"
+                />
                 <EndpointsSection
                     :resource-id="selectedNodeProjection.nodeInfo.value.node.id"
                     :resource-type="selectedNodeProjection.nodeInfo.value.node.type"
@@ -65,11 +91,13 @@
                 :script-ids="selectedEdgeProjection.connectionsInfo.value.scripts.map(script => script.id)"
                 :database-connection-ids="selectedEdgeProjection.connectionsInfo.value.databaseConnections.map(connection => connection.id)"
                 :other-connection-ids="selectedEdgeProjection.connectionsInfo.value.otherConnections.map(connection => connection.id)"
+                :component-script-ids="selectedEdgeProjection.connectionsInfo.value.componentScriptIds"
             />
         </template>
 
         <div
-            v-if="!(selectedNodeProjection.isNodeSelected() && selectedNodeProjection.nodeInfo.value)
+            v-if="!selectedComponentId
+                && !(selectedNodeProjection.isNodeSelected() && selectedNodeProjection.nodeInfo.value)
                 && !(selectedEdgeProjection.isEdgeSelected() && selectedEdgeProjection.connectionsInfo.value)"
             class="detail-placeholder"
         >

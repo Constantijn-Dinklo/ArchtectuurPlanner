@@ -22,6 +22,7 @@ import { useInformationRelationStore } from '../../stores/information/informatio
 import ViaConnection from './ViaConnection.vue';
 import EndpointsSection from './EndpointsSection.vue';
 import ApisSection from './ApisSection.vue';
+import ComponentsSection from './ComponentsSection.vue';
 import ConnectionPartnersSection from './ConnectionPartnersSection.vue';
 import { APPLICATION_HOSTINGS, type ResolvedApplication } from '../../types/application.types.ts';
 
@@ -437,6 +438,9 @@ function isInformationObjectExpanded(informationObjectId: string) {
 
         <!-- APIs: which output information is sent through each api -->
         <ApisSection :resource-id="application.id" />
+
+        <!-- Components: the scripts that run in this application -->
+        <ComponentsSection :resource-id="application.id" resource-type="application" />
 
         <!-- The resources that send to this application, and the resources it sends to -->
         <ConnectionPartnersSection :resource-id="application.id" direction="incoming" />

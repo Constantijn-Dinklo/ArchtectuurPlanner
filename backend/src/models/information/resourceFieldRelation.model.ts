@@ -11,7 +11,7 @@ export interface IResourceFieldRelation {
 
     // The connection the information travels through from the source to the target, chosen by the user
     // when there is more than one (api connection, script, database connection or other connection)
-    viaConnectionType: 'api' | 'script' | 'database' | 'other' | null;
+    viaConnectionType: 'api' | 'script' | 'database' | 'other' | 'component' | null;
     viaConnectionId: Types.ObjectId | null;
 }
 
@@ -46,7 +46,7 @@ export const ResourceFieldRelationSchema = new Schema<IResourceFieldRelation>(
         },
         viaConnectionType: {
             type: Schema.Types.String,
-            enum: ['api', 'script', 'database', 'other', null],
+            enum: ['api', 'script', 'database', 'other', 'component', null],
             default: null
         },
         viaConnectionId: {

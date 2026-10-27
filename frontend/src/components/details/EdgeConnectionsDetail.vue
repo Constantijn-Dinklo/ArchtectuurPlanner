@@ -16,6 +16,7 @@
     import { useApiConnectionService } from '../../services/apiConnection.service';
     import { useInformationSourceService } from '../../services/informationSource.service';
     import { useResourceService } from '../../services/resources/resource.service';
+    import { useComponentStore } from '../../stores/resources/component.store';
     import CarriedInformationEditor from './CarriedInformationEditor.vue';
 
     // The connections of one edge. All of them go from the same source to the same target,
@@ -27,6 +28,7 @@
         scriptIds: string[];
         databaseConnectionIds: string[];
         otherConnectionIds: string[];
+        componentScriptIds?: string[];
     }>();
 
     interface EdgeConnection {
@@ -48,6 +50,7 @@
     const apiConnectionService = useApiConnectionService();
     const informationSourceService = useInformationSourceService();
     const resourceService = useResourceService();
+    const componentStore = useComponentStore();
 
     const connections = computed<EdgeConnection[]>(() => [
         ...props.apiConnectionIds.map(id => {
@@ -66,6 +69,11 @@
             label: 'Script',
             detail: scriptStore.scripts.find(script => script.id === id)?.name
         })),
+        ...(props.componentScriptIds ?? []).map(id => {
+            const script = componentStore.getComponent(id);
+            const host = script ? resourceService.getResource(script.resourceId)?.name : undefined;
+            return { type: 'component' as const, id, icon: 'pi pi-code', label: 'Script', detail: `${script?.name ?? '?'}${host ? ` (on ${host})` : ''}` };
+        }),
         ...props.databaseConnectionIds.map(id => {
             const connection = databaseConnectionStore.databaseConnections.find(database => database.id === id);
             // The edge goes from the database to the resource for reading, the other way around for writing
@@ -124,6 +132,10 @@
         if (connection.type === 'api') {
             const url = getUrl(connection.id);
             return !!url && ((url.informationFieldIds?.length ?? 0) + (url.informationObjectIds?.length ?? 0)) > 0;
+        }
+        if (connection.type === 'component') {
+            const script = componentStore.getComponent(connection.id);
+            return !!script && (script.informationFieldIds.length + script.informationObjectIds.length) > 0;
         }
         if (connection.type === 'other') {
             const other = getOtherConnection(connection.id);
@@ -247,6 +259,30 @@
                         @add-object="id => otherConnectionStore.addInformationObject(connection.id, id)"
                         @remove-object="id => otherConnectionStore.removeInformationObject(connection.id, id)"
                     />
+                </template>
+
+                <!-- Script components list what they carry themselves; it is edited in the script's details -->
+                <template v-else-if="connection.type === 'component'">
+                    <div class="passed-along">
+                        <span
+                            v-for="objectId in componentStore.getComponent(connection.id)?.informationObjectIds ?? []"
+                            :key="`object:${objectId}`"
+                            class="passed-chip object"
+                        >
+                            ▱ {{ informationObjectStore.getInformationObject(objectId)?.objectName ?? 'Unknown object' }}
+                        </span>
+                        <span
+                            v-for="fieldId in componentStore.getComponent(connection.id)?.informationFieldIds ?? []"
+                            :key="`field:${fieldId}`"
+                            class="passed-chip"
+                        >
+                            {{ informationFieldStore.getInformationField(fieldId)?.fieldName ?? 'Unknown field' }}
+                        </span>
+                        <span v-if="!hasInformation(connection)" class="detail-empty">Nothing carried yet</span>
+                    </div>
+                    <div class="passed-along-hint">
+                        Select the script on the canvas (from the database level on) to change what it reads, writes and carries.
+                    </div>
                 </template>
 
                 <!-- Scripts and database connections: what the receiving resource takes in through this connection -->

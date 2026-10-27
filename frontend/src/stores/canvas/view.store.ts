@@ -1,9 +1,10 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import api from "../../helpers/axios";
-import type { ResourceType } from "../../types/resource.type";
+import type { CanvasEntityType } from "../../types/levelOfDetail";
 
-export type ViewNodeType = ResourceType;
+// A node shows a resource, or a component inside a resource
+export type ViewNodeType = CanvasEntityType;
 
 export interface View {
     id: string;

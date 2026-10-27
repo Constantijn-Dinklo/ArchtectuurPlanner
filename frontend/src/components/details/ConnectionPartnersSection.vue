@@ -7,6 +7,7 @@
     import { useDatabaseConnectionStore } from '../../stores/databaseConnection.store';
     import { getOtherConnectionMethodInfo, useOtherConnectionStore } from '../../stores/otherConnection.store';
     import { useResourceService } from '../../services/resources/resource.service';
+    import { useComponentStore } from '../../stores/resources/component.store';
     import type { ResourceType } from '../../types/resource.type';
 
     // The resources on the other side of the connections of this resource, grouped per resource:
@@ -39,6 +40,7 @@
     const databaseConnectionStore = useDatabaseConnectionStore();
     const otherConnectionStore = useOtherConnectionStore();
     const resourceService = useResourceService();
+    const componentStore = useComponentStore();
 
     const RESOURCE_ICONS: Record<ResourceType, string> = {
         application: 'pi pi-desktop',
@@ -124,6 +126,33 @@
                 label: method.label,
                 detail: connection.description || undefined
             });
+        }
+
+        // Script components (scripts inside an application or file location) read from their inputs and write to
+        // their outputs. A table or file the script uses counts for its database or file location as well
+        function isThisResource(resourceId: string) {
+            if (resourceId === props.resourceId) return true;
+            const resource = resourceService.getResource(resourceId);
+            return resource?.type === 'table' && resource.databaseId === props.resourceId;
+        }
+
+        for (const script of componentStore.components) {
+            if (script.kind !== 'script') continue;
+
+            const ownSide = isIncoming.value ? script.outputs : script.inputs;
+            const otherSide = isIncoming.value ? script.inputs : script.outputs;
+            if (!ownSide.some(end => isThisResource(end.resourceId))) continue;
+
+            const host = resourceService.getResource(script.resourceId)?.name;
+            const partnerIds = new Set(otherSide.map(end => end.resourceId).filter(resourceId => !isThisResource(resourceId)));
+            for (const partnerId of partnerIds) {
+                add(partnerId, {
+                    key: `component:${script.id}:${partnerId}`,
+                    icon: 'pi pi-code',
+                    label: 'Script',
+                    detail: `${script.name}${host ? ` (on ${host})` : ''}`
+                });
+            }
         }
 
         return [...byResource.values()].sort((a, b) => a.name.localeCompare(b.name));

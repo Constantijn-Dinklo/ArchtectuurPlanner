@@ -6,6 +6,7 @@ import { useOtherConnectionStore, getOtherConnectionMethodInfo } from "../stores
 import { useInformationObjectStore } from "../stores/information/informationObject.store";
 import type { ConnectionType, ResourceRelation } from "../stores/information/informationRelation.store";
 import { useResourceService } from "./resources/resource.service";
+import { useComponentStore } from "../stores/resources/component.store";
 
 // What travels from the source to the target
 export type CarriedInformation =
@@ -39,6 +40,7 @@ export function useInformationSourceService() {
     const otherConnectionStore = useOtherConnectionStore();
     const informationObjectStore = useInformationObjectStore();
     const resourceService = useResourceService();
+    const componentStore = useComponentStore();
 
     function carries(carrier: { informationFieldIds?: string[], informationObjectIds?: string[] }, information: CarriedInformation) {
         if ('informationObjectId' in information) {
@@ -88,6 +90,13 @@ export function useInformationSourceService() {
             if (readsSource && writesTarget) {
                 candidates.push({ type: 'script', id: script.id, label: `Script ${script.name}` });
             }
+        }
+
+        // Script components carry information like other connections; they list what they carry
+        for (const script of componentStore.getScriptsBetween(sourceIds, targetIds)) {
+            if (!carries(script, information)) continue;
+            const host = resourceService.getResource(script.resourceId)?.name;
+            candidates.push({ type: 'component', id: script.id, label: `Script ${script.name}${host ? ` (on ${host})` : ''}` });
         }
 
         for (const databaseConnection of databaseConnectionStore.databaseConnections) {
