@@ -83,4 +83,7 @@ export interface ApplicationNodeEndpoint {
     icon: string;
     objectNames: string[];
     fieldNames: string[];
+    // Information the endpoint uses that has no way of getting to the application: shown as an error
+    missingObjectNames: string[];
+    missingFieldNames: string[];
 }

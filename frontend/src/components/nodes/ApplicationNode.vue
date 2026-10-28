@@ -429,6 +429,10 @@ import ComponentRows from './ComponentRows.vue';
                 v-for="endpoint in props.data.endpoints"
                 :key="endpoint.id"
                 class="endpoint"
+                :class="{ 'has-error': endpoint.missingObjectNames.length + endpoint.missingFieldNames.length > 0 }"
+                :title="endpoint.missingObjectNames.length + endpoint.missingFieldNames.length > 0
+                    ? `Uses information that has no way of getting here: ${[...endpoint.missingObjectNames, ...endpoint.missingFieldNames].join(', ')}`
+                    : undefined"
             >
                 <div
                     class="endpoint-row nodrag"
@@ -444,6 +448,12 @@ import ComponentRows from './ComponentRows.vue';
                     </span>
                     <i :class="endpoint.icon" class="endpoint-icon" />
                     <span class="endpoint-name">{{ endpoint.name }}</span>
+                    <span
+                        v-if="endpoint.missingObjectNames.length + endpoint.missingFieldNames.length"
+                        class="endpoint-error-badge"
+                    >
+                        ✕ {{ endpoint.missingObjectNames.length + endpoint.missingFieldNames.length }}
+                    </span>
                     <span class="object-field-count endpoint-count">
                         {{ endpoint.objectNames.length + endpoint.fieldNames.length }}
                     </span>
@@ -457,12 +467,14 @@ import ComponentRows from './ComponentRows.vue';
                         v-for="objectName in endpoint.objectNames"
                         :key="`object:${objectName}`"
                         class="endpoint-object"
+                        :class="{ missing: endpoint.missingObjectNames.includes(objectName) }"
                     >
                         ▱ {{ objectName }}
                     </li>
                     <li
                         v-for="fieldName in endpoint.fieldNames"
                         :key="`field:${fieldName}`"
+                        :class="{ missing: endpoint.missingFieldNames.includes(fieldName) }"
                     >
                         {{ fieldName }}
                     </li>
@@ -856,6 +868,28 @@ import ComponentRows from './ComponentRows.vue';
 
 .endpoint-object {
     font-weight: 700;
+}
+
+/* An endpoint that uses information with no way of getting to the application */
+.endpoint.has-error {
+    border-color: #fca5a5;
+    background: #fef2f2;
+}
+
+.endpoint-error-badge {
+    flex: 0 0 auto;
+    padding: 0 2px;
+    border-radius: 999px;
+
+    background: #fee2e2;
+    color: #b91c1c;
+    font-size: var(--canvas-type-detail-meta);
+    font-weight: 700;
+}
+
+.endpoint-information li.missing {
+    border-left-color: #fca5a5;
+    color: #b91c1c;
 }
 
 .endpoints-empty {

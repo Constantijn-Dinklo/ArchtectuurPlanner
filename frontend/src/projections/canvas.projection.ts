@@ -11,7 +11,8 @@ import { useServerStore, type Server } from "../stores/resources/server.store";
 import type { FileLocation } from "../stores/resources/fileLocation.store";
 import { useUIStore } from "../stores/canvas/ui.store";
 import { getVisibleResourceTypes, isResourceEndpointsVisible, isResourceTypeExpanded, isResourceTypeVisible, type LevelOfDetail } from "../types/levelOfDetail";
-import { useEndpointStore, getEndpointTypeInfo } from "../stores/endpoint.store";
+import { useEndpointStore, getEndpointTypeInfo, type Endpoint } from "../stores/endpoint.store";
+import { useEndpointInformationService } from "../services/endpointInformation.service";
 import { useInformationFieldStore } from "../stores/information/informationField.store";
 import { useInformationObjectStore } from "../stores/information/informationObject.store";
 import { useDatabaseStore, type Database } from "../stores/resources/database.store";
@@ -78,6 +79,7 @@ export function useCanvasProjection() {
     const applicationStore = useApplicationStore();
     const componentStore = useComponentStore();
     const endpointStore = useEndpointStore();
+    const endpointInformationService = useEndpointInformationService();
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
     const otherConnectionStore = useOtherConnectionStore();
@@ -596,6 +598,14 @@ export function useCanvasProjection() {
         }
     }
 
+    function getMissingEndpointNames(endpoint: Endpoint) {
+        const missing = endpointInformationService.getMissingInformation(endpoint);
+        return {
+            missingObjectNames: missing.objects.map((informationObject) => informationObject.objectName),
+            missingFieldNames: missing.fields.map((field) => field.fieldName)
+        };
+    }
+
     function projectApplicationNode(application: ResolvedApplication) {
         let label = application.name;
         if(application.version){
@@ -631,7 +641,8 @@ export function useCanvasProjection() {
                     .filter((name) => name !== undefined),
                 fieldNames: endpoint.informationFieldIds
                     .map((fieldId) => informationFieldStore.getInformationField(fieldId)?.fieldName)
-                    .filter((name) => name !== undefined)
+                    .filter((name) => name !== undefined),
+                ...getMissingEndpointNames(endpoint)
             }))
             : undefined;
 

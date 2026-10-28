@@ -6,6 +6,9 @@ import { useInformationRelationStore } from "../stores/information/informationRe
 import { useInformationFieldStore } from "../stores/information/informationField.store";
 import { useInformationObjectStore } from "../stores/information/informationObject.store";
 import type { InformationField } from "../types/informationField.type";
+import type { Endpoint } from "../stores/endpoint.store";
+import { useComponentStore } from "../stores/resources/component.store";
+import { getInformationSlotIds, type InformationSlot } from "../types/component.types";
 
 export interface HeldField {
     id: string;
@@ -24,6 +27,7 @@ export interface HeldObject {
 // - an application: its input and output fields and objects, including the fields inside those objects
 // - a table: its columns, a database: the columns of its tables
 // - other resources: the information that flows into them through relations
+// - and for every resource: what its components hold (the inputs and outputs of its scripts, the contents of its files)
 export function useEndpointInformationService() {
     const resourceService = useResourceService();
     const resourceResolver = useResourceResolver();
@@ -32,6 +36,22 @@ export function useEndpointInformationService() {
     const informationRelationStore = useInformationRelationStore();
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
+    const componentStore = useComponentStore();
+
+    // The information held by the scripts and files of the resource
+    function getComponentInformation(resourceId: string) {
+        const fieldIds = new Set<string>();
+        const objectIds = new Set<string>();
+        for (const component of componentStore.getResourceComponents(resourceId)) {
+            const slots: InformationSlot[] = component.kind === 'script' ? ['input', 'output'] : ['contains'];
+            for (const slot of slots) {
+                const ids = getInformationSlotIds(component, slot);
+                ids.informationFieldIds.forEach(id => fieldIds.add(id));
+                ids.informationObjectIds.forEach(id => objectIds.add(id));
+            }
+        }
+        return { fieldIds: [...fieldIds], objectIds: [...objectIds] };
+    }
 
     function getHeldFields(resourceId: string): HeldField[] {
         const resource = resourceService.getResource(resourceId);
@@ -72,6 +92,19 @@ export function useEndpointInformationService() {
                     });
         }
 
+        const componentInformation = getComponentInformation(resourceId);
+        componentInformation.fieldIds.forEach(fieldId => {
+            const field = informationFieldStore.getInformationField(fieldId);
+            if (field) addField(field);
+        });
+        componentInformation.objectIds.forEach(objectId => {
+            const informationObject = informationObjectStore.getInformationObject(objectId);
+            informationObject?.informationFieldIds.forEach(fieldId => {
+                const field = informationFieldStore.getInformationField(fieldId);
+                if (field) addField(field, informationObject.objectName);
+            });
+        });
+
         return [...fields.values()];
     }
 
@@ -80,21 +113,44 @@ export function useEndpointInformationService() {
         if (!resource) return [];
         const resolvedResource = resourceResolver.resolveResource(resource);
 
+        const objects = new Map<string, HeldObject>();
         if (resolvedResource.type === 'application') {
-            const objects = new Map<string, HeldObject>();
             [...resolvedResource.inputInformationObjects, ...resolvedResource.outputInformationObjects]
                 .forEach(reference => objects.set(reference.informationObject.id, {
                     id: reference.informationObject.id,
                     objectName: reference.informationObject.objectName
                 }));
-            return [...objects.values()];
+        }
+        else {
+            informationRelationStore.objectRelations
+                .filter(relation => relation.targetResourceId === resourceId)
+                .map(relation => informationObjectStore.getInformationObject(relation.informationObjectId))
+                .filter(informationObject => informationObject !== undefined)
+                .forEach(informationObject => objects.set(informationObject.id, { id: informationObject.id, objectName: informationObject.objectName }));
         }
 
-        return informationRelationStore.objectRelations
-            .filter(relation => relation.targetResourceId === resourceId)
-            .map(relation => informationObjectStore.getInformationObject(relation.informationObjectId))
+        getComponentInformation(resourceId).objectIds
+            .map(objectId => informationObjectStore.getInformationObject(objectId))
             .filter(informationObject => informationObject !== undefined)
-            .map(informationObject => ({ id: informationObject.id, objectName: informationObject.objectName }));
+            .forEach(informationObject => objects.set(informationObject.id, { id: informationObject.id, objectName: informationObject.objectName }));
+
+        return [...objects.values()];
+    }
+
+    // The information an endpoint uses that cannot reach it: the resource neither creates it (an output)
+    // nor takes it in (an input), and none of its scripts or files has it. Shown as an error
+    function getMissingInformation(endpoint: Endpoint) {
+        const heldFieldIds = new Set(getHeldFields(endpoint.resourceId).map(field => field.id));
+        const heldObjectIds = new Set(getHeldObjects(endpoint.resourceId).map(informationObject => informationObject.id));
+
+        return {
+            fields: endpoint.informationFieldIds
+                .filter(fieldId => !heldFieldIds.has(fieldId))
+                .map(fieldId => ({ id: fieldId, fieldName: informationFieldStore.getInformationField(fieldId)?.fieldName ?? 'Unknown field' })),
+            objects: endpoint.informationObjectIds
+                .filter(objectId => !heldObjectIds.has(objectId))
+                .map(objectId => ({ id: objectId, objectName: informationObjectStore.getInformationObject(objectId)?.objectName ?? 'Unknown object' }))
+        };
     }
 
     // Whether the field is used in an endpoint of the resource, directly or inside an object
@@ -113,5 +169,5 @@ export function useEndpointInformationService() {
         );
     }
 
-    return { getHeldFields, getHeldObjects, isFieldInEndpoint, isObjectInEndpoint };
+    return { getHeldFields, getHeldObjects, getMissingInformation, isFieldInEndpoint, isObjectInEndpoint };
 }

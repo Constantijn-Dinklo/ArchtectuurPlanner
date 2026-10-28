@@ -40,6 +40,16 @@
         return heldObjects.value.filter(informationObject => endpoint.informationObjectIds.includes(informationObject.id));
     }
 
+    // Information the endpoint uses that the resource neither creates nor takes in
+    function getMissing(endpoint: Endpoint) {
+        return endpointInformationService.getMissingInformation(endpoint);
+    }
+
+    function getMissingCount(endpoint: Endpoint) {
+        const missing = getMissing(endpoint);
+        return missing.fields.length + missing.objects.length;
+    }
+
     async function addEndpoint() {
         const name = newEndpointName.value.trim();
         if (!name) return;
@@ -133,13 +143,55 @@
             </div>
 
             <div
-                v-if="!getEndpointObjects(endpoint).length && !getEndpointFields(endpoint).length"
+                v-if="getMissingCount(endpoint)"
+                class="endpoint-error"
+            >
+                <i class="pi pi-times-circle" />
+                {{ getMissingCount(endpoint) === 1 ? 'One piece of information has' : `${getMissingCount(endpoint)} pieces of information have` }}
+                no way of getting here: it is not created in this resource and there is no input for it.
+                Add it as an input or output, or remove it from the endpoint.
+            </div>
+
+            <div
+                v-if="!getEndpointObjects(endpoint).length && !getEndpointFields(endpoint).length && !getMissingCount(endpoint)"
                 class="detail-empty"
             >
                 No information used here yet
             </div>
 
             <div class="endpoint-chips">
+                <span
+                    v-for="informationObject in getMissing(endpoint).objects"
+                    :key="`missing:${informationObject.id}`"
+                    class="endpoint-chip object missing"
+                    title="Not created in this resource and no input for it"
+                >
+                    ✕ ▱ {{ informationObject.objectName }}
+                    <button
+                        type="button"
+                        title="Remove from this endpoint"
+                        @click="endpointStore.removeInformationObject(endpoint.id, informationObject.id)"
+                    >
+                        ×
+                    </button>
+                </span>
+
+                <span
+                    v-for="field in getMissing(endpoint).fields"
+                    :key="`missing:${field.id}`"
+                    class="endpoint-chip missing"
+                    title="Not created in this resource and no input for it"
+                >
+                    ✕ {{ field.fieldName }}
+                    <button
+                        type="button"
+                        title="Remove from this endpoint"
+                        @click="endpointStore.removeInformationField(endpoint.id, field.id)"
+                    >
+                        ×
+                    </button>
+                </span>
+
                 <span
                     v-for="informationObject in getEndpointObjects(endpoint)"
                     :key="informationObject.id"
@@ -332,6 +384,34 @@
     border-color: #c7d2fe;
     background: #eef2ff;
     color: #3730a3;
+}
+
+/* Information that has no way of getting to the resource */
+.endpoint-chip.missing {
+    border-color: #fca5a5;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.endpoint-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    margin-bottom: 6px;
+    padding: 5px 7px;
+
+    border: 1px solid #fca5a5;
+    border-radius: 6px;
+    background: #fef2f2;
+
+    color: #b91c1c;
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.endpoint-error .pi {
+    margin-top: 1px;
+    font-size: 11px;
 }
 
 .endpoint-chip button {
