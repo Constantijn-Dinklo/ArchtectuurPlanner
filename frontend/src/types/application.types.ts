@@ -1,3 +1,4 @@
+import type { CanvasComponentRow } from './component.types';
 import type { Node } from '@vue-flow/core';
 
 import type { InformationFieldReference, ResolvedInformationFieldReference } from "./informationField.type";
@@ -71,6 +72,9 @@ export interface ApplicationNodeData {
 
     // Only at the detail level of detail: the endpoints of the application
     endpoints?: ApplicationNodeEndpoint[];
+
+    // From the database level on: the scripts that run in the application
+    components?: CanvasComponentRow[];
 }
 
 export interface ApplicationNodeEndpoint {

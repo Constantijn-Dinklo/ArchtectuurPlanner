@@ -7,6 +7,10 @@ export const COMPONENT_KINDS = ['script', 'file'] as const;
 export type ComponentKind = typeof COMPONENT_KINDS[number];
 
 export const FILE_TYPES = ['excel', 'csv', 'word', 'pdf', 'other'] as const;
+
+// Where information sits in a component: a script takes it in (input) and produces it (output), a file contains it
+export const INFORMATION_SLOTS = ['input', 'output', 'contains'] as const;
+export type InformationSlot = typeof INFORMATION_SLOTS[number];
 export type FileType = typeof FILE_TYPES[number];
 
 // One side of what a script reads from or writes to: a resource (a table is a resource as well),
@@ -44,7 +48,13 @@ export interface IComponent extends Document {
     inputs: IComponentEnd[];
     outputs: IComponentEnd[];
 
-    // Script: the information it carries from its inputs to its outputs.
+    // Script: the information it takes in from what it reads, and the information it produces for what it writes.
+    // What it produces is what it carries to the resources it writes to
+    inputInformationFieldIds: Types.ObjectId[];
+    inputInformationObjectIds: Types.ObjectId[];
+    outputInformationFieldIds: Types.ObjectId[];
+    outputInformationObjectIds: Types.ObjectId[];
+
     // File: the information the file contains
     informationFieldIds: Types.ObjectId[];
     informationObjectIds: Types.ObjectId[];
@@ -89,6 +99,26 @@ const ComponentSchema = new Schema<IComponent>({
     },
     outputs: {
         type: [ComponentEndSchema],
+        default: []
+    },
+    inputInformationFieldIds: {
+        type: [Schema.Types.ObjectId],
+        ref: 'InformationField',
+        default: []
+    },
+    inputInformationObjectIds: {
+        type: [Schema.Types.ObjectId],
+        ref: 'InformationObject',
+        default: []
+    },
+    outputInformationFieldIds: {
+        type: [Schema.Types.ObjectId],
+        ref: 'InformationField',
+        default: []
+    },
+    outputInformationObjectIds: {
+        type: [Schema.Types.ObjectId],
+        ref: 'InformationObject',
         default: []
     },
     informationFieldIds: {

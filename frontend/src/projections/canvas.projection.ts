@@ -25,7 +25,7 @@ import { useResourceResolver } from "../resolvers/resource.resolver";
 import type { ApplicationNode, ResolvedApplication } from "../types/application.types";
 import type { ResolvedExternal } from "../types/external.types";
 import { useComponentStore } from "../stores/resources/component.store";
-import { getComponentIcon, type ComponentEnd } from "../types/component.types";
+import { getComponentHandleId, getComponentIcon, getInformationSlotIds, type CanvasComponentInformation, type CanvasComponentLink, type CanvasComponentRow, type Component, type ComponentEnd, type InformationSlot } from "../types/component.types";
 
 
 
@@ -53,6 +53,12 @@ interface DatabaseLayout {
     height: number;
 }
 
+
+// Where an edge starts or ends: a node, and for a component the handle of its row inside that node
+interface CanvasAnchor {
+    nodeId: string;
+    handleId?: string;
+}
 
 // At the application level of detail the resource nodes only show their name, all as cards of the same size
 const OVERVIEW_NODE_STYLE = {
@@ -100,23 +106,24 @@ export function useCanvasProjection() {
 
         function createEdge(
             id: string,
-            source: string,
-            target: string,
+            source: CanvasAnchor,
+            target: CanvasAnchor,
             sourceResourceId: string,
             targetResourceId: string
         ): CanvasEdge {
             return {
                 id,
                 type: 'connection',
-                source,
-                target,
+                source: source.nodeId,
+                target: target.nodeId,
+                sourceHandle: source.handleId,
+                targetHandle: target.handleId,
                 data: {
                     apiIds: [],
                     databaseConnectionIds: [],
                     scriptIds: [],
                     otherConnectionIds: [],
                     componentScriptIds: [],
-                    partOf: false,
                     otherConnectionMethods: [],
                     sourceResourceId,
                     targetResourceId,
@@ -130,15 +137,22 @@ export function useCanvasProjection() {
         function getOrCreateEdge(sourceResourceId: string, targetResourceId: string): CanvasEdge | undefined {
             const sourceViewNodeId = entityIdToNodeMap.value.get(sourceResourceId)?.id;
             const targetViewNodeId = entityIdToNodeMap.value.get(targetResourceId)?.id;
+            const source = getAnchor(sourceResourceId, 'out');
+            const target = getAnchor(targetResourceId, 'in');
 
-            if (!sourceViewNodeId || !targetViewNodeId) return;
+            if (!sourceViewNodeId || !targetViewNodeId || !source || !target) return;
+            // A script that reads from or writes to its own resource (or a file next to it) stays inside the node:
+            // it is listed in the opened row instead of drawn as a loop
+            if (source.nodeId === target.nodeId) return;
 
+            // The id is made of the view nodes of what is connected (for a component its own view node, even though
+            // the edge is drawn to the node of its resource), so selecting the edge finds both ends again
             const edgeId = `${sourceViewNodeId}-${targetViewNodeId}`;
 
             let edge = edges.get(edgeId);
 
             if (!edge) {
-                edge = createEdge(edgeId, sourceViewNodeId, targetViewNodeId, sourceResourceId, targetResourceId);
+                edge = createEdge(edgeId, source, target, sourceResourceId, targetResourceId);
                 edges.set(edgeId, edge);
             }
             return edge;
@@ -211,41 +225,20 @@ export function useCanvasProjection() {
             })
         }
 
-        // Components (scripts and files inside a resource). From the database level on they are nodes of their own:
-        // a script gets an edge from everything it reads and to everything it writes (input -> script -> output),
-        // and every component is tied to the resource it is part of. At the application level they are hidden,
-        // so a script becomes an edge from each input to each output
+        // Script components. From the database level on a component is a row inside its resource with handles of its
+        // own: a script gets an edge from everything it reads and to everything it writes (input -> script -> output).
+        // At the application level the rows are hidden, so the edges go to and from the resource the script runs in:
+        // the script depends on its resource (input -> resource -> output)
         const componentsVisible = isResourceTypeVisible(UIStore.levelOfDetail, 'component');
         for(const component of componentStore.components) {
-            if(componentsVisible) {
-                const parentViewNodeId = entityIdToNodeMap.value.get(component.resourceId)?.id;
-                const componentViewNodeId = entityIdToNodeMap.value.get(component.id)?.id;
-                if(parentViewNodeId && componentViewNodeId) {
-                    const edgeId = `partof-${parentViewNodeId}-${componentViewNodeId}`;
-                    const edge = createEdge(edgeId, parentViewNodeId, componentViewNodeId, component.resourceId, component.id);
-                    edge.data.partOf = true;
-                    edges.set(edgeId, edge);
-                }
-            }
-
             if(component.kind !== 'script') continue;
 
-            if(componentsVisible) {
-                for(const input of component.inputs) {
-                    addConnection(getVisibleEndId(input), component.id, component.id, 'componentScriptIds');
-                }
-                for(const output of component.outputs) {
-                    addConnection(component.id, getVisibleEndId(output), component.id, 'componentScriptIds');
-                }
+            const scriptEndId = componentsVisible ? component.id : component.resourceId;
+            for(const input of component.inputs) {
+                addConnection(getVisibleEndId(input), scriptEndId, component.id, 'componentScriptIds');
             }
-            else {
-                for(const input of component.inputs) {
-                    for(const output of component.outputs) {
-                        const sourceId = getVisibleEndId(input);
-                        const targetId = getVisibleEndId(output);
-                        if(sourceId !== targetId) addConnection(sourceId, targetId, component.id, 'componentScriptIds');
-                    }
-                }
+            for(const output of component.outputs) {
+                addConnection(scriptEndId, getVisibleEndId(output), component.id, 'componentScriptIds');
             }
         }
 
@@ -261,7 +254,7 @@ export function useCanvasProjection() {
         // The arrow head gets the same color as the edge line in ConnectionEdge.vue
         return Array.from(edges.values())
             .filter((edge) => visibleViewNodeIds.has(edge.source) && visibleViewNodeIds.has(edge.target))
-            .map((edge) => edge.data.partOf ? edge : ({
+            .map((edge) => ({
             ...edge,
             markerEnd: {
                 type: MarkerType.ArrowClosed,
@@ -274,7 +267,10 @@ export function useCanvasProjection() {
 
     function getVisibleNodes(levelOfDetail: LevelOfDetail, viewNodes: ViewNode[]): ViewNode[]{
         const visibleResourceTypes = getVisibleResourceTypes(levelOfDetail);
-        const visibleNodes = viewNodes.filter((viewNode) => visibleResourceTypes.includes(viewNode.entityType));
+        // Components are rows inside the node of their resource, not nodes of their own
+        const visibleNodes = viewNodes.filter((viewNode) =>
+            viewNode.entityType !== 'component' && visibleResourceTypes.includes(viewNode.entityType)
+        );
         return visibleNodes;
     }
 
@@ -291,38 +287,111 @@ export function useCanvasProjection() {
         return end.resourceId;
     }
 
-    // A component is a small node next to the resource it is part of
-    function projectComponentNode(viewNode: ViewNode): CanvasNode | undefined {
-        const component = componentStore.getComponent(viewNode.entityId);
-        if(!component) return;
+    // Where an end of an edge is drawn: the node of a resource, or for a component the row inside the node of its
+    // resource, with the handle on the side the edge comes in or goes out
+    function getAnchor(entityId: string, side: 'in' | 'out'): CanvasAnchor | undefined {
+        const component = componentStore.getComponent(entityId);
+        if(component) {
+            const hostViewNodeId = entityIdToNodeMap.value.get(component.resourceId)?.id;
+            return hostViewNodeId ? { nodeId: hostViewNodeId, handleId: getComponentHandleId(component.id, side) } : undefined;
+        }
+        const viewNodeId = entityIdToNodeMap.value.get(entityId)?.id;
+        return viewNodeId ? { nodeId: viewNodeId } : undefined;
+    }
 
-        const host = resourceService.getResource(component.resourceId);
-        const informationCount = component.informationFieldIds.length + component.informationObjectIds.length;
+    const RESOURCE_ICONS: Record<string, string> = {
+        application: 'pi pi-desktop',
+        database: 'pi pi-database',
+        table: 'pi pi-table',
+        fileLocation: 'pi pi-folder',
+        external: 'pi pi-globe',
+        server: 'pi pi-server'
+    };
 
+    // What a script reads from or writes to, as a line in its opened row
+    function getEndLink(end: ComponentEnd): CanvasComponentLink {
+        const resource = resourceService.getResource(end.resourceId);
+        if(end.componentId) {
+            const component = componentStore.getComponent(end.componentId);
+            return {
+                key: `component:${end.componentId}`,
+                name: `${component?.name ?? 'Unknown'}${resource ? ` (${resource.name})` : ''}`,
+                icon: component ? getComponentIcon(component) : 'pi pi-file'
+            };
+        }
+        const databaseName = resource?.type === 'table' ? resourceService.getResource(resource.databaseId)?.name : undefined;
         return {
-            id: viewNode.id,
-            type: 'component',
-            position: viewNode.position,
-            style: { width: '160px' },
-            class: 'component',
-            data: {
-                label: component.name,
-                resourceId: component.id,
-                kind: component.kind,
-                icon: getComponentIcon(component),
-                hostName: host?.name ?? '',
-                readsCount: component.inputs.length,
-                writesCount: component.outputs.length,
-                informationCount
-            }
-        } as CanvasNode;
+            key: `resource:${end.resourceId}`,
+            name: `${databaseName ? `${databaseName}.` : ''}${resource?.name ?? 'Unknown'}`,
+            icon: RESOURCE_ICONS[resource?.type ?? ''] ?? 'pi pi-box'
+        };
+    }
+
+    function getScriptLink(script: Component): CanvasComponentLink {
+        const host = resourceService.getResource(script.resourceId);
+        return {
+            key: `component:${script.id}`,
+            name: `${script.name}${host ? ` (${host.name})` : ''}`,
+            icon: getComponentIcon(script)
+        };
+    }
+
+    // The information in one slot of a component (the inputs or outputs of a script), with the fields of each object
+    function getRowInformation(component: Component, slot: InformationSlot): CanvasComponentInformation {
+        const { informationFieldIds, informationObjectIds } = getInformationSlotIds(component, slot);
+        return {
+            objects: informationObjectIds
+                .map((objectId) => informationObjectStore.getInformationObject(objectId))
+                .filter((informationObject) => informationObject !== undefined)
+                .map((informationObject) => ({
+                    id: informationObject.id,
+                    name: informationObject.objectName,
+                    fieldNames: informationObject.informationFieldIds
+                        .map((fieldId) => informationFieldStore.getInformationField(fieldId)?.fieldName)
+                        .filter((name) => name !== undefined)
+                })),
+            fieldNames: informationFieldIds
+                .map((fieldId) => informationFieldStore.getInformationField(fieldId)?.fieldName)
+                .filter((name) => name !== undefined)
+        };
+    }
+
+    // The components of a resource as rows inside its node; only from the level of detail where components are shown
+    function projectComponentRows(resourceId: string): CanvasComponentRow[] | undefined {
+        if(!isResourceTypeVisible(UIStore.levelOfDetail, 'component')) return;
+
+        return componentStore.getResourceComponents(resourceId)
+            .slice()
+            .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name))
+            .map((component) => {
+                // A file is written by the scripts that have it as output, and read by the scripts that have it as input
+                const writers = componentStore.components.filter((script) =>
+                    script.kind === 'script' && script.outputs.some((end) => end.componentId === component.id));
+                const readers = componentStore.components.filter((script) =>
+                    script.kind === 'script' && script.inputs.some((end) => end.componentId === component.id));
+
+                return {
+                    id: component.id,
+                    viewNodeId: entityIdToNodeMap.value.get(component.id)?.id,
+                    kind: component.kind,
+                    name: component.name,
+                    icon: getComponentIcon(component),
+                    searchMatch: componentMatchesSearch(component),
+                    inputs: component.kind === 'script' ? getRowInformation(component, 'input') : undefined,
+                    outputs: component.kind === 'script' ? getRowInformation(component, 'output') : undefined,
+                    incoming: component.kind === 'script' ? component.inputs.map(getEndLink) : writers.map(getScriptLink),
+                    outgoing: component.kind === 'script' ? component.outputs.map(getEndLink) : readers.map(getScriptLink),
+                    objectNames: component.informationObjectIds
+                        .map((objectId) => informationObjectStore.getInformationObject(objectId)?.objectName)
+                        .filter((name) => name !== undefined),
+                    fieldNames: component.informationFieldIds
+                        .map((fieldId) => informationFieldStore.getInformationField(fieldId)?.fieldName)
+                        .filter((name) => name !== undefined)
+                };
+            });
     }
 
     function resolveViewNode(viewNode: ViewNode): CanvasNode | undefined {
-        if(viewNode.entityType === 'component') {
-            return projectComponentNode(viewNode);
-        }
-
         const resource = resourceService.getResource(viewNode.entityId);
         if(!resource) { return; }
         const parent = getResourceParent(resource);
@@ -432,11 +501,31 @@ export function useCanvasProjection() {
         return layouts;
     });
 
-    // Nodes that contain the searched InformationField and/or InformationObject are highlighted, all others are dimmed
-    function getSearchClass(resource: ResolvedResource): string {
+    // Whether the names match the searched InformationField and/or InformationObject; undefined when nothing is searched
+    function matchesSearch(fieldNames: string[], objectNames: string[]): boolean | undefined {
         const fieldSearch = UIStore.informationFieldSearch.trim().toLowerCase();
         const objectSearch = UIStore.informationObjectSearch.trim().toLowerCase();
-        if(!fieldSearch && !objectSearch) { return ''; }
+        if(!fieldSearch && !objectSearch) { return undefined; }
+
+        const matchesField = !fieldSearch || fieldNames.some((name) => name.toLowerCase().includes(fieldSearch));
+        const matchesObject = !objectSearch || objectNames.some((name) => name.toLowerCase().includes(objectSearch));
+        return matchesField && matchesObject;
+    }
+
+    // A component matches on everything it holds: the inputs and outputs of a script, the contents of a file
+    function componentMatchesSearch(component: Component): boolean | undefined {
+        const slots: InformationSlot[] = component.kind === 'script' ? ['input', 'output'] : ['contains'];
+        const information = slots.map((slot) => getRowInformation(component, slot));
+        return matchesSearch(
+            information.flatMap((slot) => [...slot.fieldNames, ...slot.objects.flatMap((informationObject) => informationObject.fieldNames)]),
+            information.flatMap((slot) => slot.objects.map((informationObject) => informationObject.name))
+        );
+    }
+
+    // Nodes that contain the searched InformationField and/or InformationObject are highlighted, all others are dimmed.
+    // A resource also matches when one of its components (a script, a file) uses the searched information
+    function getSearchClass(resource: ResolvedResource): string {
+        if(matchesSearch([], []) === undefined) { return ''; }
 
         let fieldNames: string[] = [];
         let objectNames: string[] = [];
@@ -470,10 +559,10 @@ export function useCanvasProjection() {
             ];
         }
 
-        const matchesField = !fieldSearch || fieldNames.some((name) => name.toLowerCase().includes(fieldSearch));
-        const matchesObject = !objectSearch || objectNames.some((name) => name.toLowerCase().includes(objectSearch));
+        const componentMatches = componentStore.getResourceComponents(resource.id)
+            .some((component) => componentMatchesSearch(component));
 
-        return matchesField && matchesObject ? ' search-match' : ' search-dimmed';
+        return matchesSearch(fieldNames, objectNames) || componentMatches ? ' search-match' : ' search-dimmed';
     }
 
     function getResourceParent(resource: Resource): ViewNode | undefined {
@@ -557,6 +646,7 @@ export function useCanvasProjection() {
                 inputInformationObjects,
                 outputInformationObjects,
                 endpoints,
+                components: projectComponentRows(application.id)
             }
         }
     }
@@ -628,7 +718,8 @@ export function useCanvasProjection() {
                 label: fileLocation.name,
                 resourceId: fileLocation.id,
                 // At the database level the node has a banner like the application node
-                expanded: UIStore.levelOfDetail !== 'application'
+                expanded: UIStore.levelOfDetail !== 'application',
+                components: projectComponentRows(fileLocation.id)
             }
         }
     }

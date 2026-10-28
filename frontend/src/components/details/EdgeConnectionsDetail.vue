@@ -135,7 +135,7 @@
         }
         if (connection.type === 'component') {
             const script = componentStore.getComponent(connection.id);
-            return !!script && (script.informationFieldIds.length + script.informationObjectIds.length) > 0;
+            return !!script && (script.outputInformationFieldIds.length + script.outputInformationObjectIds.length) > 0;
         }
         if (connection.type === 'other') {
             const other = getOtherConnection(connection.id);
@@ -261,18 +261,18 @@
                     />
                 </template>
 
-                <!-- Script components list what they carry themselves; it is edited in the script's details -->
+                <!-- Script components carry what they produce (their outputs); it is edited in the script's details -->
                 <template v-else-if="connection.type === 'component'">
                     <div class="passed-along">
                         <span
-                            v-for="objectId in componentStore.getComponent(connection.id)?.informationObjectIds ?? []"
+                            v-for="objectId in componentStore.getComponent(connection.id)?.outputInformationObjectIds ?? []"
                             :key="`object:${objectId}`"
                             class="passed-chip object"
                         >
                             ▱ {{ informationObjectStore.getInformationObject(objectId)?.objectName ?? 'Unknown object' }}
                         </span>
                         <span
-                            v-for="fieldId in componentStore.getComponent(connection.id)?.informationFieldIds ?? []"
+                            v-for="fieldId in componentStore.getComponent(connection.id)?.outputInformationFieldIds ?? []"
                             :key="`field:${fieldId}`"
                             class="passed-chip"
                         >
@@ -281,7 +281,7 @@
                         <span v-if="!hasInformation(connection)" class="detail-empty">Nothing carried yet</span>
                     </div>
                     <div class="passed-along-hint">
-                        Select the script on the canvas (from the database level on) to change what it reads, writes and carries.
+                        These are the outputs of the script. Open the script (from the database level on) to change what it reads, writes, takes in and produces.
                     </div>
                 </template>
 

@@ -20,6 +20,7 @@
 import { useInformationEndpointService } from '../../services/informationEndpoint.service';
 import { useInformationTransferService } from '../../services/informationTransfer.service';
 import { useResourceService } from '../../services/resources/resource.service';
+import ComponentRows from './ComponentRows.vue';
 
     const props = defineProps<NodeProps<ApplicationNodeData>>();
 
@@ -190,10 +191,15 @@ import { useResourceService } from '../../services/resources/resource.service';
 
 <template>
     <div ref="nodeElement" class="application-node">
-        <!-- Top connection point -->
+        <!-- Top and bottom connection points. They come before the handles of the component rows: an edge without
+             a handle id attaches to the first handle of the node -->
         <Handle
             type="target"
             :position="Position.Top"
+        />
+        <Handle
+            type="source"
+            :position="Position.Bottom"
         />
 
         <header
@@ -396,6 +402,12 @@ import { useResourceService } from '../../services/resources/resource.service';
             </div>
         </div>
 
+        <!-- Components: the scripts that run in the application, from the database level on -->
+        <ComponentRows
+            v-if="props.data.components?.length"
+            :components="props.data.components"
+        />
+
         <!-- Endpoints: only at the detail level of detail -->
         <div
             v-if="props.data.endpoints"
@@ -464,11 +476,6 @@ import { useResourceService } from '../../services/resources/resource.service';
             </div>
         </div>
 
-        <!-- Bottom connection point -->
-        <Handle
-            type="source"
-            :position="Position.Bottom"
-        />
     </div>
 </template>
 

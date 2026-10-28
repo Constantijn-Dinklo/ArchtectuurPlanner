@@ -31,9 +31,6 @@
         scriptCount.value
     );
 
-    // Not a connection: the component at the end is part of the resource at the start
-    const isPartOf = computed(() => props.data?.partOf ?? false);
-
     // An edge without any connection only exists to show that information is sent without a connection
     const hasConnections = computed(() => systemConnectionCount.value + otherCount.value > 0);
 
@@ -45,7 +42,6 @@
     }
 
     const label = computed(() => {
-        if (isPartOf.value) return '';
         const parts: string[] = [];
 
         const apiCount = props.data?.apiIds.length ?? 0;
@@ -70,13 +66,7 @@
         return warningCount.value ? `⚠ ${text} · ${plural(warningCount.value, 'warning', 'warnings')}` : text;
     });
 
-    const edgeStyle = computed(() => isPartOf.value ? {
-        // A thin dotted line, like a tether: it shows where the component belongs, no information flows over it
-        stroke: '#cbd5e1',
-        strokeWidth: 1,
-        strokeDasharray: '2 3',
-        strokeLinecap: 'round' as const
-    } : ({
+    const edgeStyle = computed(() => ({
         stroke: hasError.value ? '#ef4444' : warningCount.value ? '#f59e0b' : props.selected ? '#6366f1' : '#94a3b8',
         strokeWidth: props.selected ? 2 : 1.5,
         // Dashed: other connections (by hand, a send button, ...). Dotted: information flows without any connection

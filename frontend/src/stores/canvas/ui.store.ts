@@ -16,14 +16,27 @@ export const useUIStore = defineStore('UI', () => {
     // The table whose name is being edited on the canvas
     const editingTableId = ref<string>();
 
+    // The components (rows inside an application or file location) that are opened on the canvas
+    const expandedComponentIds = ref<Set<string>>(new Set());
+
     function setLevelOfDetail(LoD: LevelOfDetail){
         levelOfDetail.value = LoD;
     }
-    
+
     function setSelectedEntity(id: string, type: EntityType) {
         selectedEntityId.value = id;
         selectedEntityType.value = type;
     }
 
-    return { levelOfDetail, selectedEntityId, selectedEntityType, informationFieldSearch, informationObjectSearch, editingTableId, setSelectedEntity, setLevelOfDetail }
+    function toggleComponentExpanded(componentId: string) {
+        const expanded = new Set(expandedComponentIds.value);
+        if (expanded.has(componentId)) {
+            expanded.delete(componentId);
+        } else {
+            expanded.add(componentId);
+        }
+        expandedComponentIds.value = expanded;
+    }
+
+    return { levelOfDetail, selectedEntityId, selectedEntityType, informationFieldSearch, informationObjectSearch, editingTableId, expandedComponentIds, setSelectedEntity, setLevelOfDetail, toggleComponentExpanded }
 })

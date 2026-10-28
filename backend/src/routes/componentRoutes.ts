@@ -12,8 +12,14 @@ import {
     removeComponentInformationObject,
     updateComponent
 } from "../services/component.service";
+import { InformationSlot } from "../models/component.model";
 
 const router: Router = express.Router();
+
+// Where the information goes: 'input' or 'output' for a script, 'contains' (or nothing) for a file
+function getSlot(slot: unknown) {
+    return typeof slot === 'string' ? slot as InformationSlot : undefined;
+}
 
 function getSide(side: string) {
     if(side !== 'inputs' && side !== 'outputs') throw new Error("Unknown side, use inputs or outputs");
@@ -75,10 +81,10 @@ router.delete('/:id/:side/:index', async (req: AuthenticatedRequest, res: Respon
     }
 });
 
-// <-- The information a script carries or a file contains -->
+// <-- The information a script takes in and produces, or a file contains -->
 router.post('/:id/information/fields', async (req: AuthenticatedRequest, res: Response) => {
     try {
-        res.status(201).json(await addComponentInformationField(getUser(req), req.params.id as string, req.body.informationField));
+        res.status(201).json(await addComponentInformationField(getUser(req), req.params.id as string, req.body.informationField, getSlot(req.body.slot)));
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
@@ -87,7 +93,7 @@ router.post('/:id/information/fields', async (req: AuthenticatedRequest, res: Re
 
 router.delete('/:id/information/fields/:informationFieldId', async (req: AuthenticatedRequest, res: Response) => {
     try {
-        res.json(await removeComponentInformationField(getUser(req), req.params.id as string, req.params.informationFieldId as string));
+        res.json(await removeComponentInformationField(getUser(req), req.params.id as string, req.params.informationFieldId as string, getSlot(req.query.slot)));
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
@@ -96,7 +102,7 @@ router.delete('/:id/information/fields/:informationFieldId', async (req: Authent
 
 router.post('/:id/information/objects', async (req: AuthenticatedRequest, res: Response) => {
     try {
-        res.status(201).json(await addComponentInformationObject(getUser(req), req.params.id as string, req.body.informationObject));
+        res.status(201).json(await addComponentInformationObject(getUser(req), req.params.id as string, req.body.informationObject, getSlot(req.body.slot)));
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });
@@ -105,7 +111,7 @@ router.post('/:id/information/objects', async (req: AuthenticatedRequest, res: R
 
 router.delete('/:id/information/objects/:informationObjectId', async (req: AuthenticatedRequest, res: Response) => {
     try {
-        res.json(await removeComponentInformationObject(getUser(req), req.params.id as string, req.params.informationObjectId as string));
+        res.json(await removeComponentInformationObject(getUser(req), req.params.id as string, req.params.informationObjectId as string, getSlot(req.query.slot)));
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });

@@ -7,10 +7,10 @@
     import { useInformationObjectStore } from '../../stores/information/informationObject.store';
     import { useResourceService } from '../../services/resources/resource.service';
     import { useSendableInformationService } from '../../services/sendableInformation.service';
-    import { FILE_TYPES, getComponentIcon, type ComponentEnd, type FileType } from '../../types/component.types';
+    import { FILE_TYPES, getComponentIcon, getInformationSlotIds, type ComponentEnd, type FileType, type InformationSlot } from '../../types/component.types';
     import type { ResourceType } from '../../types/resource.type';
 
-    // The details of a component: a script (what it reads, writes and carries) or a file (what it contains)
+    // The details of a component: a script (what it reads and writes, what it takes in and produces) or a file (what it contains)
     const props = defineProps<{
         componentId: string;
     }>();
@@ -78,8 +78,8 @@
         componentStore.addEnd(component.value.id, side, option.end);
     }
 
-    // <-- The information a script carries: what the things it reads from can pass on -->
-    const carriableFields = computed(() => {
+    // <-- The information a script takes in: what the things it reads from can pass on -->
+    const readableFields = computed(() => {
         if (!component.value) return [];
         const fields = new Map<string, { id: string, label: string }>();
         for (const input of component.value.inputs) {
@@ -98,7 +98,7 @@
         return [...fields.values()].sort((a, b) => a.label.localeCompare(b.label));
     });
 
-    const carriableObjects = computed(() => {
+    const readableObjects = computed(() => {
         if (!component.value) return [];
         const objects = new Map<string, { id: string, label: string }>();
         for (const input of component.value.inputs) {
@@ -113,7 +113,7 @@
         return [...objects.values()].sort((a, b) => a.label.localeCompare(b.label));
     });
 
-    // <-- The information a file contains: any existing information, or new information -->
+    // <-- What a script produces and a file contains: any existing information, or new information -->
     const allInformationFields = computed(() =>
         [...informationFieldStore.informationFields.values()]
             .map(field => ({ id: field.id, label: field.fieldName }))
@@ -125,35 +125,92 @@
             .sort((a, b) => a.label.localeCompare(b.label))
     );
 
-    const fieldOptions = computed(() => component.value?.kind === 'script' ? carriableFields.value : allInformationFields.value);
-    const objectOptions = computed(() => component.value?.kind === 'script' ? carriableObjects.value : allInformationObjects.value);
-
-    const informationFields = computed(() =>
-        (component.value?.informationFieldIds ?? [])
-            .map(fieldId => informationFieldStore.getInformationField(fieldId))
-            .filter(field => field !== undefined)
-    );
-    const informationObjects = computed(() =>
-        (component.value?.informationObjectIds ?? [])
-            .map(objectId => informationObjectStore.getInformationObject(objectId))
-            .filter(informationObject => informationObject !== undefined)
-    );
-
-    const newFieldName = ref('');
-    const newObjectName = ref('');
-
-    function addNewField() {
-        const fieldName = newFieldName.value.trim();
-        if (!fieldName || !component.value) return;
-        componentStore.addInformationField(component.value.id, { fieldName });
-        newFieldName.value = '';
+    interface InformationSection {
+        slot: InformationSlot;
+        title: string;
+        empty: string;
+        fieldOptions: { id: string, label: string }[];
+        objectOptions: { id: string, label: string }[];
+        fieldOptionsEmpty: string;
+        objectOptionsEmpty: string;
+        // Whether new information can be made here (a script only takes in what exists where it reads from)
+        allowNew: boolean;
     }
 
-    function addNewObject() {
-        const objectName = newObjectName.value.trim();
+    // A script has inputs and outputs like an application, a file contains information
+    const informationSections = computed<InformationSection[]>(() => component.value?.kind === 'script'
+        ? [
+            {
+                slot: 'input',
+                title: 'Inputs',
+                empty: 'Nothing taken in yet. Add what the script uses from what it reads.',
+                fieldOptions: readableFields.value,
+                objectOptions: readableObjects.value,
+                fieldOptionsEmpty: 'Add what the script reads from first',
+                objectOptionsEmpty: 'What the script reads from has no objects',
+                allowNew: false
+            },
+            {
+                slot: 'output',
+                title: 'Outputs',
+                empty: 'Nothing produced yet. Add what the script delivers to what it writes to.',
+                fieldOptions: allInformationFields.value,
+                objectOptions: allInformationObjects.value,
+                fieldOptionsEmpty: 'No information fields yet',
+                objectOptionsEmpty: 'No information objects yet',
+                allowNew: true
+            }
+        ]
+        : [
+            {
+                slot: 'contains',
+                title: 'Contains',
+                empty: 'Nothing yet. Add the information stored in this file.',
+                fieldOptions: allInformationFields.value,
+                objectOptions: allInformationObjects.value,
+                fieldOptionsEmpty: 'No information fields yet',
+                objectOptionsEmpty: 'No information objects yet',
+                allowNew: true
+            }
+        ]);
+
+    function getSlotFields(slot: InformationSlot) {
+        if (!component.value) return [];
+        return getInformationSlotIds(component.value, slot).informationFieldIds
+            .map(fieldId => informationFieldStore.getInformationField(fieldId))
+            .filter(field => field !== undefined);
+    }
+
+    function getSlotObjects(slot: InformationSlot) {
+        if (!component.value) return [];
+        return getInformationSlotIds(component.value, slot).informationObjectIds
+            .map(objectId => informationObjectStore.getInformationObject(objectId))
+            .filter(informationObject => informationObject !== undefined);
+    }
+
+    function hasSlotField(slot: InformationSlot, fieldId: string) {
+        return !!component.value && getInformationSlotIds(component.value, slot).informationFieldIds.includes(fieldId);
+    }
+
+    function hasSlotObject(slot: InformationSlot, objectId: string) {
+        return !!component.value && getInformationSlotIds(component.value, slot).informationObjectIds.includes(objectId);
+    }
+
+    const newFieldNames = ref<Partial<Record<InformationSlot, string>>>({});
+    const newObjectNames = ref<Partial<Record<InformationSlot, string>>>({});
+
+    function addNewField(slot: InformationSlot) {
+        const fieldName = newFieldNames.value[slot]?.trim();
+        if (!fieldName || !component.value) return;
+        componentStore.addInformationField(component.value.id, slot, { fieldName });
+        newFieldNames.value[slot] = '';
+    }
+
+    function addNewObject(slot: InformationSlot) {
+        const objectName = newObjectNames.value[slot]?.trim();
         if (!objectName || !component.value) return;
-        componentStore.addInformationObject(component.value.id, { objectName });
-        newObjectName.value = '';
+        componentStore.addInformationObject(component.value.id, slot, { objectName });
+        newObjectNames.value[slot] = '';
     }
 
     // The scripts that read from or write to this file
@@ -294,70 +351,85 @@
             </section>
         </template>
 
-        <!-- The information the script carries, or the file contains -->
-        <section v-collapsible class="detail-section">
+        <!-- The information the script takes in and produces, or the file contains -->
+        <section
+            v-for="section in informationSections"
+            :key="section.slot"
+            v-collapsible
+            class="detail-section"
+        >
             <div class="detail-section-title">
-                <span>{{ component.kind === 'script' ? 'Carries' : 'Contains' }}</span>
-                <span class="detail-count">{{ informationObjects.length + informationFields.length }}</span>
+                <span>{{ section.title }}</span>
+                <span class="detail-count">{{ getSlotObjects(section.slot).length + getSlotFields(section.slot).length }}</span>
             </div>
 
-            <div v-if="!informationObjects.length && !informationFields.length" class="detail-empty">
-                {{ component.kind === 'script'
-                    ? 'Nothing carried yet. Add what the script moves from what it reads to what it writes.'
-                    : 'Nothing yet. Add the information stored in this file.' }}
+            <div v-if="!getSlotObjects(section.slot).length && !getSlotFields(section.slot).length" class="detail-empty">
+                {{ section.empty }}
             </div>
 
             <div class="information-chips">
-                <span v-for="informationObject in informationObjects" :key="informationObject.id" class="information-chip object">
+                <span v-for="informationObject in getSlotObjects(section.slot)" :key="informationObject.id" class="information-chip object">
                     ▱ {{ informationObject.objectName }}
-                    <button type="button" title="Remove" @click="componentStore.removeInformationObject(component.id, informationObject.id)">×</button>
+                    <button type="button" title="Remove" @click="componentStore.removeInformationObject(component.id, section.slot, informationObject.id)">×</button>
                 </span>
-                <span v-for="field in informationFields" :key="field.id" class="information-chip">
+                <span v-for="field in getSlotFields(section.slot)" :key="field.id" class="information-chip">
                     {{ field.fieldName }}
-                    <button type="button" title="Remove" @click="componentStore.removeInformationField(component.id, field.id)">×</button>
+                    <button type="button" title="Remove" @click="componentStore.removeInformationField(component.id, section.slot, field.id)">×</button>
                 </span>
             </div>
 
             <div class="information-pickers">
                 <Select
                     :model-value="undefined"
-                    :options="objectOptions"
+                    :options="section.objectOptions"
                     option-label="label"
-                    :option-disabled="(option: { id: string }) => component!.informationObjectIds.includes(option.id)"
+                    :option-disabled="(option: { id: string }) => hasSlotObject(section.slot, option.id)"
                     placeholder="+ Object"
                     filter
                     filter-placeholder="Search object"
-                    :empty-message="component.kind === 'script' ? 'What the script reads from has no objects' : 'No information objects yet'"
+                    :empty-message="section.objectOptionsEmpty"
                     size="small"
                     class="detail-prime-select"
-                    @change="event => event.value && componentStore.addInformationObject(component!.id, { informationObjectId: event.value.id })"
+                    @change="event => event.value && componentStore.addInformationObject(component!.id, section.slot, { informationObjectId: event.value.id })"
                 />
                 <Select
                     :model-value="undefined"
-                    :options="fieldOptions"
+                    :options="section.fieldOptions"
                     option-label="label"
-                    :option-disabled="(option: { id: string }) => component!.informationFieldIds.includes(option.id)"
+                    :option-disabled="(option: { id: string }) => hasSlotField(section.slot, option.id)"
                     placeholder="+ Field"
                     filter
                     filter-placeholder="Search field"
-                    :empty-message="component.kind === 'script' ? 'Add what the script reads from first' : 'No information fields yet'"
+                    :empty-message="section.fieldOptionsEmpty"
                     size="small"
                     class="detail-prime-select"
-                    @change="event => event.value && componentStore.addInformationField(component!.id, { informationFieldId: event.value.id })"
+                    @change="event => event.value && componentStore.addInformationField(component!.id, section.slot, { informationFieldId: event.value.id })"
                 />
             </div>
 
-            <!-- A file can also contain new information -->
-            <template v-if="component.kind === 'file'">
+            <!-- Outputs of a script and the contents of a file can also be new information -->
+            <template v-if="section.allowNew">
                 <div class="detail-add-row">
-                    <input v-model="newObjectName" type="text" class="detail-input" placeholder="+ New information object" @keyup.enter="addNewObject" />
-                    <button type="button" class="detail-add-button" :disabled="!newObjectName.trim()" @click="addNewObject">
+                    <input
+                        v-model="newObjectNames[section.slot]"
+                        type="text"
+                        class="detail-input"
+                        placeholder="+ New information object"
+                        @keyup.enter="addNewObject(section.slot)"
+                    />
+                    <button type="button" class="detail-add-button" :disabled="!newObjectNames[section.slot]?.trim()" @click="addNewObject(section.slot)">
                         <i class="pi pi-plus" />
                     </button>
                 </div>
                 <div class="detail-add-row">
-                    <input v-model="newFieldName" type="text" class="detail-input" placeholder="+ New information field" @keyup.enter="addNewField" />
-                    <button type="button" class="detail-add-button" :disabled="!newFieldName.trim()" @click="addNewField">
+                    <input
+                        v-model="newFieldNames[section.slot]"
+                        type="text"
+                        class="detail-input"
+                        placeholder="+ New information field"
+                        @keyup.enter="addNewField(section.slot)"
+                    />
+                    <button type="button" class="detail-add-button" :disabled="!newFieldNames[section.slot]?.trim()" @click="addNewField(section.slot)">
                         <i class="pi pi-plus" />
                     </button>
                 </div>

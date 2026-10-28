@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 import { UserJwtPayload } from "../middelware";
-import Component, { COMPONENT_KINDS, ComponentKind, FILE_TYPES, IComponent } from "../models/component.model";
+import Component, { COMPONENT_KINDS, ComponentKind, FILE_TYPES, IComponent, INFORMATION_SLOTS, InformationSlot } from "../models/component.model";
 import ViewNode from "../models/canvas/viewNode.model";
 import Application from "../models/resources/application.model";
 import FileLocation from "../models/resources/fileLocation.model";
@@ -19,13 +19,23 @@ const ALLOWED_KINDS: Record<'application' | 'fileLocation', ComponentKind[]> = {
 // The information fields and objects components refer to, so the frontend can resolve them
 async function getReferencedInformation(user: UserJwtPayload, components: IComponent[]) {
     const informationObjects = await InformationObject.find({
-        _id: { $in: components.flatMap((component) => component.informationObjectIds) },
+        _id: {
+            $in: components.flatMap((component) => [
+                ...component.informationObjectIds,
+                ...component.inputInformationObjectIds,
+                ...component.outputInformationObjectIds
+            ])
+        },
         environmentId: user.environmentId
     });
     const informationFields = await InformationField.find({
         _id: {
             $in: [
-                ...components.flatMap((component) => component.informationFieldIds),
+                ...components.flatMap((component) => [
+                    ...component.informationFieldIds,
+                    ...component.inputInformationFieldIds,
+                    ...component.outputInformationFieldIds
+                ]),
                 ...informationObjects.flatMap((object) => object.informationFieldIds)
             ]
         },
@@ -154,9 +164,22 @@ export async function removeComponentEnd(user: UserJwtPayload, componentId: stri
     return withReferencedInformation(user, component);
 }
 
-// <-- The information a script carries or a file contains -->
+// <-- The information a script takes in and produces, or a file contains -->
 
-export async function addComponentInformationField(user: UserJwtPayload, componentId: string, information: { fieldName: string } | { informationFieldId: string }) {
+// The list a piece of information goes in. A script has inputs and outputs, a file only contains information
+async function getInformationList(user: UserJwtPayload, componentId: string, slot: InformationSlot | undefined, type: 'Field' | 'Object') {
+    const component = await getComponent(user, componentId);
+    const usedSlot = slot ?? (component.kind === 'file' ? 'contains' : undefined);
+    if(!usedSlot || !INFORMATION_SLOTS.includes(usedSlot)) throw new Error("Say whether the information is an input or an output");
+    if(component.kind === 'file' && usedSlot !== 'contains') throw new Error("A file only contains information");
+    if(component.kind === 'script' && usedSlot === 'contains') throw new Error("A script has input and output information");
+
+    if(usedSlot === 'contains') return `information${type}Ids` as const;
+    return `${usedSlot}Information${type}Ids` as const;
+}
+
+export async function addComponentInformationField(user: UserJwtPayload, componentId: string, information: { fieldName: string } | { informationFieldId: string }, slot?: InformationSlot) {
+    const list = await getInformationList(user, componentId, slot, 'Field');
     let informationFieldId;
     if("fieldName" in information) {
         if(!information.fieldName?.trim()) throw new Error("A field needs a name");
@@ -168,22 +191,24 @@ export async function addComponentInformationField(user: UserJwtPayload, compone
 
     const component = await Component.findOneAndUpdate(
         { _id: componentId, environmentId: user.environmentId },
-        { $addToSet: { informationFieldIds: informationFieldId } },
+        { $addToSet: { [list]: informationFieldId } },
         { returnDocument: 'after' }
     );
     return withReferencedInformation(user, component);
 }
 
-export async function removeComponentInformationField(user: UserJwtPayload, componentId: string, informationFieldId: string) {
+export async function removeComponentInformationField(user: UserJwtPayload, componentId: string, informationFieldId: string, slot?: InformationSlot) {
+    const list = await getInformationList(user, componentId, slot, 'Field');
     const component = await Component.findOneAndUpdate(
         { _id: componentId, environmentId: user.environmentId },
-        { $pull: { informationFieldIds: informationFieldId } },
+        { $pull: { [list]: informationFieldId } },
         { returnDocument: 'after' }
     );
     return withReferencedInformation(user, component);
 }
 
-export async function addComponentInformationObject(user: UserJwtPayload, componentId: string, information: { objectName: string } | { informationObjectId: string }) {
+export async function addComponentInformationObject(user: UserJwtPayload, componentId: string, information: { objectName: string } | { informationObjectId: string }, slot?: InformationSlot) {
+    const list = await getInformationList(user, componentId, slot, 'Object');
     let informationObjectId;
     if("objectName" in information) {
         if(!information.objectName?.trim()) throw new Error("An object needs a name");
@@ -195,16 +220,17 @@ export async function addComponentInformationObject(user: UserJwtPayload, compon
 
     const component = await Component.findOneAndUpdate(
         { _id: componentId, environmentId: user.environmentId },
-        { $addToSet: { informationObjectIds: informationObjectId } },
+        { $addToSet: { [list]: informationObjectId } },
         { returnDocument: 'after' }
     );
     return withReferencedInformation(user, component);
 }
 
-export async function removeComponentInformationObject(user: UserJwtPayload, componentId: string, informationObjectId: string) {
+export async function removeComponentInformationObject(user: UserJwtPayload, componentId: string, informationObjectId: string, slot?: InformationSlot) {
+    const list = await getInformationList(user, componentId, slot, 'Object');
     const component = await Component.findOneAndUpdate(
         { _id: componentId, environmentId: user.environmentId },
-        { $pull: { informationObjectIds: informationObjectId } },
+        { $pull: { [list]: informationObjectId } },
         { returnDocument: 'after' }
     );
     return withReferencedInformation(user, component);

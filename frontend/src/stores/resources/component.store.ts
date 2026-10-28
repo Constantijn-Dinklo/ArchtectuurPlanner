@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useToast } from "primevue";
 import api from "../../helpers/axios";
-import type { Component, ComponentEnd, ComponentKind, FileType } from "../../types/component.types";
+import type { Component, ComponentEnd, ComponentKind, FileType, InformationSlot } from "../../types/component.types";
 import type { InformationField } from "../../types/informationField.type";
 import type { InformationObject } from "../../types/informationObject.type";
 import { useInformationFieldStore } from "../information/informationField.store";
@@ -137,20 +137,21 @@ export const useComponentStore = defineStore('component', () => {
         return withErrorToast(() => apply(api.delete(`/components/${id}/${side}/${index}`)));
     }
 
-    function addInformationField(id: string, informationField: { fieldName: string } | { informationFieldId: string }) {
-        return withErrorToast(() => apply(api.post(`/components/${id}/information/fields`, { informationField })));
+    // slot: 'input' or 'output' for a script, 'contains' for a file
+    function addInformationField(id: string, slot: InformationSlot, informationField: { fieldName: string } | { informationFieldId: string }) {
+        return withErrorToast(() => apply(api.post(`/components/${id}/information/fields`, { informationField, slot })));
     }
 
-    function removeInformationField(id: string, informationFieldId: string) {
-        return withErrorToast(() => apply(api.delete(`/components/${id}/information/fields/${informationFieldId}`)));
+    function removeInformationField(id: string, slot: InformationSlot, informationFieldId: string) {
+        return withErrorToast(() => apply(api.delete(`/components/${id}/information/fields/${informationFieldId}`, { params: { slot } })));
     }
 
-    function addInformationObject(id: string, informationObject: { objectName: string } | { informationObjectId: string }) {
-        return withErrorToast(() => apply(api.post(`/components/${id}/information/objects`, { informationObject })));
+    function addInformationObject(id: string, slot: InformationSlot, informationObject: { objectName: string } | { informationObjectId: string }) {
+        return withErrorToast(() => apply(api.post(`/components/${id}/information/objects`, { informationObject, slot })));
     }
 
-    function removeInformationObject(id: string, informationObjectId: string) {
-        return withErrorToast(() => apply(api.delete(`/components/${id}/information/objects/${informationObjectId}`)));
+    function removeInformationObject(id: string, slot: InformationSlot, informationObjectId: string) {
+        return withErrorToast(() => apply(api.delete(`/components/${id}/information/objects/${informationObjectId}`, { params: { slot } })));
     }
 
     return {

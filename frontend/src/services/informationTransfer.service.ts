@@ -7,6 +7,7 @@ import { useApiStore, type Api } from "../stores/api.store";
 import { useOtherConnectionStore } from "../stores/otherConnection.store";
 import { useResourceService } from "./resources/resource.service";
 import { useComponentStore } from "../stores/resources/component.store";
+import { getScriptCarriedInformation } from "../types/component.types";
 import { useScriptStore } from "../stores/script.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 
@@ -66,7 +67,9 @@ export function useInformationTransferService() {
     function getCarriersBetween(sourceId: string, targetId: string): Pick<Api, 'informationFieldIds' | 'informationObjectIds'>[] {
         const otherConnections = otherConnectionStore.otherConnections
             .filter(connection => connection.sourceId === sourceId && connection.targetId === targetId);
-        return [...getUrlsBetween(sourceId, targetId), ...otherConnections, ...componentStore.getScriptsBetween([sourceId], [targetId])];
+        // A script carries what it produces (its outputs)
+        const scripts = componentStore.getScriptsBetween([sourceId], [targetId]).map(getScriptCarriedInformation);
+        return [...getUrlsBetween(sourceId, targetId), ...otherConnections, ...scripts];
     }
 
     function carriesField(carrier: Pick<Api, 'informationFieldIds' | 'informationObjectIds'>, informationFieldId: string) {

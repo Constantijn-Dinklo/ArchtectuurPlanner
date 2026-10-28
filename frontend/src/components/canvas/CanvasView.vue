@@ -17,7 +17,6 @@ import ApplicationNode from "../nodes/ApplicationNode.vue";
 import DatabaseNode from "../nodes/DatabaseNode.vue";
 import ExternalNode from "../nodes/ExternalNode.vue";
 import FileLocationNode from "../nodes/FileLocationNode.vue";
-import ComponentNode from "../nodes/ComponentNode.vue";
 import { useComponentStore } from "../../stores/resources/component.store";
 import ConnectionEdge from "../edges/ConnectionEdge.vue";
 import { useInformationRelationStore } from "../../stores/information/informationRelation.store";
@@ -48,8 +47,7 @@ const nodeTypes = {
   database: markRaw(DatabaseNode),
   table: markRaw(TableNode),
   external: markRaw(ExternalNode),
-  fileLocation: markRaw(FileLocationNode),
-  component: markRaw(ComponentNode)
+  fileLocation: markRaw(FileLocationNode)
 }
 const edgeTypes = {
   connection: markRaw(ConnectionEdge)

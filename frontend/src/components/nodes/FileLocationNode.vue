@@ -2,11 +2,15 @@
     import { computed } from 'vue';
     import { Handle, Position, type NodeProps } from '@vue-flow/core';
     import { useInformationRelationStore } from '../../stores/information/informationRelation.store';
+    import type { CanvasComponentRow } from '../../types/component.types';
+    import ComponentRows from './ComponentRows.vue';
 
     interface FileLocationNodeData {
         label: string;
         resourceId: string;
         expanded: boolean;
+        // From the database level on: the scripts and files in the file location
+        components?: CanvasComponentRow[];
     }
 
     const props = defineProps<NodeProps<FileLocationNodeData>>();
@@ -28,9 +32,14 @@
 <template>
     <!-- Database level: a banner like the application node, with what is stored below it -->
     <div v-if="props.data.expanded" class="file-location-card">
+        <!-- Before the handles of the component rows: an edge without a handle id attaches to the first handle -->
         <Handle
             type="target"
             :position="Position.Top"
+        />
+        <Handle
+            type="source"
+            :position="Position.Bottom"
         />
 
         <header class="file-location-banner">
@@ -47,9 +56,10 @@
                 : 'Nothing stored yet' }}
         </div>
 
-        <Handle
-            type="source"
-            :position="Position.Bottom"
+        <!-- Components: the scripts that run here and the files that are stored here -->
+        <ComponentRows
+            v-if="props.data.components?.length"
+            :components="props.data.components"
         />
     </div>
 

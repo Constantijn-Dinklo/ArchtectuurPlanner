@@ -8,6 +8,9 @@ export interface CanvasEdge {
 
     source: string;
     target: string;
+    // Set when the edge starts or ends at a component row inside a node
+    sourceHandle?: string;
+    targetHandle?: string;
 
     data: {
         apiIds: string[];
@@ -18,8 +21,6 @@ export interface CanvasEdge {
         otherConnectionMethods: OtherConnectionMethod[];
         // Script components (scripts inside an application or file location) over this edge
         componentScriptIds: string[];
-        // Not a connection but membership: the component at the end is part of the resource at the start
-        partOf: boolean;
 
         sourceResourceId: string;
         targetResourceId: string;

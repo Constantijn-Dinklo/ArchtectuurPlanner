@@ -114,8 +114,8 @@ export function useSelectedEdgeProjection() {
             }));
     }
 
-    // Script components on the edge: the edge goes to or from the script node itself (from the database level on),
-    // or from something the script reads to something it writes (at the application level)
+    // Script components on the edge: the edge goes to or from the script row itself (from the database level on),
+    // or between what the script reads or writes and the resource the script runs in (at the application level)
     function getSelectedEdgeComponentScripts(inputEntityId: string, outputEntityId: string) {
         const scriptOnEdge = [inputEntityId, outputEntityId]
             .map((entityId) => componentStore.getComponent(entityId))
@@ -126,9 +126,12 @@ export function useSelectedEdgeProjection() {
         const outputIds = [outputEntityId, ...tableStore.getTables(outputEntityId).map((table) => table.id)];
         return componentStore.components
             .filter((component) =>
-                component.kind === 'script' &&
-                component.inputs.some((end) => inputIds.includes(end.resourceId) || end.componentId === inputEntityId) &&
-                component.outputs.some((end) => outputIds.includes(end.resourceId) || end.componentId === outputEntityId)
+                component.kind === 'script' && (
+                    (component.resourceId === outputEntityId &&
+                        component.inputs.some((end) => inputIds.includes(end.resourceId) || end.componentId === inputEntityId)) ||
+                    (component.resourceId === inputEntityId &&
+                        component.outputs.some((end) => outputIds.includes(end.resourceId) || end.componentId === outputEntityId))
+                )
             )
             .map((component) => component.id);
     }
