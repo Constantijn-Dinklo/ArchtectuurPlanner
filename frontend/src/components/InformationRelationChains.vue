@@ -7,12 +7,16 @@ import { useInformationObjectStore } from '../stores/information/informationObje
 import { useInformationRelationStore, type ResourceRelation } from '../stores/information/informationRelation.store';
 import { useResourceService } from '../services/resources/resource.service';
 import { useEndpointStore, getEndpointTypeInfo } from '../stores/endpoint.store';
+import { useComponentStore } from '../stores/resources/component.store';
+import { getScriptCarriedInformation, type Component } from '../types/component.types';
 
 interface ChainStep {
     resourceId: string;
     side?: 'input' | 'output';
     // The step is an endpoint (dashboard, map, ...) inside the resource, where the information is used
     endpointId?: string;
+    // The step is a script inside the resource that moves the information from one resource to the next
+    componentId?: string;
 }
 
 // A relation between two steps. carriedByObjectIds is empty when the information travels on its own
@@ -50,6 +54,7 @@ const informationObjectStore = useInformationObjectStore();
 const informationRelationStore = useInformationRelationStore();
 const resourceService = useResourceService();
 const endpointStore = useEndpointStore();
+const componentStore = useComponentStore();
 
 // The relations are kept up to date by CanvasView; this only makes sure they are fresh when the sheet opens
 onMounted(() => {
@@ -73,10 +78,10 @@ const fieldGroups = computed<ChainGroup[]>(() => {
             const edges: ChainEdge[] = [
                 ...informationRelationStore.fieldRelations
                     .filter(relation => relation.informationFieldId === field.id)
-                    .map(relation => relationToEdge(relation)),
+                    .flatMap(relation => relationToEdges(relation, script => carriesField(script, field.id))),
                 ...informationRelationStore.objectRelations
                     .filter(relation => containingObjectIds.includes(relation.informationObjectId))
-                    .map(relation => relationToEdge(relation, relation.informationObjectId)),
+                    .flatMap(relation => relationToEdges(relation, script => carriesObject(script, relation.informationObjectId), relation.informationObjectId)),
                 ...getFieldEndpointEdges(field.id, containingObjectIds)
             ];
 
@@ -100,13 +105,65 @@ const objectGroups = computed<ChainGroup[]>(() => {
                 [
                     ...informationRelationStore.objectRelations
                         .filter(relation => relation.informationObjectId === object.id)
-                        .map(relation => relationToEdge(relation)),
+                        .flatMap(relation => relationToEdges(relation, script => carriesObject(script, object.id))),
                     ...getObjectEndpointEdges(object.id)
                 ],
                 () => []
             )
         }));
 });
+
+// A script carries what it produces (its outputs), a field also inside an object it produces
+function carriesField(script: Component, informationFieldId: string) {
+    const carried = getScriptCarriedInformation(script);
+    return carried.informationFieldIds.includes(informationFieldId) ||
+        carried.informationObjectIds.some(objectId =>
+            informationObjectStore.getInformationObject(objectId)?.informationFieldIds.includes(informationFieldId)
+        );
+}
+
+function carriesObject(script: Component, informationObjectId: string) {
+    return getScriptCarriedInformation(script).informationObjectIds.includes(informationObjectId);
+}
+
+// Tables are connected through their database
+function getDatabaseId(resourceId: string) {
+    const resource = resourceService.getResource(resourceId);
+    if (resource?.type === 'table') return resource.databaseId;
+    return undefined;
+}
+
+// The scripts the information goes through on its way from the source to the target of the relation: the script
+// the relation is set to go via, or, when nothing is set, the scripts that read the source, write the target and
+// produce the information
+function getRelationScripts(relation: ResourceRelation, carries: (script: Component) => boolean): Component[] {
+    if (relation.sourceResourceId === relation.targetResourceId) return [];
+
+    if (relation.viaConnectionType === 'component' && relation.viaConnectionId) {
+        const script = componentStore.getComponent(relation.viaConnectionId);
+        return script ? [script] : [];
+    }
+    if (relation.viaConnectionType) return [];
+
+    const sourceIds = [relation.sourceResourceId, getDatabaseId(relation.sourceResourceId)].filter(id => id !== undefined);
+    const targetIds = [relation.targetResourceId, getDatabaseId(relation.targetResourceId)].filter(id => id !== undefined);
+    return componentStore.getScriptsBetween(sourceIds, targetIds).filter(carries);
+}
+
+// A relation that goes through a script gets the script as a step in between: source -> script -> target
+function relationToEdges(relation: ResourceRelation, carries: (script: Component) => boolean, carriedByObjectId?: string): ChainEdge[] {
+    const edge = relationToEdge(relation, carriedByObjectId);
+    const scripts = getRelationScripts(relation, carries);
+    if (!scripts.length) return [edge];
+
+    return scripts.flatMap(script => {
+        const scriptStep: ChainStep = { resourceId: script.resourceId, componentId: script.id };
+        return [
+            { source: edge.source, target: scriptStep, carriedByObjectIds: edge.carriedByObjectIds },
+            { source: scriptStep, target: edge.target, carriedByObjectIds: edge.carriedByObjectIds }
+        ];
+    });
+}
 
 // A relation inside one application goes from its input to its output.
 // A relation between two resources goes from the output of the source to the input of the target.
@@ -176,7 +233,7 @@ function getObjectEndpointEdges(informationObjectId: string): ChainEdge[] {
 // The objects (out of the given ones) that are present on this side of the resource
 function getContainingObjectIds(step: ChainStep, objectIds: string[]): string[] {
     const resource = resourceService.getResource(step.resourceId);
-    if (resource?.type !== 'application' || !step.side || step.endpointId) return [];
+    if (resource?.type !== 'application' || !step.side || step.endpointId || step.componentId) return [];
 
     const objectRefs = step.side === 'input'
         ? resource.inputInformationObjectRefs
@@ -193,6 +250,7 @@ function getObjectNames(objectIds: string[]) {
 
 function stepKey(step: ChainStep) {
     if (step.endpointId) return `endpoint:${step.endpointId}`;
+    if (step.componentId) return `component:${step.componentId}`;
     return `${step.resourceId}:${step.side ?? ''}`;
 }
 
@@ -268,6 +326,9 @@ function buildChains(edges: ChainEdge[], getStepObjectIds: (step: ChainStep) => 
 
 function stepLabel(step: ChainStep) {
     const name = resourceService.getResource(step.resourceId)?.name ?? 'Unknown resource';
+    if (step.componentId) {
+        return `${componentStore.getComponent(step.componentId)?.name ?? 'Unknown script'} (script on ${name})`;
+    }
     if (step.endpointId) {
         const endpoint = endpointStore.endpoints.find(endpoint => endpoint.id === step.endpointId);
         return `${endpoint?.name ?? 'Unknown endpoint'} (${name})`;
@@ -276,6 +337,7 @@ function stepLabel(step: ChainStep) {
 }
 
 function stepIcon(step: ChainStep) {
+    if (step.componentId) return 'pi pi-code';
     const endpoint = endpointStore.endpoints.find(endpoint => endpoint.id === step.endpointId);
     return endpoint ? getEndpointTypeInfo(endpoint.type).icon : undefined;
 }
@@ -357,8 +419,10 @@ function stepIcon(step: ChainStep) {
 
                         <span
                             class="chain-step"
-                            :class="{ 'in-object': step.objectNames.length, endpoint: step.endpointId }"
-                            :title="step.endpointId ? 'Endpoint: the information is used here' : undefined"
+                            :class="{ 'in-object': step.objectNames.length, endpoint: step.endpointId, script: step.componentId }"
+                            :title="step.endpointId
+                                ? 'Endpoint: the information is used here'
+                                : step.componentId ? 'Script: moves the information to the next resource' : undefined"
                         >
                             <span>
                                 <i
@@ -394,6 +458,16 @@ function stepIcon(step: ChainStep) {
     margin-right: 3px;
     color: #7c3aed;
     font-size: 10px;
+}
+
+.chain-step.script {
+    border-color: #c7d2fe;
+    background: #eef2ff;
+    color: #3730a3;
+}
+
+.chain-step.script .endpoint-step-icon {
+    color: #4f46e5;
 }
 
 .relation-chains {
