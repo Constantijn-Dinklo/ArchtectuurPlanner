@@ -20,9 +20,11 @@ import databaseConnectionRoutes from './routes/databaseConnectionRoutes';
 import scriptRoutes from './routes/scriptRoutes';
 import otherConnectionRoutes from './routes/otherConnectionRoutes';
 import endpointRoutes from './routes/endpointRoutes';
+import informationFieldRoutes from './routes/informationFieldRoutes';
 import informationObjectRoutes from './routes/informationObjectRoutes';
 import informationRelationRoutes from './routes/informationRelationRoutes';
 import componentRoutes from './routes/componentRoutes';
+import { keepExternalSourceRelationsInSync } from './services/externalSourceRelation.service';
 
 
 import viewRoutes from './routes/canvas/viewRoutes';
@@ -59,29 +61,34 @@ app.use('/environments', environmentRoutes);
 // routers themselves do not use authenticateToken. Public routes are mounted without inEnvironment
 const inEnvironment = [authenticateToken, requireEnvironment];
 
+// Routes that change what external elements provide, what resources take in or how resources are connected:
+// the relations from external elements are kept up to date after every change
+const syncsExternalSources = keepExternalSourceRelationsInSync;
+
 // ** Resources ** //
-app.use('/applications', inEnvironment, applicationRoutes);
-app.use('/databases', inEnvironment, databaseRoutes);
+app.use('/applications', inEnvironment, syncsExternalSources, applicationRoutes);
+app.use('/databases', inEnvironment, syncsExternalSources, databaseRoutes);
 app.use('/fileLocations', inEnvironment, fileLocationsRoutes);
 app.use('/servers', inEnvironment, serverRoutes);
-app.use('/tables', inEnvironment, tableRoutes);
-app.use('/externals', inEnvironment, externalRoutes);
+app.use('/tables', inEnvironment, syncsExternalSources, tableRoutes);
+app.use('/externals', inEnvironment, syncsExternalSources, externalRoutes);
 
 // ** Components: the parts of a resource (scripts, files) ** //
-app.use('/components', inEnvironment, componentRoutes);
+app.use('/components', inEnvironment, syncsExternalSources, componentRoutes);
 
-app.use('/apis', inEnvironment, apiRoutes);
+app.use('/apis', inEnvironment, syncsExternalSources, apiRoutes);
 
 // ** Information ** //
-app.use('/informationObjects', inEnvironment, informationObjectRoutes);
+app.use('/informationFields', inEnvironment, informationFieldRoutes);
+app.use('/informationObjects', inEnvironment, syncsExternalSources, informationObjectRoutes);
 app.use('/informationRelations', inEnvironment, informationRelationRoutes);
 app.use('/endpoints', inEnvironment, endpointRoutes);
 
 // ** Connections ** //
-app.use('/apiConnections', inEnvironment, apiConnectionRoutes);
+app.use('/apiConnections', inEnvironment, syncsExternalSources, apiConnectionRoutes);
 app.use('/databaseConnections', inEnvironment, databaseConnectionRoutes);
-app.use('/scripts', inEnvironment, scriptRoutes);
-app.use('/otherConnections', inEnvironment, otherConnectionRoutes);
+app.use('/scripts', inEnvironment, syncsExternalSources, scriptRoutes);
+app.use('/otherConnections', inEnvironment, syncsExternalSources, otherConnectionRoutes);
 
 
 app.use('/views', inEnvironment, viewRoutes);

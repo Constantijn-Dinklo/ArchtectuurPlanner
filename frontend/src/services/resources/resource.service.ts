@@ -148,6 +148,7 @@ export function useResourceService() {
                     fields.set(outputInformationField.informationField.id, {
                         id: outputInformationField.informationField.id,
                         fieldName: outputInformationField.informationField.fieldName,
+                        source: outputInformationField.informationField.source,
                         accessibleFromId: resource.id,
                         accessibleFromType: 'application'
                     });
@@ -159,6 +160,7 @@ export function useResourceService() {
                             const field = fields.get(informationField.id) ?? {
                                 id: informationField.id,
                                 fieldName: informationField.fieldName,
+                                source: informationField.source,
                                 accessibleFromId: resource.id,
                                 accessibleFromType: 'application',
                                 objectNames: []
@@ -178,6 +180,7 @@ export function useResourceService() {
                 return resolvedResource.providedInformationFields.map((providedInformationField) => ({
                     id: providedInformationField.informationField.id,
                     fieldName: providedInformationField.informationField.fieldName,
+                    source: providedInformationField.informationField.source,
                     accessibleFromId: resource.id,
                     accessibleFromType: 'external'
                 }));
@@ -233,5 +236,5 @@ export function useResourceService() {
         return upstreamResourceIds.flatMap((upstreamResourceId) => getResourceInformationObjects(upstreamResourceId));
     }
 
-    return { getResource, getByType, getResourceInformationFields, getResourceInformationObjects, getAccessibleInformationFields, getAccessibleInformationObjects }
+    return { getResource, getByType, getUpstreamResourceIds, getResourceInformationFields, getResourceInformationObjects, getAccessibleInformationFields, getAccessibleInformationObjects }
 }

@@ -2,8 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useToast } from "primevue";
 import api from "../helpers/axios";
-import { useInformationRelationStore } from "./information/informationRelation.store";
-import { useExternalService } from "../services/resources/external.service";
+import { refreshReceivedInformation } from "../services/receivedInformation";
 
 // How the information gets from the source to the target, as far as it is known
 export type OtherConnectionMethod = 'human' | 'feature' | 'file' | 'email' | 'unknown';
@@ -52,14 +51,6 @@ export const useOtherConnectionStore = defineStore('otherConnection', () => {
         if(existing) {
             Object.assign(existing, updated);
         }
-    }
-
-    // What an external element receives follows from the connections to it, so reload it after a change
-    async function refreshReceivedInformation() {
-        await Promise.all([
-            useExternalService().fetchExternals(),
-            useInformationRelationStore().fetchInformationRelations()
-        ]);
     }
 
     // The backend refuses information the source does not pass on, so show why

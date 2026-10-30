@@ -1,8 +1,10 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
+import { IInformationSource, InformationSourceSchema } from './informationSource.model';
 
 export interface IInformationField extends Document {
     environmentId: Types.ObjectId;
     fieldName: string;
+    source: IInformationSource | null;
 }
 
 const InformationFieldSchema = new Schema<IInformationField>({
@@ -15,6 +17,10 @@ const InformationFieldSchema = new Schema<IInformationField>({
     fieldName: {
         type: Schema.Types.String,
         required: true,
+    },
+    source: {
+        type: InformationSourceSchema,
+        default: null
     }
 },
 {
@@ -24,6 +30,8 @@ const InformationFieldSchema = new Schema<IInformationField>({
 
         transform(_, ret: any) {
             ret.id = ret._id.toString()
+            // Information created before sources existed has no source yet
+            ret.source = ret.source ?? null
 
             delete ret._id
             delete ret.__v

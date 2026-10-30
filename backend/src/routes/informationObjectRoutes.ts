@@ -4,6 +4,7 @@ import { AuthenticatedRequest, getUser } from "../middelware";
 import { addInformationFieldToInformationObject, deleteInformationFieldFromInformationObject } from "../services/resourceObject.service";
 import { moveApplicationInformationFieldToInformationObject, moveInformationFieldFromInformationObjectToApplication } from "../services/application.service";
 import { cleanupApisForInformationObject, cleanupApplicationApis } from "../services/api.service";
+import { setInformationObjectSource } from "../services/informationSource.service";
 
 const router: Router = express.Router();
 
@@ -56,6 +57,19 @@ router.delete('/:id/informationFields/:informationFieldId', async (req: Authenti
         // Applications that output this object can no longer send the field, unless they still have it some other way
         await cleanupApisForInformationObject(user, req.params.id as string);
         res.status(200).json(result);
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// Sets the source of the object: the resource it originates from. { resourceId: null } removes the source
+router.patch('/:id/source', async (req: AuthenticatedRequest, res: Response) => {
+    const user = getUser(req);
+
+    try {
+        const informationObject = await setInformationObjectSource(user, req.params.id as string, req.body.resourceId ?? null);
+        res.json(informationObject);
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });

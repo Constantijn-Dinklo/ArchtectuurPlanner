@@ -9,6 +9,8 @@ import Server from "../models/resources/server.model";
 import OtherConnection from "../models/otherConnection.model";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
+import InformationField from "../models/information/informationField.model";
+import InformationObject from "../models/information/informationObject.models";
 
 // An external element is a black box without its own inputs. What it receives is decided by the connections
 // to it: every field or object a connection carries to an external element gets a relation from the source
@@ -32,7 +34,7 @@ export async function getResourceType(user: UserJwtPayload, resourceId: string):
 }
 
 // Rebuilds the received lists of the external element from the relations that point to it
-async function updateReceivedInformation(user: UserJwtPayload, externalId: string) {
+export async function updateReceivedInformation(user: Pick<UserJwtPayload, 'environmentId'>, externalId: string) {
     const fieldIds = await ResourceFieldRelation.distinct('informationFieldId', {
         environmentId: user.environmentId,
         targetResourceId: externalId
@@ -58,10 +60,13 @@ async function updateReceivedInformation(user: UserJwtPayload, externalId: strin
 export async function syncOtherConnectionRelations(user: UserJwtPayload, connectionId: string, previousTargetId?: string | null) {
     const connection = await OtherConnection.findOne({ _id: connectionId, environmentId: user.environmentId });
 
+    // Only the relations to external elements: relations from an external element through this connection are
+    // kept in sync by syncExternalSourceRelations
     const viaThisConnection = {
         environmentId: user.environmentId,
         viaConnectionType: 'other' as const,
-        viaConnectionId: connectionId
+        viaConnectionId: connectionId,
+        targetResourceType: 'external'
     };
 
     const targetId = connection?.targetId?.toString();
@@ -155,6 +160,11 @@ export async function removeResourceRelations(user: UserJwtPayload, resourceIds:
 
     await ResourceFieldRelation.deleteMany(touchingResources);
     await ResourceObjectRelation.deleteMany(touchingResources);
+
+    // Information that had one of the resources as its source has no source anymore
+    const sourcedHere = { environmentId: user.environmentId, 'source.resourceId': { $in: resourceIds } };
+    await InformationField.updateMany(sourcedHere, { $set: { source: null } });
+    await InformationObject.updateMany(sourcedHere, { $set: { source: null } });
 
     for(const externalId of receivingExternalIds) {
         if(!resourceIds.includes(externalId)) {

@@ -16,9 +16,17 @@ export type AddInformationFieldRequest =
 
 
 
+// The resource a piece of information originates from. Every InformationField and InformationObject has at most
+// one source; it is never set automatically, and information without a source is shown with a warning
+export interface InformationSource {
+    resourceId: string;
+    resourceType: ResourceType;
+}
+
 export interface InformationField {
     id: string;
     fieldName: string;
+    source: InformationSource | null;
 }
 
 export interface InformationFieldReference {

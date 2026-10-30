@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
+import api from "../../helpers/axios";
 import type { InformationObject } from "../../types/informationObject.type";
 
 
@@ -17,7 +18,13 @@ export const useInformationObjectStore = defineStore('informationObject', () => 
         return informationObjects.value.get(id);
     }
 
+    // Sets the resource the object originates from; null removes the source
+    async function setSource(id: string, resourceId: string | null) {
+        const res = await api.patch<InformationObject>(`/informationObjects/${id}/source`, { resourceId });
+        informationObjects.value.set(id, res.data);
+    }
 
-    return { informationObjects, setInformationObjects, getInformationObject };
+
+    return { informationObjects, setInformationObjects, getInformationObject, setSource };
 
 });

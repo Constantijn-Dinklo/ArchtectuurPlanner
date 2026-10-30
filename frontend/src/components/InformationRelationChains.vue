@@ -4,57 +4,14 @@ import { computed, onMounted } from 'vue';
 import { useUIStore } from '../stores/canvas/ui.store';
 import { useInformationFieldStore } from '../stores/information/informationField.store';
 import { useInformationObjectStore } from '../stores/information/informationObject.store';
-import { useInformationRelationStore, type ResourceRelation } from '../stores/information/informationRelation.store';
-import { useResourceService } from '../services/resources/resource.service';
-import { useEndpointStore, getEndpointTypeInfo } from '../stores/endpoint.store';
-import { useComponentStore } from '../stores/resources/component.store';
-import { getScriptCarriedInformation, type Component } from '../types/component.types';
-
-interface ChainStep {
-    resourceId: string;
-    side?: 'input' | 'output';
-    // The step is an endpoint (dashboard, map, ...) inside the resource, where the information is used
-    endpointId?: string;
-    // The step is a script inside the resource that moves the information from one resource to the next
-    componentId?: string;
-}
-
-// A relation between two steps. carriedByObjectIds is empty when the information travels on its own
-interface ChainEdge {
-    source: ChainStep;
-    target: ChainStep;
-    carriedByObjectIds: string[];
-}
-
-interface ChainStepView extends ChainStep {
-    // Names of the InformationObjects the searched field is part of at this step
-    objectNames: string[];
-}
-
-interface ChainLinkView {
-    // Names of the InformationObjects that carry the information to the next step
-    objectNames: string[];
-}
-
-interface Chain {
-    steps: ChainStepView[];
-    // links[i] connects steps[i] to steps[i + 1]
-    links: ChainLinkView[];
-}
-
-interface ChainGroup {
-    id: string;
-    name: string;
-    chains: Chain[];
-}
+import { useInformationRelationStore } from '../stores/information/informationRelation.store';
+import { useInformationChainService, type ChainStepView, type InformationChain } from '../services/informationChain.service';
 
 const UIStore = useUIStore();
 const informationFieldStore = useInformationFieldStore();
 const informationObjectStore = useInformationObjectStore();
 const informationRelationStore = useInformationRelationStore();
-const resourceService = useResourceService();
-const endpointStore = useEndpointStore();
-const componentStore = useComponentStore();
+const informationChainService = useInformationChainService();
 
 // The relations are kept up to date by CanvasView; this only makes sure they are fresh when the sheet opens
 onMounted(() => {
@@ -64,282 +21,41 @@ onMounted(() => {
 const fieldSearch = computed(() => UIStore.informationFieldSearch.trim().toLowerCase());
 const objectSearch = computed(() => UIStore.informationObjectSearch.trim().toLowerCase());
 
-// A field travels on its own through its field relations, and inside an object through the relations of every object it is part of
-const fieldGroups = computed<ChainGroup[]>(() => {
+const fieldGroups = computed<InformationChain[]>(() => {
     if (!fieldSearch.value) return [];
 
     return [...informationFieldStore.informationFields.values()]
         .filter(field => field.fieldName.toLowerCase().includes(fieldSearch.value))
-        .map(field => {
-            const containingObjectIds = [...informationObjectStore.informationObjects.values()]
-                .filter(object => object.informationFieldIds.includes(field.id))
-                .map(object => object.id);
-
-            const edges: ChainEdge[] = [
-                ...informationRelationStore.fieldRelations
-                    .filter(relation => relation.informationFieldId === field.id)
-                    .flatMap(relation => relationToEdges(relation, script => carriesField(script, field.id))),
-                ...informationRelationStore.objectRelations
-                    .filter(relation => containingObjectIds.includes(relation.informationObjectId))
-                    .flatMap(relation => relationToEdges(relation, script => carriesObject(script, relation.informationObjectId), relation.informationObjectId)),
-                ...getFieldEndpointEdges(field.id, containingObjectIds)
-            ];
-
-            return {
-                id: field.id,
-                name: field.fieldName,
-                chains: buildChains(edges, step => getContainingObjectIds(step, containingObjectIds))
-            };
-        });
+        .map(field => informationChainService.getChain('field', field.id))
+        .filter(chain => chain !== undefined);
 });
 
-const objectGroups = computed<ChainGroup[]>(() => {
+const objectGroups = computed<InformationChain[]>(() => {
     if (!objectSearch.value) return [];
 
     return [...informationObjectStore.informationObjects.values()]
         .filter(object => object.objectName.toLowerCase().includes(objectSearch.value))
-        .map(object => ({
-            id: object.id,
-            name: object.objectName,
-            chains: buildChains(
-                [
-                    ...informationRelationStore.objectRelations
-                        .filter(relation => relation.informationObjectId === object.id)
-                        .flatMap(relation => relationToEdges(relation, script => carriesObject(script, object.id))),
-                    ...getObjectEndpointEdges(object.id)
-                ],
-                () => []
-            )
-        }));
+        .map(object => informationChainService.getChain('object', object.id))
+        .filter(chain => chain !== undefined);
 });
 
-// A script carries what it produces (its outputs), a field also inside an object it produces
-function carriesField(script: Component, informationFieldId: string) {
-    const carried = getScriptCarriedInformation(script);
-    return carried.informationFieldIds.includes(informationFieldId) ||
-        carried.informationObjectIds.some(objectId =>
-            informationObjectStore.getInformationObject(objectId)?.informationFieldIds.includes(informationFieldId)
-        );
+// Breaks that belong to the information as a whole, or to a step that is not part of any chain
+function getGroupBreaks(group: InformationChain) {
+    const shownStepKeys = new Set(
+        group.chains.flatMap(chain => chain.steps.flatMap(step => step.breaks.map(chainBreak => chainBreak.stepKey)))
+    );
+    return group.breaks.filter(chainBreak => !chainBreak.stepKey || !shownStepKeys.has(chainBreak.stepKey));
 }
 
-function carriesObject(script: Component, informationObjectId: string) {
-    return getScriptCarriedInformation(script).informationObjectIds.includes(informationObjectId);
+function hasError(step: ChainStepView) {
+    return step.breaks.some(chainBreak => chainBreak.severity === 'error');
 }
 
-// Tables are connected through their database
-function getDatabaseId(resourceId: string) {
-    const resource = resourceService.getResource(resourceId);
-    if (resource?.type === 'table') return resource.databaseId;
+function stepTitle(step: ChainStepView) {
+    if (step.breaks.length) return step.breaks.map(chainBreak => chainBreak.message).join('\n');
+    if (step.endpointId) return 'Endpoint: the information is used here';
+    if (step.componentId) return 'Script: moves the information to the next resource';
     return undefined;
-}
-
-// The scripts the information goes through on its way from the source to the target of the relation: the script
-// the relation is set to go via, or, when nothing is set, the scripts that read the source, write the target and
-// produce the information
-function getRelationScripts(relation: ResourceRelation, carries: (script: Component) => boolean): Component[] {
-    if (relation.sourceResourceId === relation.targetResourceId) return [];
-
-    if (relation.viaConnectionType === 'component' && relation.viaConnectionId) {
-        const script = componentStore.getComponent(relation.viaConnectionId);
-        return script ? [script] : [];
-    }
-    if (relation.viaConnectionType) return [];
-
-    const sourceIds = [relation.sourceResourceId, getDatabaseId(relation.sourceResourceId)].filter(id => id !== undefined);
-    const targetIds = [relation.targetResourceId, getDatabaseId(relation.targetResourceId)].filter(id => id !== undefined);
-    return componentStore.getScriptsBetween(sourceIds, targetIds).filter(carries);
-}
-
-// A relation that goes through a script gets the script as a step in between: source -> script -> target
-function relationToEdges(relation: ResourceRelation, carries: (script: Component) => boolean, carriedByObjectId?: string): ChainEdge[] {
-    const edge = relationToEdge(relation, carriedByObjectId);
-    const scripts = getRelationScripts(relation, carries);
-    if (!scripts.length) return [edge];
-
-    return scripts.flatMap(script => {
-        const scriptStep: ChainStep = { resourceId: script.resourceId, componentId: script.id };
-        return [
-            { source: edge.source, target: scriptStep, carriedByObjectIds: edge.carriedByObjectIds },
-            { source: scriptStep, target: edge.target, carriedByObjectIds: edge.carriedByObjectIds }
-        ];
-    });
-}
-
-// A relation inside one application goes from its input to its output.
-// A relation between two resources goes from the output of the source to the input of the target.
-function relationToEdge(relation: ResourceRelation, carriedByObjectId?: string): ChainEdge {
-    const isForwarded = relation.sourceResourceId === relation.targetResourceId;
-
-    const source: ChainStep = { resourceId: relation.sourceResourceId };
-    if (relation.sourceResourceType === 'application') {
-        source.side = isForwarded ? 'input' : 'output';
-    }
-
-    const target: ChainStep = { resourceId: relation.targetResourceId };
-    if (relation.targetResourceType === 'application') {
-        target.side = isForwarded ? 'output' : 'input';
-    }
-
-    return {
-        source,
-        target,
-        carriedByObjectIds: carriedByObjectId ? [carriedByObjectId] : []
-    };
-}
-
-interface OutputRefs {
-    outputInformationFieldRefs: { informationFieldId: string }[];
-    outputInformationObjectRefs: { informationObjectId: string }[];
-}
-
-// Information that is used in an endpoint gets an extra step from the resource to that endpoint.
-// In an application the step starts at the output when the application outputs the information, otherwise at the input
-function getEndpointSourceStep(resourceId: string, isOutput: (resource: OutputRefs) => boolean): ChainStep {
-    const resource = resourceService.getResource(resourceId);
-    if (resource?.type !== 'application') return { resourceId };
-    return { resourceId, side: isOutput(resource) ? 'output' : 'input' };
-}
-
-function getFieldEndpointEdges(informationFieldId: string, containingObjectIds: string[]): ChainEdge[] {
-    return endpointStore.endpoints.flatMap(endpoint => {
-        const usedDirectly = endpoint.informationFieldIds.includes(informationFieldId);
-        const usedInObjectIds = endpoint.informationObjectIds.filter(objectId => containingObjectIds.includes(objectId));
-        if (!usedDirectly && !usedInObjectIds.length) return [];
-
-        const source = getEndpointSourceStep(endpoint.resourceId, resource =>
-            resource.outputInformationFieldRefs.some(ref => ref.informationFieldId === informationFieldId) ||
-            resource.outputInformationObjectRefs.some(ref => containingObjectIds.includes(ref.informationObjectId))
-        );
-        return [{
-            source,
-            target: { resourceId: endpoint.resourceId, endpointId: endpoint.id },
-            carriedByObjectIds: usedDirectly ? [] : usedInObjectIds
-        }];
-    });
-}
-
-function getObjectEndpointEdges(informationObjectId: string): ChainEdge[] {
-    return endpointStore.endpoints
-        .filter(endpoint => endpoint.informationObjectIds.includes(informationObjectId))
-        .map(endpoint => ({
-            source: getEndpointSourceStep(endpoint.resourceId, resource =>
-                resource.outputInformationObjectRefs.some(ref => ref.informationObjectId === informationObjectId)
-            ),
-            target: { resourceId: endpoint.resourceId, endpointId: endpoint.id },
-            carriedByObjectIds: []
-        }));
-}
-
-// The objects (out of the given ones) that are present on this side of the resource
-function getContainingObjectIds(step: ChainStep, objectIds: string[]): string[] {
-    const resource = resourceService.getResource(step.resourceId);
-    if (resource?.type !== 'application' || !step.side || step.endpointId || step.componentId) return [];
-
-    const objectRefs = step.side === 'input'
-        ? resource.inputInformationObjectRefs
-        : resource.outputInformationObjectRefs;
-
-    return objectRefs
-        .map(objectRef => objectRef.informationObjectId)
-        .filter(objectId => objectIds.includes(objectId));
-}
-
-function getObjectNames(objectIds: string[]) {
-    return objectIds.map(objectId => informationObjectStore.getInformationObject(objectId)?.objectName ?? 'Unknown object');
-}
-
-function stepKey(step: ChainStep) {
-    if (step.endpointId) return `endpoint:${step.endpointId}`;
-    if (step.componentId) return `component:${step.componentId}`;
-    return `${step.resourceId}:${step.side ?? ''}`;
-}
-
-// Returns every path from a start (nothing flows into it) to an end (nothing flows out of it)
-function buildChains(edges: ChainEdge[], getStepObjectIds: (step: ChainStep) => string[]): Chain[] {
-    const steps = new Map<string, ChainStep>();
-    const next = new Map<string, string[]>();
-    const hasIncoming = new Set<string>();
-    // The same hop can exist on its own and in one or more objects; they are merged into one link
-    const linkObjectIds = new Map<string, Set<string>>();
-
-    for (const edge of edges) {
-        const sourceKey = stepKey(edge.source);
-        const targetKey = stepKey(edge.target);
-
-        steps.set(sourceKey, edge.source);
-        steps.set(targetKey, edge.target);
-        hasIncoming.add(targetKey);
-
-        const targets = next.get(sourceKey) ?? [];
-        if (!targets.includes(targetKey)) targets.push(targetKey);
-        next.set(sourceKey, targets);
-
-        const linkKey = `${sourceKey}|${targetKey}`;
-        const objectIds = linkObjectIds.get(linkKey) ?? new Set<string>();
-        edge.carriedByObjectIds.forEach(objectId => objectIds.add(objectId));
-        linkObjectIds.set(linkKey, objectIds);
-    }
-
-    const chains: Chain[] = [];
-    const visited = new Set<string>();
-
-    function toChain(path: string[]): Chain {
-        return {
-            steps: path.map(key => {
-                const step = steps.get(key)!;
-                return {
-                    ...step,
-                    objectNames: getObjectNames(getStepObjectIds(step))
-                };
-            }),
-            links: path.slice(1).map((key, index) => ({
-                objectNames: getObjectNames([...(linkObjectIds.get(`${path[index]}|${key}`) ?? [])])
-            }))
-        };
-    }
-
-    function walk(key: string, path: string[]) {
-        visited.add(key);
-        const currentPath = [...path, key];
-        // Stop at steps that are already in the path, so a loop does not go on forever
-        const targets = (next.get(key) ?? []).filter(target => !currentPath.includes(target));
-
-        if (targets.length === 0) {
-            chains.push(toChain(currentPath));
-            return;
-        }
-        for (const target of targets) {
-            walk(target, currentPath);
-        }
-    }
-
-    for (const key of steps.keys()) {
-        if (!hasIncoming.has(key)) walk(key, []);
-    }
-    // Whatever is left over is part of a loop without a start
-    for (const key of steps.keys()) {
-        if (!visited.has(key)) walk(key, []);
-    }
-
-    return chains;
-}
-
-function stepLabel(step: ChainStep) {
-    const name = resourceService.getResource(step.resourceId)?.name ?? 'Unknown resource';
-    if (step.componentId) {
-        return `${componentStore.getComponent(step.componentId)?.name ?? 'Unknown script'} (script on ${name})`;
-    }
-    if (step.endpointId) {
-        const endpoint = endpointStore.endpoints.find(endpoint => endpoint.id === step.endpointId);
-        return `${endpoint?.name ?? 'Unknown endpoint'} (${name})`;
-    }
-    return step.side ? `${name} (${step.side})` : name;
-}
-
-function stepIcon(step: ChainStep) {
-    if (step.componentId) return 'pi pi-code';
-    const endpoint = endpointStore.endpoints.find(endpoint => endpoint.id === step.endpointId);
-    return endpoint ? getEndpointTypeInfo(endpoint.type).icon : undefined;
 }
 </script>
 
@@ -388,6 +104,16 @@ function stepIcon(step: ChainStep) {
                 </div>
 
                 <div
+                    v-for="(chainBreak, breakIndex) in getGroupBreaks(group)"
+                    :key="breakIndex"
+                    class="group-break"
+                    :class="chainBreak.severity"
+                >
+                    <i :class="chainBreak.severity === 'error' ? 'pi pi-times-circle' : 'pi pi-exclamation-triangle'" />
+                    {{ chainBreak.message }}
+                </div>
+
+                <div
                     v-if="!group.chains.length"
                     class="empty-row"
                 >
@@ -419,18 +145,27 @@ function stepIcon(step: ChainStep) {
 
                         <span
                             class="chain-step"
-                            :class="{ 'in-object': step.objectNames.length, endpoint: step.endpointId, script: step.componentId }"
-                            :title="step.endpointId
-                                ? 'Endpoint: the information is used here'
-                                : step.componentId ? 'Script: moves the information to the next resource' : undefined"
+                            :class="{
+                                'in-object': step.objectNames.length,
+                                endpoint: step.endpointId,
+                                script: step.componentId,
+                                broken: hasError(step),
+                                warned: step.breaks.length && !hasError(step)
+                            }"
+                            :title="stepTitle(step)"
                         >
                             <span>
                                 <i
-                                    v-if="stepIcon(step)"
-                                    :class="stepIcon(step)"
+                                    v-if="step.breaks.length"
+                                    :class="hasError(step) ? 'pi pi-times-circle' : 'pi pi-exclamation-triangle'"
+                                    class="break-icon"
+                                />
+                                <i
+                                    v-if="informationChainService.getStepIcon(step)"
+                                    :class="informationChainService.getStepIcon(step)"
                                     class="endpoint-step-icon"
                                 />
-                                {{ stepLabel(step) }}
+                                {{ informationChainService.getStepLabel(step) }}
                             </span>
 
                             <span
@@ -468,6 +203,57 @@ function stepIcon(step: ChainStep) {
 
 .chain-step.script .endpoint-step-icon {
     color: #4f46e5;
+}
+
+/* A break in the chain: the information does not (or no longer) get here, or is not where it is sent from */
+.chain-step.broken,
+.chain-step.in-object.broken {
+    border-color: #fca5a5;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.chain-step.broken .endpoint-step-icon,
+.chain-step.broken .break-icon {
+    color: #dc2626;
+}
+
+/* Only warnings at this step: it is unclear how the information gets here */
+.chain-step.warned,
+.chain-step.in-object.warned {
+    border-color: #fcd34d;
+    background: #fffbeb;
+    color: #92400e;
+}
+
+.chain-step.warned .endpoint-step-icon,
+.chain-step.warned .break-icon {
+    color: #d97706;
+}
+
+.break-icon {
+    margin-right: 3px;
+    font-size: 10px;
+}
+
+.group-break {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 0 1px 10px;
+    font-size: 11px;
+}
+
+.group-break .pi {
+    font-size: 10px;
+}
+
+.group-break.error {
+    color: #b91c1c;
+}
+
+.group-break.warning {
+    color: #b45309;
 }
 
 .relation-chains {

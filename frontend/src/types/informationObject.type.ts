@@ -1,4 +1,4 @@
-import type { InformationField, InformationFieldReference } from "./informationField.type";
+import type { InformationField, InformationFieldReference, InformationSource } from "./informationField.type";
 import type { ResourceType } from "./resource.type";
 
 export type AddInformationObjectRequest =
@@ -18,6 +18,7 @@ export interface InformationObject {
     id: string;
     objectName: string;
     informationFieldIds: string[];
+    source: InformationSource | null;
 }
 
 export interface ResolvedInformationObject

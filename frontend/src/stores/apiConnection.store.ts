@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import api from "../helpers/axios";
+import { refreshReceivedInformation } from "../services/receivedInformation";
 
 export interface ApiConnection {
   id: string;
@@ -31,11 +32,13 @@ export const useApiConnectionStore = defineStore('apiConnection', () => {
         }
 
         apiConnections.value.push(newApiConnection);
+        await refreshReceivedInformation();
         return newApiConnection.id;
     }
 
     async function updateApiConnection(id: string, patch: Partial<ApiConnection>) {
         const res = await api.patch(`/apiConnections/${id}`, patch);
+        await refreshReceivedInformation();
         const conn = apiConnections.value.find(c => c.id === id);
         if(!conn) return;
         const result: ApiConnection = Object.assign(conn, res.data);
@@ -46,6 +49,7 @@ export const useApiConnectionStore = defineStore('apiConnection', () => {
         const res = await api.delete(`/apiConnections/${id}`);
         const data = res.data as ApiConnection;
         apiConnections.value = apiConnections.value.filter((conn) => conn.id !== id);
+        await refreshReceivedInformation();
         return data;
     }
 
