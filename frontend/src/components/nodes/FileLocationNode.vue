@@ -1,32 +1,25 @@
 <script setup lang="ts">
     import { computed } from 'vue';
     import { Handle, Position, type NodeProps } from '@vue-flow/core';
-    import { useInformationRelationStore } from '../../stores/information/informationRelation.store';
+    import { useComponentStore } from '../../stores/resources/component.store';
     import type { CanvasComponentRow } from '../../types/component.types';
     import ComponentRows from './ComponentRows.vue';
 
+    // A file location only stores files (scripts are files as well). Information is never stored in it directly,
+    // only inside its files, so the node shows its files and no information of its own
     interface FileLocationNodeData {
         label: string;
         resourceId: string;
         expanded: boolean;
-        // From the database level on: the scripts and files in the file location
+        // From the database level on: the files in the file location
         components?: CanvasComponentRow[];
     }
 
     const props = defineProps<NodeProps<FileLocationNodeData>>();
 
-    const informationRelationStore = useInformationRelationStore();
+    const componentStore = useComponentStore();
 
-    // How much information is stored in the file location, as recorded by the relations to it
-    const storedInformationCount = computed(() => {
-        const fieldIds = new Set(informationRelationStore.fieldRelations
-            .filter(relation => relation.targetResourceId === props.data.resourceId)
-            .map(relation => relation.informationFieldId));
-        const objectIds = new Set(informationRelationStore.objectRelations
-            .filter(relation => relation.targetResourceId === props.data.resourceId)
-            .map(relation => relation.informationObjectId));
-        return fieldIds.size + objectIds.size;
-    });
+    const fileCount = computed(() => componentStore.getResourceComponents(props.data.resourceId).length);
 </script>
 
 <template>
@@ -50,17 +43,14 @@
             <span class="banner-badge">File location</span>
         </header>
 
-        <div class="file-location-body">
-            {{ storedInformationCount
-                ? `${storedInformationCount} information ${storedInformationCount === 1 ? 'field or object' : 'fields and objects'} stored`
-                : 'Nothing stored yet' }}
-        </div>
-
-        <!-- Components: the scripts that run here and the files that are stored here -->
         <ComponentRows
             v-if="props.data.components?.length"
             :components="props.data.components"
+            title="Files"
         />
+        <div v-else class="file-location-body">
+            No files yet
+        </div>
     </div>
 
     <!-- Application level: a card with only the name -->
@@ -82,11 +72,11 @@
         </span>
 
         <span
-            v-if="storedInformationCount"
+            v-if="fileCount"
             class="file-location-count"
-            :title="`${storedInformationCount} information fields and objects are stored here`"
+            :title="`${fileCount} ${fileCount === 1 ? 'file is' : 'files are'} stored here`"
         >
-            {{ storedInformationCount }}
+            {{ fileCount }}
         </span>
 
         <Handle

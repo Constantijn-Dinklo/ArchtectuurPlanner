@@ -6,11 +6,14 @@
     import { useUIStore } from '../../stores/canvas/ui.store';
     import { FILE_TYPES, getComponentIcon, type ComponentKind, type FileType } from '../../types/component.types';
 
-    // The components of a resource: the scripts that run in it and, for a file location, its files
+    // The components of a resource: the scripts that run in an application, or the files of a file location
+    // (a file location only stores files, a script is a file as well). In a file location they are called files
     const props = defineProps<{
         resourceId: string;
         resourceType: 'application' | 'fileLocation';
     }>();
+
+    const noun = computed(() => props.resourceType === 'fileLocation' ? 'file' : 'component');
 
     const componentStore = useComponentStore();
     const viewStore = useViewStore();
@@ -48,13 +51,13 @@
 <template>
     <section v-collapsible class="detail-section">
         <div class="detail-section-title">
-            <span>Components</span>
+            <span>{{ resourceType === 'fileLocation' ? 'Files' : 'Components' }}</span>
             <span class="detail-count">{{ components.length }}</span>
         </div>
 
         <div v-if="!components.length" class="detail-empty">
             {{ resourceType === 'fileLocation'
-                ? 'No scripts or files yet'
+                ? 'No files yet. Add the scripts and other files stored here.'
                 : 'No scripts yet. Add the scripts that run in this application.' }}
         </div>
 
@@ -71,7 +74,7 @@
             <button
                 type="button"
                 class="detail-delete-button"
-                title="Delete component"
+                :title="`Delete ${noun}`"
                 @click.stop="componentStore.deleteComponent(component.id)"
             >
                 ×
@@ -90,7 +93,7 @@
                 v-if="allowedKinds.length > 1"
                 v-model="newKind"
                 class="detail-select kind-select"
-                title="Kind of component"
+                :title="`Kind of ${noun}`"
             >
                 <option value="script">Script</option>
                 <option value="file">File</option>
@@ -108,7 +111,7 @@
             <button
                 type="button"
                 class="detail-add-button"
-                title="Add component"
+                :title="`Add ${noun}`"
                 :disabled="!newName.trim()"
                 @click="addComponent"
             >

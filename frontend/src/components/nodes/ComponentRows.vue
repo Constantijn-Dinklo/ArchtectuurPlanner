@@ -6,9 +6,13 @@
 
     // The components of a resource (its scripts and files) as thin rows inside the node of the resource.
     // Every row has its own handles, so edges go to and from the component itself
-    defineProps<{
+    // title: what the section is called in the node, 'Files' in a file location
+    withDefaults(defineProps<{
         components: CanvasComponentRow[];
-    }>();
+        title?: string;
+    }>(), {
+        title: 'Components'
+    });
 
     const UIStore = useUIStore();
 
@@ -33,21 +37,13 @@
         }
         expandedObjects.value = expanded;
     }
-
-    function getIncomingTitle(component: CanvasComponentRow) {
-        return component.kind === 'script' ? 'Reads from' : 'Written by';
-    }
-
-    function getOutgoingTitle(component: CanvasComponentRow) {
-        return component.kind === 'script' ? 'Writes to' : 'Read by';
-    }
 </script>
 
 <template>
     <div class="components-section">
         <div class="components-title">
             <span class="components-dot" />
-            Components
+            {{ title }}
         </div>
 
         <div
@@ -82,10 +78,18 @@
                 <i :class="component.icon" class="component-icon" />
                 <span class="component-name">{{ component.name }}</span>
                 <span
+                    v-if="component.kind === 'script'"
                     class="component-flow"
-                    :title="`${getIncomingTitle(component)}: ${component.incoming.length} · ${getOutgoingTitle(component)}: ${component.outgoing.length}`"
+                    :title="`Reads from: ${component.incoming.length} · Writes to: ${component.outgoing.length}`"
                 >
                     {{ component.incoming.length }}→{{ component.outgoing.length }}
+                </span>
+                <span
+                    v-else
+                    class="component-flow"
+                    title="Information in this file"
+                >
+                    {{ component.objectNames.length + component.fieldNames.length }}
                 </span>
                 <button
                     type="button"
@@ -162,37 +166,32 @@
                 </div>
             </div>
 
-            <!-- File: the scripts that write to it and read from it, and what it contains -->
-            <div v-else-if="UIStore.expandedComponentIds.has(component.id)" class="component-details">
-                <div class="component-details-title">{{ getIncomingTitle(component) }}</div>
-                <ul class="component-list">
-                    <li v-for="link in component.incoming" :key="link.key">
-                        <i :class="link.icon" /> {{ link.name }}
-                    </li>
-                    <li v-if="!component.incoming.length" class="component-empty">Nothing</li>
-                </ul>
-
-                <div class="component-details-title">{{ getOutgoingTitle(component) }}</div>
-                <ul class="component-list">
-                    <li v-for="link in component.outgoing" :key="link.key">
-                        <i :class="link.icon" /> {{ link.name }}
-                    </li>
-                    <li v-if="!component.outgoing.length" class="component-empty">Nothing</li>
-                </ul>
-
-                <div class="component-details-title">Contains</div>
-                <ul class="component-list information">
-                    <li v-for="objectName in component.objectNames" :key="`object:${objectName}`" class="information-object">
-                        ▱ {{ objectName }}
-                    </li>
-                    <li v-for="fieldName in component.fieldNames" :key="`field:${fieldName}`">
-                        {{ fieldName }}
-                    </li>
-                    <li v-if="!component.objectNames.length && !component.fieldNames.length" class="component-empty">
-                        No information
-                    </li>
-                </ul>
-            </div>
+            <!-- File: the information it contains, like the information of an endpoint -->
+            <ul
+                v-else-if="UIStore.expandedComponentIds.has(component.id)"
+                class="object-information-fields file-information"
+            >
+                <li
+                    v-for="objectName in component.objectNames"
+                    :key="`object:${objectName}`"
+                    class="file-object"
+                >
+                    ▱ {{ objectName }}
+                </li>
+                <li
+                    v-for="fieldName in component.fieldNames"
+                    :key="`field:${fieldName}`"
+                    class="file-field"
+                >
+                    {{ fieldName }}
+                </li>
+                <li
+                    v-if="!component.objectNames.length && !component.fieldNames.length"
+                    class="component-empty"
+                >
+                    No information
+                </li>
+            </ul>
         </div>
     </div>
 </template>
@@ -391,49 +390,15 @@
     color: #1e293b;
 }
 
-.component-details {
-    padding: 0 2px 2px 6px;
-}
-
-.component-details-title {
-    margin-top: 2px;
-
-    color: #64748b;
-    font-size: var(--canvas-type-detail-meta);
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-.component-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.component-list li {
-    overflow: hidden;
-    padding: 1px 2px 1px 3px;
-
-    border-left: 1px solid #c7d2fe;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-
-.component.file .component-list li {
+/* File: the information it contains, listed like the information of an endpoint */
+.object-information-fields.file-information li {
     border-left-color: #fed7aa;
 }
 
-.component-list li .pi {
-    color: #64748b;
-    font-size: var(--canvas-type-detail-meta);
-}
-
-.component-list .information-object {
+.file-object {
     font-weight: 700;
 }
 
-.component-list li.component-empty,
 .component-empty {
     color: #94a3b8;
     font-style: italic;
@@ -537,7 +502,8 @@
     text-overflow: ellipsis;
 }
 
-.information-fields-list li::before {
+.information-fields-list li::before,
+.file-field::before {
     content: '';
     display: inline-block;
     width: 2px;

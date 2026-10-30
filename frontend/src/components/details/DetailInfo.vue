@@ -10,7 +10,6 @@
     import ExternalDetails from './ExternalDetails.vue';
     import ConnectionWarnings from './ConnectionWarnings.vue';
     import EdgeConnectionsDetail from './EdgeConnectionsDetail.vue';
-    import EndpointsSection from './EndpointsSection.vue';
     import ComponentDetails from './ComponentDetails.vue';
     import ComponentsSection from './ComponentsSection.vue';
     import { computed } from 'vue';
@@ -58,14 +57,11 @@
                         <h2>{{ selectedNodeProjection.nodeInfo.value.node.name }}</h2>
                     </div>
                 </header>
+                <!-- A file location only stores files: it has no information of its own and no endpoints -->
                 <ComponentsSection
                     v-if="selectedNodeProjection.nodeInfo.value.node.type === 'fileLocation'"
                     :resource-id="selectedNodeProjection.nodeInfo.value.node.id"
                     resource-type="fileLocation"
-                />
-                <EndpointsSection
-                    :resource-id="selectedNodeProjection.nodeInfo.value.node.id"
-                    :resource-type="selectedNodeProjection.nodeInfo.value.node.type"
                 />
                 <ConnectionsDetail :connections-info="selectedNodeProjection.nodeInfo.value.connections" />
             </template>
