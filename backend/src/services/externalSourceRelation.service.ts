@@ -9,16 +9,16 @@ import OtherConnection from "../models/otherConnection.model";
 import ApiConnection from "../models/apiConnection.model";
 import Api from "../models/api.model";
 import Script from "../models/script.model";
-import Component from "../models/component.model";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import { updateReceivedInformation } from "./externalRelation.service";
+import { syncScriptRelations } from "./scriptRelation.service";
 
 // External elements are black boxes: nobody adds their relations by hand. The relations that involve them are kept
 // in sync here, so every movement of information to or from an external element is stored as a relation.
 //
 // From an external element: what it provides reaches the resources it is connected to (other connection, api
-// connection, script, script component). Each piece of information it provides that the resource takes in gets a
+// connection, script). Script components are kept by syncScriptRelations. Each piece of information it provides that the resource takes in gets a
 // relation external element -> resource, via that connection.
 // - an application takes in its input fields and input objects
 // - a table takes in its columns, also when the external element provides the field inside an object;
@@ -30,8 +30,8 @@ import { updateReceivedInformation } from "./externalRelation.service";
 //
 // A relation from an external element that was added by hand is left alone, and no second relation is added next to it.
 
-type ManagedVia = 'other' | 'api' | 'script' | 'component';
-const MANAGED_VIA_TYPES: ManagedVia[] = ['other', 'api', 'script', 'component'];
+type ManagedVia = 'other' | 'api' | 'script';
+const MANAGED_VIA_TYPES: ManagedVia[] = ['other', 'api', 'script'];
 
 interface DesiredRelation {
     kind: 'field' | 'object';
@@ -65,12 +65,12 @@ export async function syncExternalSourceRelations(user: { environmentId: string 
         ...await getApiRelationsToExternals(environmentId, externalIds)
     ];
 
-    // The relations this sync looks after: from an external element to an internal resource,
-    // and to an external element through an api connection
+    // The relations this sync looks after: from an external element to an internal resource (not through a script
+    // component: syncScriptRelations keeps those), and to an external element through an api connection
     const managedScope = {
         environmentId,
         $or: [
-            { sourceResourceId: { $in: externalIds }, targetResourceType: { $ne: 'external' } },
+            { sourceResourceId: { $in: externalIds }, targetResourceType: { $ne: 'external' }, viaConnectionType: { $ne: 'component' as const } },
             { targetResourceType: 'external', viaConnectionType: 'api' as const }
         ]
     };
@@ -166,15 +166,7 @@ async function getRelationsFromExternals(environmentId: string, externals: Exter
         }
     }
 
-    const scriptComponents = await Component.find({ environmentId, kind: 'script', 'inputs.resourceId': { $in: externalIds } });
-    for(const component of scriptComponents) {
-        const readExternalIds = component.inputs.map((end) => end.resourceId.toString()).filter((id) => externalIds.includes(id));
-        for(const externalId of readExternalIds) {
-            for(const end of component.outputs) {
-                links.push({ externalId, targetId: end.resourceId.toString(), viaType: 'component', viaId: component._id.toString() });
-            }
-        }
-    }
+    // (What script components read from an external element is kept by syncScriptRelations)
 
     // What the connected resources take in
     const targetIds = [...new Set(links.map((link) => link.targetId))];
@@ -264,7 +256,9 @@ export function keepExternalSourceRelationsInSync(req: AuthenticatedRequest, res
     res.json = ((body: any) => {
         if(res.statusCode >= 400) return json(body);
 
-        syncExternalSourceRelations(getUser(req))
+        // What script components read and write is kept in sync here as well
+        syncScriptRelations(getUser(req))
+            .then(() => syncExternalSourceRelations(getUser(req)))
             .catch((err) => console.error('Syncing the relations of external elements failed:', err.message))
             .finally(() => json(body));
         return res;

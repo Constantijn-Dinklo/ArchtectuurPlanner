@@ -7,7 +7,7 @@ import { useInformationObjectStore } from "../stores/information/informationObje
 import type { ConnectionType, ResourceRelation } from "../stores/information/informationRelation.store";
 import { useResourceService } from "./resources/resource.service";
 import { useComponentStore } from "../stores/resources/component.store";
-import { getScriptCarriedInformation } from "../types/component.types";
+import { connectsScript, getScriptCarriedBetween } from "../types/component.types";
 
 // What travels from the source to the target
 export type CarriedInformation =
@@ -93,9 +93,10 @@ export function useInformationSourceService() {
             }
         }
 
-        // Script components carry information like other connections: what they produce (their outputs)
-        for (const script of componentStore.getScriptsBetween(sourceIds, targetIds)) {
-            if (!carries(getScriptCarriedInformation(script), information)) continue;
+        // Script components carry information like other connections: what they read from the source into their host,
+        // write from their host to the target, or read from the source and write to the target
+        for (const script of componentStore.components.filter(component => connectsScript(component, sourceIds, targetIds))) {
+            if (!carries(getScriptCarriedBetween(script, sourceIds, targetIds), information)) continue;
             const host = resourceService.getResource(script.resourceId)?.name;
             candidates.push({ type: 'component', id: script.id, label: `Script ${script.name}${host ? ` (on ${host})` : ''}` });
         }

@@ -7,7 +7,7 @@ import { useApiStore, type Api } from "../stores/api.store";
 import { useOtherConnectionStore } from "../stores/otherConnection.store";
 import { useResourceService } from "./resources/resource.service";
 import { useComponentStore } from "../stores/resources/component.store";
-import { getScriptCarriedInformation } from "../types/component.types";
+import { connectsScript, getScriptCarriedBetween } from "../types/component.types";
 import { useScriptStore } from "../stores/script.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 
@@ -49,7 +49,7 @@ export function useInformationTransferService() {
         return apiConnectionStore.apiConnections.some(connection => connection.sourceId === sourceId && connection.targetId === targetId)
             || otherConnectionStore.otherConnections.some(connection => connection.sourceId === sourceId && connection.targetId === targetId)
             || scriptStore.scripts.some(script => script.inputIds.includes(sourceId) && script.outputIds.includes(targetId))
-            || componentStore.getScriptsBetween([sourceId], [targetId]).length > 0
+            || componentStore.components.some(component => connectsScript(component, [sourceId], [targetId]))
             || databaseConnectionStore.databaseConnections.some(connection =>
                 (connection.operation.includes('read') && connection.databaseId === sourceId && connection.entityId === targetId) ||
                 (connection.operation.includes('write') && connection.entityId === sourceId && connection.databaseId === targetId)
@@ -67,8 +67,11 @@ export function useInformationTransferService() {
     function getCarriersBetween(sourceId: string, targetId: string): Pick<Api, 'informationFieldIds' | 'informationObjectIds'>[] {
         const otherConnections = otherConnectionStore.otherConnections
             .filter(connection => connection.sourceId === sourceId && connection.targetId === targetId);
-        // A script carries what it produces (its outputs)
-        const scripts = componentStore.getScriptsBetween([sourceId], [targetId]).map(getScriptCarriedInformation);
+        // A script carries what it reads from the source into its host, writes from its host to the target,
+        // or reads from the source and writes to the target
+        const scripts = componentStore.components
+            .filter(component => connectsScript(component, [sourceId], [targetId]))
+            .map(script => getScriptCarriedBetween(script, [sourceId], [targetId]));
         return [...getUrlsBetween(sourceId, targetId), ...otherConnections, ...scripts];
     }
 

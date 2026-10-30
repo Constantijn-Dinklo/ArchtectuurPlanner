@@ -9,7 +9,7 @@ import { useComponentStore } from "../stores/resources/component.store";
 import { useResourceService } from "./resources/resource.service";
 import { useEndpointInformationService } from "./endpointInformation.service";
 import { useInformationEndpointService } from "./informationEndpoint.service";
-import { getInformationSlotIds, getScriptCarriedInformation, type Component, type InformationSlot } from "../types/component.types";
+import { getInformationSlotIds, type Component, type ComponentEnd, type InformationSlot } from "../types/component.types";
 
 // Information is always identified by its id; the name is only used to show it
 export type InformationKind = 'field' | 'object';
@@ -136,12 +136,13 @@ export function useInformationChainService() {
     function assemble(kind: InformationKind, id: string, name: string, sourceId: string | null, containingObjectIds: string[]): InformationChain {
         const holders = getHolders(kind, id, containingObjectIds);
         const relations = getRelations(kind, id, containingObjectIds);
-        const externalEdges = getExternalEdges(holders, relations);
+        const endHas = getEndHas(kind, id);
+        const externalEdges = [...getExternalEdges(holders, relations, endHas), ...getScriptEdges(holders, endHas)];
         const edges = [
             ...(kind === 'field' ? getFieldEdges(id, containingObjectIds) : getObjectEdges(id)),
             ...externalEdges
         ];
-        const breaks = getBreaks(kind, id, sourceId, containingObjectIds, relations, externalEdges, holders);
+        const breaks = getBreaks(kind, id, sourceId, containingObjectIds, relations, externalEdges, holders, endHas);
 
         const steps = new Map<string, ChainStep>();
         edges.forEach(edge => {
@@ -149,8 +150,30 @@ export function useInformationChainService() {
             steps.set(stepKey(edge.target), edge.target);
         });
 
+        // Inside one application the information goes from the input to the output, also without a relation for it
+        const holderSteps = holders.map(holderToStep);
+        const heldKeys = new Set(holderSteps.map(stepKey));
+        const throughEdges: ChainEdge[] = holderSteps
+            .filter(step => step.side === 'input' && heldKeys.has(stepKey({ resourceId: step.resourceId, side: 'output' })))
+            .filter(step => !edges.some(edge =>
+                stepKey(edge.source) === stepKey(step) && stepKey(edge.target) === stepKey({ resourceId: step.resourceId, side: 'output' })
+            ))
+            .map(step => ({ source: step, target: { resourceId: step.resourceId, side: 'output' }, carriedByObjectIds: [] }));
+        throughEdges.forEach(edge => {
+            steps.set(stepKey(edge.source), edge.source);
+            steps.set(stepKey(edge.target), edge.target);
+        });
+
+        // Places that hold the information without any relation still show, as a chain of their own
+        const looseSteps = new Map<string, ChainStep>();
+        holderSteps
+            .filter(step => !steps.has(stepKey(step)))
+            .forEach(step => looseSteps.set(stepKey(step), step));
+        looseSteps.forEach((step, key) => steps.set(key, step));
+
         const chains = buildChains(
-            edges,
+            [...edges, ...throughEdges],
+            [...looseSteps.values()],
             step => kind === 'field' ? getStepObjectIds(step, containingObjectIds) : [],
             key => breaks.filter(chainBreak => chainBreak.stepKey === key)
         );
@@ -176,10 +199,10 @@ export function useInformationChainService() {
         return [
             ...informationRelationStore.fieldRelations
                 .filter(relation => relation.informationFieldId === informationFieldId)
-                .flatMap(relation => relationToEdges(relation, script => carriesField(script, informationFieldId))),
+                .flatMap(relation => relationToEdges(relation, getEndHas('field', informationFieldId))),
             ...informationRelationStore.objectRelations
                 .filter(relation => containingObjectIds.includes(relation.informationObjectId))
-                .flatMap(relation => relationToEdges(relation, script => carriesObject(script, relation.informationObjectId), relation.informationObjectId)),
+                .flatMap(relation => relationToEdges(relation, getEndHas('object', relation.informationObjectId), relation.informationObjectId)),
             ...getFieldEndpointEdges(informationFieldId, containingObjectIds)
         ];
     }
@@ -188,22 +211,26 @@ export function useInformationChainService() {
         return [
             ...informationRelationStore.objectRelations
                 .filter(relation => relation.informationObjectId === informationObjectId)
-                .flatMap(relation => relationToEdges(relation, script => carriesObject(script, informationObjectId))),
+                .flatMap(relation => relationToEdges(relation, getEndHas('object', informationObjectId))),
             ...getObjectEndpointEdges(informationObjectId)
         ];
     }
 
-    // A script carries what it produces (its outputs), a field also inside an object it produces
-    function carriesField(script: Component, informationFieldId: string) {
-        const carried = getScriptCarriedInformation(script);
-        return carried.informationFieldIds.includes(informationFieldId) ||
-            carried.informationObjectIds.some(objectId =>
-                informationObjectStore.getInformationObject(objectId)?.informationFieldIds.includes(informationFieldId)
+    // Whether a script reads the information from one end or writes it to one end, a field also inside such an object
+    function getEndHas(kind: InformationKind, id: string): (end: ComponentEnd) => boolean {
+        if (kind === 'object') return end => end.informationObjectIds.includes(id);
+        return end => end.informationFieldIds.includes(id) ||
+            end.informationObjectIds.some(objectId =>
+                informationObjectStore.getInformationObject(objectId)?.informationFieldIds.includes(id)
             );
     }
 
-    function carriesObject(script: Component, informationObjectId: string) {
-        return getScriptCarriedInformation(script).informationObjectIds.includes(informationObjectId);
+    // A script only carries information from where it reads it to where it writes it
+    function passesThrough(script: Component, relation: ResourceRelation, endHas: (end: ComponentEnd) => boolean) {
+        const isEndOf = (end: ComponentEnd, resourceId: string) =>
+            end.resourceId === resourceId || end.resourceId === getDatabaseId(resourceId);
+        return script.inputs.some(end => isEndOf(end, relation.sourceResourceId) && endHas(end)) &&
+            script.outputs.some(end => isEndOf(end, relation.targetResourceId) && endHas(end));
     }
 
     // Tables are connected through their database
@@ -214,9 +241,9 @@ export function useInformationChainService() {
     }
 
     // The scripts the information goes through on its way from the source to the target of the relation: the script
-    // the relation is set to go via, or, when nothing is set, the scripts that read the source, write the target and
-    // produce the information
-    function getRelationScripts(relation: ResourceRelation, carries: (script: Component) => boolean): Component[] {
+    // the relation is set to go via, or, when nothing is set, the scripts that read the information from the source
+    // and write it to the target
+    function getRelationScripts(relation: ResourceRelation, endHas: (end: ComponentEnd) => boolean): Component[] {
         if (relation.sourceResourceId === relation.targetResourceId) return [];
 
         if (relation.viaConnectionType === 'component' && relation.viaConnectionId) {
@@ -227,17 +254,24 @@ export function useInformationChainService() {
 
         const sourceIds = [relation.sourceResourceId, getDatabaseId(relation.sourceResourceId)].filter(id => id !== undefined);
         const targetIds = [relation.targetResourceId, getDatabaseId(relation.targetResourceId)].filter(id => id !== undefined);
-        return componentStore.getScriptsBetween(sourceIds, targetIds).filter(carries);
+        return componentStore.getScriptsBetween(sourceIds, targetIds).filter(script => passesThrough(script, relation, endHas));
     }
 
     // A relation that goes through a script gets the script as a step in between: source -> script -> target
-    function relationToEdges(relation: ResourceRelation, carries: (script: Component) => boolean, carriedByObjectId?: string): ChainEdge[] {
+    function relationToEdges(relation: ResourceRelation, endHas: (end: ComponentEnd) => boolean, carriedByObjectId?: string): ChainEdge[] {
         const edge = relationToEdge(relation, carriedByObjectId);
-        const scripts = getRelationScripts(relation, carries);
+        const scripts = getRelationScripts(relation, endHas);
         if (!scripts.length) return [edge];
 
         return scripts.flatMap(script => {
             const scriptStep: ChainStep = { resourceId: script.resourceId, componentId: script.id };
+            // A script reads into its host and writes from its host: there the script is the step of the host
+            if (script.resourceId === relation.targetResourceId) {
+                return [{ source: edge.source, target: scriptStep, carriedByObjectIds: edge.carriedByObjectIds }];
+            }
+            if (script.resourceId === relation.sourceResourceId) {
+                return [{ source: scriptStep, target: edge.target, carriedByObjectIds: edge.carriedByObjectIds }];
+            }
             return [
                 { source: edge.source, target: scriptStep, carriedByObjectIds: edge.carriedByObjectIds },
                 { source: scriptStep, target: edge.target, carriedByObjectIds: edge.carriedByObjectIds }
@@ -328,13 +362,15 @@ export function useInformationChainService() {
         return objectIds.map(objectId => informationObjectStore.getInformationObject(objectId)?.objectName ?? 'Unknown object');
     }
 
-    // Returns every path from a start (nothing flows into it) to an end (nothing flows out of it)
+    // Returns every path from a start (nothing flows into it) to an end (nothing flows out of it).
+    // looseSteps: steps without any edge, each one a chain of its own
     function buildChains(
         edges: ChainEdge[],
+        looseSteps: ChainStep[],
         getStepObjectIdsOf: (step: ChainStep) => string[],
         getStepBreaks: (key: string) => ChainBreak[]
     ): Chain[] {
-        const steps = new Map<string, ChainStep>();
+        const steps = new Map<string, ChainStep>(looseSteps.map(step => [stepKey(step), step]));
         const next = new Map<string, string[]>();
         const hasIncoming = new Set<string>();
         // The same hop can exist on its own and in one or more objects; they are merged into one link
@@ -404,6 +440,14 @@ export function useInformationChainService() {
     }
 
     // ---- Holders ----
+
+    // The step of the chain a place is: an application has an input and an output side
+    function holderToStep(holder: ChainHolder): ChainStep {
+        if (holder.endpointId) return { resourceId: holder.resourceId, endpointId: holder.endpointId };
+        if (holder.componentId) return { resourceId: holder.resourceId, componentId: holder.componentId };
+        if (holder.role === 'input' || holder.role === 'output') return { resourceId: holder.resourceId, side: holder.role };
+        return { resourceId: holder.resourceId };
+    }
 
     // Whether a place with these fields and objects holds the information; for a field also inside one of its objects
     function toHolder(
@@ -496,8 +540,8 @@ export function useInformationChainService() {
     // External elements are only linked by relations when information is sent to them through a connection.
     // What an external element provides reaches the resources it is connected to without a relation: an edge is
     // added from the external element to every connected resource that takes the information in (an application
-    // input, a table, a script reading from it). A script that writes to an external element sends what it produces there.
-    function getExternalEdges(holders: ChainHolder[], relations: ResourceRelation[]): ChainEdge[] {
+    // input, a table, a script reading it from the external element). A script that writes the information to an external element sends it there.
+    function getExternalEdges(holders: ChainHolder[], relations: ResourceRelation[], endHas: (end: ComponentEnd) => boolean): ChainEdge[] {
         const edges: ChainEdge[] = [];
         const providers = holders.filter(holder => holder.role === 'provided');
         const isExternal = (resourceId: string) => resourceService.getResource(resourceId)?.type === 'external';
@@ -513,7 +557,7 @@ export function useInformationChainService() {
                 if (receiver.role !== 'input') continue;
                 const script = componentStore.getComponent(receiver.componentId);
                 for (const provider of providers) {
-                    if (!script?.inputs.some(end => end.resourceId === provider.resourceId)) continue;
+                    if (!script?.inputs.some(end => end.resourceId === provider.resourceId && endHas(end))) continue;
                     edges.push({
                         source: { resourceId: provider.resourceId },
                         target: { resourceId: receiver.resourceId, componentId: receiver.componentId },
@@ -547,7 +591,13 @@ export function useInformationChainService() {
             if (!holder.componentId || holder.role !== 'output') continue;
             const script = componentStore.getComponent(holder.componentId);
             for (const end of script?.outputs ?? []) {
-                if (!isExternal(end.resourceId)) continue;
+                if (!isExternal(end.resourceId) || !endHas(end)) continue;
+                // A relation through the script already shows how the information gets there
+                if (relations.some(relation =>
+                    relation.viaConnectionType === 'component' &&
+                    relation.viaConnectionId === holder.componentId &&
+                    relation.targetResourceId === end.resourceId
+                )) continue;
                 edges.push({
                     source: { resourceId: holder.resourceId, componentId: holder.componentId },
                     target: { resourceId: end.resourceId },
@@ -556,6 +606,46 @@ export function useInformationChainService() {
             }
         }
 
+        return edges;
+    }
+
+    // ---- Scripts ----
+
+    // Relations only go between resources, so what a script reads and writes is not in them. A relation through a
+    // script only exists when the script reads the information from one resource and writes it to another.
+    // The reads and writes of the script itself are added as edges: what it reads the information from -> script,
+    // and script -> what it writes it to. External elements are left to getExternalEdges.
+    function getScriptEdges(holders: ChainHolder[], endHas: (end: ComponentEnd) => boolean): ChainEdge[] {
+        const edges: ChainEdge[] = [];
+
+        // A file, or a resource that holds the information itself (not a database: its tables hold the information)
+        function toStep(end: ComponentEnd, side: 'input' | 'output'): ChainStep | undefined {
+            if (end.componentId) {
+                return holders.some(holder => holder.componentId === end.componentId)
+                    ? { resourceId: end.resourceId, componentId: end.componentId }
+                    : undefined;
+            }
+            const resource = resourceService.getResource(end.resourceId);
+            if (!resource || resource.type === 'external') return undefined;
+            if (!holders.some(holder => holder.resourceId === end.resourceId && !holder.componentId && !holder.endpointId)) return undefined;
+            return resource.type === 'application' ? { resourceId: end.resourceId, side } : { resourceId: end.resourceId };
+        }
+
+        const scriptIds = new Set(holders.filter(holder => holder.componentId).map(holder => holder.componentId!));
+        for (const scriptId of scriptIds) {
+            const script = componentStore.getComponent(scriptId);
+            if (script?.kind !== 'script') continue;
+            const scriptStep: ChainStep = { resourceId: script.resourceId, componentId: script.id };
+
+            for (const end of script.inputs.filter(endHas)) {
+                const source = toStep(end, 'output');
+                if (source) edges.push({ source, target: scriptStep, carriedByObjectIds: [] });
+            }
+            for (const end of script.outputs.filter(endHas)) {
+                const target = toStep(end, 'input');
+                if (target) edges.push({ source: scriptStep, target, carriedByObjectIds: [] });
+            }
+        }
         return edges;
     }
 
@@ -577,7 +667,8 @@ export function useInformationChainService() {
         containingObjectIds: string[],
         relations: ResourceRelation[],
         externalEdges: ChainEdge[],
-        holders: ChainHolder[]
+        holders: ChainHolder[],
+        endHas: (end: ComponentEnd) => boolean
     ): ChainBreak[] {
         const breaks: ChainBreak[] = [];
         const noun = kind === 'field' ? 'field' : 'object';
@@ -611,21 +702,21 @@ export function useInformationChainService() {
             }
         }
 
-        // A script that takes the information in, but reads from nothing that has it
+        // A script that takes the information in, but does not read it from anything that has it
         for (const holder of holders) {
             if (holder.role !== 'input' || !holder.componentId) continue;
             const script = componentStore.getComponent(holder.componentId);
             if (!script) continue;
-            const fed = script.inputs.some(end => end.componentId
+            const fed = script.inputs.some(end => endHas(end) && (end.componentId
                 ? holders.some(other => other.componentId === end.componentId && other.role !== 'input')
                 : resourceProvides(holders, end.resourceId)
-            );
+            ));
             if (!fed) {
                 const step: ChainStep = { resourceId: holder.resourceId, componentId: holder.componentId };
                 breaks.push({
                     kind: 'unknownOrigin',
                     severity: 'warning',
-                    message: `${getStepLabel(step)} takes this ${noun} in, but reads from nothing that has it`,
+                    message: `${getStepLabel(step)} takes this ${noun} in, but does not read it from anything that has it`,
                     stepKey: stepKey(step)
                 });
             }

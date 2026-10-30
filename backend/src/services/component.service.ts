@@ -8,6 +8,7 @@ import InformationField from "../models/information/informationField.model";
 import InformationObject from "../models/information/informationObject.models";
 import { createInformationField } from "./resourceField.service";
 import { createInformationObject } from "./resourceObject.service";
+import { addScriptWrittenInput } from "./scriptRelation.service";
 
 // Which kinds of component a resource can have: scripts run in applications and file locations,
 // files are stored in file locations
@@ -150,7 +151,9 @@ export async function addComponentEnd(user: UserJwtPayload, componentId: string,
     if(!alreadyThere) {
         component[side].push({
             resourceId: new Types.ObjectId(end.resourceId),
-            componentId: endComponentId ? new Types.ObjectId(endComponentId) : null
+            componentId: endComponentId ? new Types.ObjectId(endComponentId) : null,
+            informationFieldIds: [],
+            informationObjectIds: []
         });
         await component.save();
     }
@@ -164,7 +167,88 @@ export async function removeComponentEnd(user: UserJwtPayload, componentId: stri
     return withReferencedInformation(user, component);
 }
 
+// <-- The information a script reads from one end or writes to one end -->
+
+// Reading puts the information in the inputs of the script, writing in its outputs
+const SIDE_SLOTS = { inputs: 'input', outputs: 'output' } as const;
+
+function hasId(ids: Types.ObjectId[], id: string) {
+    return ids.some((existing) => existing.toString() === id.toString());
+}
+
+async function getInformationId(user: UserJwtPayload, type: 'Field' | 'Object', information: any) {
+    if(type === 'Field') {
+        if("fieldName" in information) {
+            if(!information.fieldName?.trim()) throw new Error("A field needs a name");
+            return (await createInformationField(user, information.fieldName.trim()))._id.toString();
+        }
+        return information.informationFieldId as string;
+    }
+    if("objectName" in information) {
+        if(!information.objectName?.trim()) throw new Error("An object needs a name");
+        return (await createInformationObject(user, information.objectName.trim()))._id.toString();
+    }
+    return information.informationObjectId as string;
+}
+
+async function getScriptEnd(user: UserJwtPayload, componentId: string, side: 'inputs' | 'outputs', index: number) {
+    const component = await getComponent(user, componentId);
+    if(component.kind !== 'script') throw new Error("Only a script reads from and writes to other resources");
+    const end = component[side][index];
+    if(!end) throw new Error("The script no longer reads from or writes to this");
+    return { component, end };
+}
+
+// The information also goes in the inputs or outputs of the script
+export async function addComponentEndInformation(user: UserJwtPayload, componentId: string, side: 'inputs' | 'outputs', index: number, type: 'Field' | 'Object', information: any) {
+    const { component, end } = await getScriptEnd(user, componentId, side, index);
+    if(!information) throw new Error("Select the information");
+    const informationId = await getInformationId(user, type, information);
+
+    const endList = end[`information${type}Ids`];
+    if(!hasId(endList, informationId)) endList.push(new Types.ObjectId(informationId));
+    const scriptList = component[`${SIDE_SLOTS[side]}Information${type}Ids`];
+    if(!hasId(scriptList, informationId)) scriptList.push(new Types.ObjectId(informationId));
+
+    await component.save();
+    // What the script writes to gets the information directly: a file contains it, a resource takes it in
+    // (its relation follows in syncScriptRelations)
+    if(side === 'outputs' && end.componentId) {
+        await Component.updateOne(
+            { _id: end.componentId, environmentId: user.environmentId, kind: 'file' },
+            { $addToSet: { [`information${type}Ids`]: new Types.ObjectId(informationId) } }
+        );
+    }
+    else if(side === 'outputs') {
+        await addScriptWrittenInput(user, end.resourceId.toString(), type === 'Field' ? 'field' : 'object', informationId);
+    }
+    return withReferencedInformation(user, component);
+}
+
+// The information stays in the inputs or outputs of the script while another end on that side still has it
+export async function removeComponentEndInformation(user: UserJwtPayload, componentId: string, side: 'inputs' | 'outputs', index: number, type: 'Field' | 'Object', informationId: string) {
+    const { component, end } = await getScriptEnd(user, componentId, side, index);
+    const key = `information${type}Ids` as const;
+    end[key] = end[key].filter((id) => id.toString() !== informationId);
+
+    const stillUsed = component[side].some((other) => hasId(other[key], informationId));
+    if(!stillUsed) {
+        const scriptKey = `${SIDE_SLOTS[side]}Information${type}Ids` as const;
+        component[scriptKey] = component[scriptKey].filter((id) => id.toString() !== informationId);
+    }
+
+    await component.save();
+    return withReferencedInformation(user, component);
+}
+
 // <-- The information a script takes in and produces, or a file contains -->
+
+// The ends of a script on the side of a slot: removing an input or output also removes it from what is read or written
+function getEndPull(list: string, type: 'Field' | 'Object', id: string) {
+    if(list.startsWith('input')) return { [`inputs.$[].information${type}Ids`]: id };
+    if(list.startsWith('output')) return { [`outputs.$[].information${type}Ids`]: id };
+    return {};
+}
 
 // The list a piece of information goes in. A script has inputs and outputs, a file only contains information
 async function getInformationList(user: UserJwtPayload, componentId: string, slot: InformationSlot | undefined, type: 'Field' | 'Object') {
@@ -201,7 +285,7 @@ export async function removeComponentInformationField(user: UserJwtPayload, comp
     const list = await getInformationList(user, componentId, slot, 'Field');
     const component = await Component.findOneAndUpdate(
         { _id: componentId, environmentId: user.environmentId },
-        { $pull: { [list]: informationFieldId } },
+        { $pull: { [list]: informationFieldId, ...getEndPull(list, 'Field', informationFieldId) } },
         { returnDocument: 'after' }
     );
     return withReferencedInformation(user, component);
@@ -230,7 +314,7 @@ export async function removeComponentInformationObject(user: UserJwtPayload, com
     const list = await getInformationList(user, componentId, slot, 'Object');
     const component = await Component.findOneAndUpdate(
         { _id: componentId, environmentId: user.environmentId },
-        { $pull: { [list]: informationObjectId } },
+        { $pull: { [list]: informationObjectId, ...getEndPull(list, 'Object', informationObjectId) } },
         { returnDocument: 'after' }
     );
     return withReferencedInformation(user, component);

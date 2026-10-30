@@ -7,7 +7,7 @@
     import { useInformationObjectStore } from '../../stores/information/informationObject.store';
     import { useResourceService } from '../../services/resources/resource.service';
     import { useSendableInformationService } from '../../services/sendableInformation.service';
-    import { FILE_TYPES, getComponentIcon, getInformationSlotIds, type ComponentEnd, type FileType, type InformationSlot } from '../../types/component.types';
+    import { FILE_TYPES, getComponentIcon, getInformationSlotIds, type ComponentEnd, type ComponentEndTarget, type FileType, type InformationSlot } from '../../types/component.types';
     import type { ResourceType } from '../../types/resource.type';
 
     // The details of a component: a script (what it reads and writes, what it takes in and produces) or a file (what it contains)
@@ -36,16 +36,16 @@
     // <-- What a script can read from and write to: resources (a table as well) and files -->
     interface EndOption {
         key: string;
-        end: ComponentEnd;
+        end: ComponentEndTarget;
         label: string;
         icon: string;
     }
 
-    function endKey(end: ComponentEnd) {
+    function endKey(end: ComponentEndTarget) {
         return `${end.resourceId}:${end.componentId ?? ''}`;
     }
 
-    function describeEnd(end: ComponentEnd): { label: string, icon: string } {
+    function describeEnd(end: ComponentEndTarget): { label: string, icon: string } {
         const resource = resourceService.getResource(end.resourceId);
         if (end.componentId) {
             const file = componentStore.getComponent(end.componentId);
@@ -79,51 +79,143 @@
     }
 
     // <-- The information a script takes in: what the things it reads from can pass on -->
-    const readableFields = computed(() => {
-        if (!component.value) return [];
-        const fields = new Map<string, { id: string, label: string }>();
-        for (const input of component.value.inputs) {
-            if (input.componentId) {
-                // A file passes on what it contains
-                const file = componentStore.getComponent(input.componentId);
-                file?.informationFieldIds.forEach(fieldId => {
-                    const field = informationFieldStore.getInformationField(fieldId);
-                    if (field) fields.set(field.id, { id: field.id, label: field.fieldName });
-                });
-            } else {
-                sendableInformationService.getSendableFields(input.resourceId)
-                    .forEach(field => fields.set(field.id, { id: field.id, label: field.label }));
-            }
+    type InformationOption = { id: string, label: string };
+
+    function byLabel(options: Map<string, InformationOption>) {
+        return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
+    }
+
+    // What one end can pass on: a file passes on what it contains, a resource what it can send
+    function getEndFieldOptions(end: ComponentEndTarget, fields = new Map<string, InformationOption>()) {
+        if (end.componentId) {
+            componentStore.getComponent(end.componentId)?.informationFieldIds.forEach(fieldId => {
+                const field = informationFieldStore.getInformationField(fieldId);
+                if (field) fields.set(field.id, { id: field.id, label: field.fieldName });
+            });
+        } else {
+            sendableInformationService.getSendableFields(end.resourceId)
+                .forEach(field => fields.set(field.id, { id: field.id, label: field.label }));
         }
-        return [...fields.values()].sort((a, b) => a.label.localeCompare(b.label));
+        return fields;
+    }
+
+    function getEndObjectOptions(end: ComponentEndTarget, objects = new Map<string, InformationOption>()) {
+        const objectIds = end.componentId
+            ? componentStore.getComponent(end.componentId)?.informationObjectIds ?? []
+            : sendableInformationService.getSendableObjects(end.resourceId).map(object => object.id);
+        objectIds.forEach(objectId => {
+            const informationObject = informationObjectStore.getInformationObject(objectId);
+            if (informationObject) objects.set(informationObject.id, { id: informationObject.id, label: informationObject.objectName });
+        });
+        return objects;
+    }
+
+    const readableFields = computed(() => {
+        const fields = new Map<string, InformationOption>();
+        component.value?.inputs.forEach(input => getEndFieldOptions(input, fields));
+        return byLabel(fields);
     });
 
     const readableObjects = computed(() => {
-        if (!component.value) return [];
-        const objects = new Map<string, { id: string, label: string }>();
-        for (const input of component.value.inputs) {
-            const objectIds = input.componentId
-                ? componentStore.getComponent(input.componentId)?.informationObjectIds ?? []
-                : sendableInformationService.getSendableObjects(input.resourceId).map(object => object.id);
-            objectIds.forEach(objectId => {
-                const informationObject = informationObjectStore.getInformationObject(objectId);
-                if (informationObject) objects.set(informationObject.id, { id: informationObject.id, label: informationObject.objectName });
-            });
-        }
-        return [...objects.values()].sort((a, b) => a.label.localeCompare(b.label));
+        const objects = new Map<string, InformationOption>();
+        component.value?.inputs.forEach(input => getEndObjectOptions(input, objects));
+        return byLabel(objects);
     });
 
-    // <-- What a script produces and a file contains: any existing information, or new information -->
-    const allInformationFields = computed(() =>
-        [...informationFieldStore.informationFields.values()]
-            .map(field => ({ id: field.id, label: field.fieldName }))
-            .sort((a, b) => a.label.localeCompare(b.label))
+    // <-- The information per end: what the script reads from it or writes to it -->
+    type Side = 'inputs' | 'outputs';
+
+    // The opened ends, keyed by side and end
+    const expandedEnds = ref<Set<string>>(new Set());
+
+    function toggleEnd(side: Side, end: ComponentEnd) {
+        const key = `${side}:${endKey(end)}`;
+        const expanded = new Set(expandedEnds.value);
+        if (expanded.has(key)) {
+            expanded.delete(key);
+        } else {
+            expanded.add(key);
+        }
+        expandedEnds.value = expanded;
+    }
+
+    function isEndExpanded(side: Side, end: ComponentEnd) {
+        return expandedEnds.value.has(`${side}:${endKey(end)}`);
+    }
+
+    function getEndFields(end: ComponentEnd) {
+        return end.informationFieldIds
+            .map(fieldId => informationFieldStore.getInformationField(fieldId))
+            .filter(field => field !== undefined);
+    }
+
+    function getEndObjects(end: ComponentEnd) {
+        return end.informationObjectIds
+            .map(objectId => informationObjectStore.getInformationObject(objectId))
+            .filter(informationObject => informationObject !== undefined);
+    }
+
+    // A script reads what the end can pass on, and writes what it takes in
+    function getEndFieldChoices(side: Side, end: ComponentEnd) {
+        return side === 'inputs' ? byLabel(getEndFieldOptions(end)) : producible.value.fields;
+    }
+
+    function getEndObjectChoices(side: Side, end: ComponentEnd) {
+        return side === 'inputs' ? byLabel(getEndObjectOptions(end)) : producible.value.objects;
+    }
+
+    // New information can only be written: a script only reads what already exists, but can make something new
+    const newEndFieldNames = ref<Record<string, string>>({});
+    const newEndObjectNames = ref<Record<string, string>>({});
+
+    function addNewEndField(side: Side, index: number, end: ComponentEnd) {
+        const key = `${side}:${endKey(end)}`;
+        const fieldName = newEndFieldNames.value[key]?.trim();
+        if (!fieldName || !component.value) return;
+        componentStore.addEndInformationField(component.value.id, side, index, { fieldName });
+        newEndFieldNames.value[key] = '';
+    }
+
+    function addNewEndObject(side: Side, index: number, end: ComponentEnd) {
+        const key = `${side}:${endKey(end)}`;
+        const objectName = newEndObjectNames.value[key]?.trim();
+        if (!objectName || !component.value) return;
+        componentStore.addEndInformationObject(component.value.id, side, index, { objectName });
+        newEndObjectNames.value[key] = '';
+    }
+
+    // <-- What a script produces and a file contains: only what actually gets there, or new information -->
+
+    // The fields and objects out of these lists, a field also when it is inside one of the objects
+    function toOptions(fieldIds: string[], objectIds: string[]) {
+        const fields = new Map<string, InformationOption>();
+        const objects = new Map<string, InformationOption>();
+        for (const objectId of objectIds) {
+            const informationObject = informationObjectStore.getInformationObject(objectId);
+            if (!informationObject) continue;
+            objects.set(informationObject.id, { id: informationObject.id, label: informationObject.objectName });
+            fieldIds = [...fieldIds, ...informationObject.informationFieldIds];
+        }
+        for (const fieldId of fieldIds) {
+            const field = informationFieldStore.getInformationField(fieldId);
+            if (field) fields.set(field.id, { id: field.id, label: field.fieldName });
+        }
+        return { fields: byLabel(fields), objects: byLabel(objects) };
+    }
+
+    // A script can only write what it takes in (or new information it makes itself)
+    const producible = computed(() => component.value
+        ? toOptions(component.value.inputInformationFieldIds, component.value.inputInformationObjectIds)
+        : { fields: [], objects: [] }
     );
-    const allInformationObjects = computed(() =>
-        [...informationObjectStore.informationObjects.values()]
-            .map(informationObject => ({ id: informationObject.id, label: informationObject.objectName }))
-            .sort((a, b) => a.label.localeCompare(b.label))
-    );
+
+    // A file can only contain what scripts write to it (or new information put in it)
+    const containable = computed(() => {
+        const writes = componentStore.components
+            .filter(candidate => candidate.kind === 'script')
+            .flatMap(script => script.outputs.filter(end => end.componentId === props.componentId));
+        return toOptions(writes.flatMap(end => end.informationFieldIds), writes.flatMap(end => end.informationObjectIds));
+    });
 
     interface InformationSection {
         slot: InformationSlot;
@@ -154,10 +246,10 @@
                 slot: 'output',
                 title: 'Outputs',
                 empty: 'Nothing produced yet. Add what the script delivers to what it writes to.',
-                fieldOptions: allInformationFields.value,
-                objectOptions: allInformationObjects.value,
-                fieldOptionsEmpty: 'No information fields yet',
-                objectOptionsEmpty: 'No information objects yet',
+                fieldOptions: producible.value.fields,
+                objectOptions: producible.value.objects,
+                fieldOptionsEmpty: 'The script takes in no fields yet',
+                objectOptionsEmpty: 'The script takes in no objects yet',
                 allowNew: true
             }
         ]
@@ -166,10 +258,10 @@
                 slot: 'contains',
                 title: 'Contains',
                 empty: 'Nothing yet. Add the information stored in this file.',
-                fieldOptions: allInformationFields.value,
-                objectOptions: allInformationObjects.value,
-                fieldOptionsEmpty: 'No information fields yet',
-                objectOptionsEmpty: 'No information objects yet',
+                fieldOptions: containable.value.fields,
+                objectOptions: containable.value.objects,
+                fieldOptionsEmpty: 'No script writes fields to this file',
+                objectOptionsEmpty: 'No script writes objects to this file',
                 allowNew: true
             }
         ]);
@@ -322,18 +414,111 @@
                 <div
                     v-for="(end, index) in component[side]"
                     :key="endKey(end)"
-                    class="detail-row"
+                    class="script-end"
                 >
-                    <i :class="describeEnd(end).icon" class="detail-row-icon" />
-                    <span class="detail-row-name">{{ describeEnd(end).label }}</span>
-                    <button
-                        type="button"
-                        class="detail-delete-button"
-                        :title="side === 'inputs' ? 'No longer read' : 'No longer written'"
-                        @click="componentStore.removeEnd(component.id, side, index)"
+                    <!-- Opening an end shows the information read from it or written to it -->
+                    <div
+                        class="detail-row end-row"
+                        :title="side === 'inputs' ? 'Show what is read from this' : 'Show what is written to this'"
+                        @click="toggleEnd(side, end)"
                     >
-                        ×
-                    </button>
+                        <i class="pi pi-chevron-right end-expand" :class="{ expanded: isEndExpanded(side, end) }" />
+                        <i :class="describeEnd(end).icon" class="detail-row-icon" />
+                        <span class="detail-row-name">{{ describeEnd(end).label }}</span>
+                        <span class="detail-count">{{ end.informationObjectIds.length + end.informationFieldIds.length }}</span>
+                        <button
+                            type="button"
+                            class="detail-delete-button"
+                            :title="side === 'inputs' ? 'No longer read' : 'No longer written'"
+                            @click.stop="componentStore.removeEnd(component.id, side, index)"
+                        >
+                            ×
+                        </button>
+                    </div>
+
+                    <div v-if="isEndExpanded(side, end)" class="end-information">
+                        <div v-if="!getEndObjects(end).length && !getEndFields(end).length" class="detail-empty">
+                            {{ side === 'inputs' ? 'Nothing read from this yet' : 'Nothing written to this yet' }}
+                        </div>
+
+                        <div class="information-chips">
+                            <span v-for="informationObject in getEndObjects(end)" :key="informationObject.id" class="information-chip object">
+                                ▱ {{ informationObject.objectName }}
+                                <button type="button" title="Remove" @click="componentStore.removeEndInformationObject(component.id, side, index, informationObject.id)">×</button>
+                            </span>
+                            <span v-for="field in getEndFields(end)" :key="field.id" class="information-chip">
+                                {{ field.fieldName }}
+                                <button type="button" title="Remove" @click="componentStore.removeEndInformationField(component.id, side, index, field.id)">×</button>
+                            </span>
+                        </div>
+
+                        <div class="information-pickers">
+                            <Select
+                                :model-value="undefined"
+                                :options="getEndObjectChoices(side, end)"
+                                option-label="label"
+                                :option-disabled="(option: InformationOption) => end.informationObjectIds.includes(option.id)"
+                                placeholder="+ Object"
+                                filter
+                                filter-placeholder="Search object"
+                                :empty-message="side === 'inputs' ? 'This has no objects to read' : 'The script takes in no objects yet'"
+                                size="small"
+                                class="detail-prime-select"
+                                @change="event => event.value && componentStore.addEndInformationObject(component!.id, side, index, { informationObjectId: event.value.id })"
+                            />
+                            <Select
+                                :model-value="undefined"
+                                :options="getEndFieldChoices(side, end)"
+                                option-label="label"
+                                :option-disabled="(option: InformationOption) => end.informationFieldIds.includes(option.id)"
+                                placeholder="+ Field"
+                                filter
+                                filter-placeholder="Search field"
+                                :empty-message="side === 'inputs' ? 'This has no fields to read' : 'The script takes in no fields yet'"
+                                size="small"
+                                class="detail-prime-select"
+                                @change="event => event.value && componentStore.addEndInformationField(component!.id, side, index, { informationFieldId: event.value.id })"
+                            />
+                        </div>
+
+                        <!-- What a script writes can also be new information -->
+                        <template v-if="side === 'outputs'">
+                            <div class="detail-add-row">
+                                <input
+                                    v-model="newEndObjectNames[`${side}:${endKey(end)}`]"
+                                    type="text"
+                                    class="detail-input"
+                                    placeholder="+ New information object"
+                                    @keyup.enter="addNewEndObject(side, index, end)"
+                                />
+                                <button
+                                    type="button"
+                                    class="detail-add-button"
+                                    :disabled="!newEndObjectNames[`${side}:${endKey(end)}`]?.trim()"
+                                    @click="addNewEndObject(side, index, end)"
+                                >
+                                    <i class="pi pi-plus" />
+                                </button>
+                            </div>
+                            <div class="detail-add-row">
+                                <input
+                                    v-model="newEndFieldNames[`${side}:${endKey(end)}`]"
+                                    type="text"
+                                    class="detail-input"
+                                    placeholder="+ New information field"
+                                    @keyup.enter="addNewEndField(side, index, end)"
+                                />
+                                <button
+                                    type="button"
+                                    class="detail-add-button"
+                                    :disabled="!newEndFieldNames[`${side}:${endKey(end)}`]?.trim()"
+                                    @click="addNewEndField(side, index, end)"
+                                >
+                                    <i class="pi pi-plus" />
+                                </button>
+                            </div>
+                        </template>
+                    </div>
                 </div>
 
                 <Select
@@ -545,6 +730,27 @@
 .information-chip button:hover {
     background: #fee2e2;
     color: #dc2626;
+}
+
+/* An end of a script: opening it shows what is read from it or written to it */
+.end-row {
+    cursor: pointer;
+}
+
+.end-expand {
+    color: #94a3b8;
+    font-size: 8px;
+    transition: transform 0.15s ease;
+}
+
+.end-expand.expanded {
+    transform: rotate(90deg);
+}
+
+.end-information {
+    margin: 2px 0 6px 14px;
+    padding: 4px 0 2px 8px;
+    border-left: 2px solid #e0e7ff;
 }
 
 .information-pickers {

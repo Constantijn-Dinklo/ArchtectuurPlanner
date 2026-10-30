@@ -2,12 +2,14 @@ import express, { Router, Response } from "express";
 import { AuthenticatedRequest, getUser } from "../middelware";
 import {
     addComponentEnd,
+    addComponentEndInformation,
     addComponentInformationField,
     addComponentInformationObject,
     createComponent,
     deleteComponent,
     getComponents,
     removeComponentEnd,
+    removeComponentEndInformation,
     removeComponentInformationField,
     removeComponentInformationObject,
     updateComponent
@@ -24,6 +26,12 @@ function getSlot(slot: unknown) {
 function getSide(side: string) {
     if(side !== 'inputs' && side !== 'outputs') throw new Error("Unknown side, use inputs or outputs");
     return side;
+}
+
+function getInformationType(type: string) {
+    if(type === 'fields') return 'Field';
+    if(type === 'objects') return 'Object';
+    throw new Error("Unknown information, use fields or objects");
 }
 
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
@@ -75,6 +83,32 @@ router.post('/:id/:side', async (req: AuthenticatedRequest, res: Response) => {
 router.delete('/:id/:side/:index', async (req: AuthenticatedRequest, res: Response) => {
     try {
         res.json(await removeComponentEnd(getUser(req), req.params.id as string, getSide(req.params.side as string), Number(req.params.index)));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// <-- The information a script reads from one end or writes to one end -->
+router.post('/:id/:side/:index/information/:type', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const type = getInformationType(req.params.type as string);
+        res.status(201).json(await addComponentEndInformation(
+            getUser(req), req.params.id as string, getSide(req.params.side as string), Number(req.params.index),
+            type, type === 'Field' ? req.body.informationField : req.body.informationObject
+        ));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.delete('/:id/:side/:index/information/:type/:informationId', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.json(await removeComponentEndInformation(
+            getUser(req), req.params.id as string, getSide(req.params.side as string), Number(req.params.index),
+            getInformationType(req.params.type as string), req.params.informationId as string
+        ));
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });

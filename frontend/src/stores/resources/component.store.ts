@@ -2,12 +2,15 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useToast } from "primevue";
 import api from "../../helpers/axios";
-import type { Component, ComponentEnd, ComponentKind, FileType, InformationSlot } from "../../types/component.types";
+import type { Component, ComponentEndTarget, ComponentKind, FileType, InformationSlot } from "../../types/component.types";
 import type { InformationField } from "../../types/informationField.type";
 import type { InformationObject } from "../../types/informationObject.type";
 import { useInformationFieldStore } from "../information/informationField.store";
 import { useInformationObjectStore } from "../information/informationObject.store";
 import { useViewStore } from "../canvas/view.store";
+import { refreshReceivedInformation } from "../../services/receivedInformation";
+import { useApplicationService } from "../../services/resources/application.service";
+import { useTableStore } from "./table.store";
 
 interface ComponentWithInformationResponse {
     component: Component;
@@ -120,6 +123,8 @@ export const useComponentStore = defineStore('component', () => {
             if (res.data.viewNodeId) {
                 useViewStore().removeViewNode(res.data.viewNodeId);
             }
+            // The relations through a removed script are gone as well
+            await refreshReceivedInformation();
         });
     }
 
@@ -129,12 +134,42 @@ export const useComponentStore = defineStore('component', () => {
         setComponent(res.data.component);
     }
 
-    function addEnd(id: string, side: 'inputs' | 'outputs', end: ComponentEnd) {
+    function addEnd(id: string, side: 'inputs' | 'outputs', end: ComponentEndTarget) {
         return withErrorToast(() => apply(api.post(`/components/${id}/${side}`, end)));
     }
 
+    // What a script reads and writes decides the relations it carries, and an application, table or external element
+    // it writes to gets the information. The backend keeps those up to date, so reload them after such a change
+    async function applyAndRefresh(request: Promise<{ data: ComponentWithInformationResponse }>) {
+        await apply(request);
+        await Promise.all([
+            // A file the script writes to contains what is written
+            fetchComponents(),
+            refreshReceivedInformation(),
+            useApplicationService().fetchApplications(),
+            useTableStore().fetchTables()
+        ]);
+    }
+
+    // The information a script reads from one end or writes to one end; it also goes in the inputs or outputs of the script
+    function addEndInformationField(id: string, side: 'inputs' | 'outputs', index: number, informationField: { fieldName: string } | { informationFieldId: string }) {
+        return withErrorToast(() => applyAndRefresh(api.post(`/components/${id}/${side}/${index}/information/fields`, { informationField })));
+    }
+
+    function removeEndInformationField(id: string, side: 'inputs' | 'outputs', index: number, informationFieldId: string) {
+        return withErrorToast(() => applyAndRefresh(api.delete(`/components/${id}/${side}/${index}/information/fields/${informationFieldId}`)));
+    }
+
+    function addEndInformationObject(id: string, side: 'inputs' | 'outputs', index: number, informationObject: { objectName: string } | { informationObjectId: string }) {
+        return withErrorToast(() => applyAndRefresh(api.post(`/components/${id}/${side}/${index}/information/objects`, { informationObject })));
+    }
+
+    function removeEndInformationObject(id: string, side: 'inputs' | 'outputs', index: number, informationObjectId: string) {
+        return withErrorToast(() => applyAndRefresh(api.delete(`/components/${id}/${side}/${index}/information/objects/${informationObjectId}`)));
+    }
+
     function removeEnd(id: string, side: 'inputs' | 'outputs', index: number) {
-        return withErrorToast(() => apply(api.delete(`/components/${id}/${side}/${index}`)));
+        return withErrorToast(() => applyAndRefresh(api.delete(`/components/${id}/${side}/${index}`)));
     }
 
     // slot: 'input' or 'output' for a script, 'contains' for a file
@@ -165,6 +200,10 @@ export const useComponentStore = defineStore('component', () => {
         deleteComponent,
         addEnd,
         removeEnd,
+        addEndInformationField,
+        removeEndInformationField,
+        addEndInformationObject,
+        removeEndInformationObject,
         addInformationField,
         removeInformationField,
         addInformationObject,

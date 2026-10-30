@@ -3,6 +3,7 @@ import { migrateHumanToOtherConnections } from '../migrations/humanToOtherConnec
 import { migrateOrganisationsToEnvironments } from '../migrations/organisationsToEnvironments';
 import { migrateScriptCarriedToInputsOutputs } from '../migrations/scriptCarriedToInputsOutputs';
 import { migrateExternalSourceRelations } from '../migrations/externalSourceRelations';
+import { migrateScriptRelations } from '../migrations/scriptRelations';
 
 const uri = process.env.MONGO_URI;
 
@@ -19,6 +20,7 @@ const connectDB = async (): Promise<void> => {
     // After the connection migration, so the moved connections get an environment as well
     await migrateOrganisationsToEnvironments();
     await migrateScriptCarriedToInputsOutputs();
+    await migrateScriptRelations();
     await migrateExternalSourceRelations();
   } catch (err: any) {
     console.error('❌ MongoDB connection error:', err.message);

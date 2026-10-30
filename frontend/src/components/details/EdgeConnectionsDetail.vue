@@ -17,6 +17,7 @@
     import { useInformationSourceService } from '../../services/informationSource.service';
     import { useResourceService } from '../../services/resources/resource.service';
     import { useComponentStore } from '../../stores/resources/component.store';
+    import { getEndsInformation, type ComponentEnd } from '../../types/component.types';
     import CarriedInformationEditor from './CarriedInformationEditor.vue';
 
     // The connections of one edge. All of them go from the same source to the same target,
@@ -127,6 +128,26 @@
         return { objectNames: [...new Set(objectNames)], fieldNames: [...new Set(fieldNames)] };
     }
 
+    // What a script carries over the edge: what it reads from the source of the edge and writes to its target.
+    // When the edge only goes to or from the script, what it reads from the source or writes to the target
+    function getScriptCarried(scriptId: string) {
+        const script = componentStore.getComponent(scriptId);
+        if (!script) return { informationFieldIds: [], informationObjectIds: [] };
+        const isEnd = (end: ComponentEnd, sideId: string) => end.componentId === sideId || isOnSide(end.resourceId, sideId);
+
+        const readsSource = script.inputs.some(end => isEnd(end, props.sourceId));
+        const writesTarget = script.outputs.some(end => isEnd(end, props.targetId));
+        const read = getEndsInformation(script.inputs, end => isEnd(end, props.sourceId));
+        const written = getEndsInformation(script.outputs, end => isEnd(end, props.targetId));
+        if (readsSource && writesTarget) {
+            return {
+                informationFieldIds: read.informationFieldIds.filter(id => written.informationFieldIds.includes(id)),
+                informationObjectIds: read.informationObjectIds.filter(id => written.informationObjectIds.includes(id))
+            };
+        }
+        return readsSource ? read : written;
+    }
+
     // Whether any information is known to be passed along through the connection
     function hasInformation(connection: EdgeConnection) {
         if (connection.type === 'api') {
@@ -134,8 +155,8 @@
             return !!url && ((url.informationFieldIds?.length ?? 0) + (url.informationObjectIds?.length ?? 0)) > 0;
         }
         if (connection.type === 'component') {
-            const script = componentStore.getComponent(connection.id);
-            return !!script && (script.outputInformationFieldIds.length + script.outputInformationObjectIds.length) > 0;
+            const carried = getScriptCarried(connection.id);
+            return (carried.informationFieldIds.length + carried.informationObjectIds.length) > 0;
         }
         if (connection.type === 'other') {
             const other = getOtherConnection(connection.id);
@@ -261,18 +282,18 @@
                     />
                 </template>
 
-                <!-- Script components carry what they produce (their outputs); it is edited in the script's details -->
+                <!-- Script components carry what they read from and write to the resources of the edge; it is edited in the script's details -->
                 <template v-else-if="connection.type === 'component'">
                     <div class="passed-along">
                         <span
-                            v-for="objectId in componentStore.getComponent(connection.id)?.outputInformationObjectIds ?? []"
+                            v-for="objectId in getScriptCarried(connection.id).informationObjectIds"
                             :key="`object:${objectId}`"
                             class="passed-chip object"
                         >
                             ▱ {{ informationObjectStore.getInformationObject(objectId)?.objectName ?? 'Unknown object' }}
                         </span>
                         <span
-                            v-for="fieldId in componentStore.getComponent(connection.id)?.outputInformationFieldIds ?? []"
+                            v-for="fieldId in getScriptCarried(connection.id).informationFieldIds"
                             :key="`field:${fieldId}`"
                             class="passed-chip"
                         >
@@ -281,7 +302,7 @@
                         <span v-if="!hasInformation(connection)" class="detail-empty">Nothing carried yet</span>
                     </div>
                     <div class="passed-along-hint">
-                        These are the outputs of the script. Open the script (from the database level on) to change what it reads, writes, takes in and produces.
+                        This is what the script reads from and writes to here. Open the script (from the database level on) and expand what it reads from or writes to, to change it.
                     </div>
                 </template>
 

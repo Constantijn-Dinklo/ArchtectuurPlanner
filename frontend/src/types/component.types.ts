@@ -22,11 +22,17 @@ export function getComponentIcon(component: Pick<Component, 'kind' | 'fileType'>
 }
 
 // One side of what a script reads from or writes to: a resource (a table is a resource as well),
-// or a component inside a resource, like a file in a file location
+// or a component inside a resource, like a file in a file location.
+// The information is what the script reads from this end or writes to it; it is always part of the inputs or outputs of the script as well
 export interface ComponentEnd {
     resourceId: string;
     componentId: string | null;
+    informationFieldIds: string[];
+    informationObjectIds: string[];
 }
+
+// Where a script reads from or writes to, before it has any information
+export type ComponentEndTarget = Pick<ComponentEnd, 'resourceId' | 'componentId'>;
 
 // Where information sits in a component: a script takes it in (input) and produces it (output), a file contains it
 export type InformationSlot = 'input' | 'output' | 'contains';
@@ -41,9 +47,38 @@ export function getInformationSlotIds(component: Component, slot: InformationSlo
     return { informationFieldIds: component.informationFieldIds, informationObjectIds: component.informationObjectIds };
 }
 
-// What a script carries to the resources it writes to: the information it produces
-export function getScriptCarriedInformation(script: Component) {
-    return getInformationSlotIds(script, 'output');
+// The information a script reads from or writes to the ends that match
+export function getEndsInformation(ends: ComponentEnd[], matches: (end: ComponentEnd) => boolean) {
+    const matching = ends.filter(matches);
+    return {
+        informationFieldIds: [...new Set(matching.flatMap(end => end.informationFieldIds))],
+        informationObjectIds: [...new Set(matching.flatMap(end => end.informationObjectIds))]
+    };
+}
+
+// What a script carries from the sources to the targets. A script reads into its host and writes from its host:
+// - hosted on a target: what it reads from a source
+// - hosted on a source: what it writes to a target
+// - otherwise: what it reads from a source and also writes to a target
+export function getScriptCarriedBetween(script: Component, sourceIds: string[], targetIds: string[]) {
+    const read = getEndsInformation(script.inputs, end => sourceIds.includes(end.resourceId));
+    const written = getEndsInformation(script.outputs, end => targetIds.includes(end.resourceId));
+    if (targetIds.includes(script.resourceId)) return read;
+    if (sourceIds.includes(script.resourceId)) return written;
+    return {
+        informationFieldIds: read.informationFieldIds.filter(id => written.informationFieldIds.includes(id)),
+        informationObjectIds: read.informationObjectIds.filter(id => written.informationObjectIds.includes(id))
+    };
+}
+
+// Whether the script connects a source to a target: it reads from a source into its host on a target, writes from
+// its host on a source to a target, or reads from a source and writes to a target
+export function connectsScript(script: Component, sourceIds: string[], targetIds: string[]) {
+    if (script.kind !== 'script') return false;
+    const readsSource = script.inputs.some(end => sourceIds.includes(end.resourceId));
+    const writesTarget = script.outputs.some(end => targetIds.includes(end.resourceId));
+    return (readsSource && (writesTarget || targetIds.includes(script.resourceId))) ||
+        (writesTarget && sourceIds.includes(script.resourceId));
 }
 
 // A component as a row inside the node of its resource on the canvas. Edges attach to the row through its handles
