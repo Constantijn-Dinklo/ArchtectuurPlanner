@@ -1,12 +1,25 @@
 import express, { Router, Response } from "express";
 
 import { AuthenticatedRequest, getUser } from "../middelware";
+import InformationObject from "../models/information/informationObject.models";
 import { addInformationFieldToInformationObject, deleteInformationFieldFromInformationObject } from "../services/resourceObject.service";
 import { moveApplicationInformationFieldToInformationObject, moveInformationFieldFromInformationObjectToApplication } from "../services/application.service";
 import { cleanupApisForInformationObject, cleanupApplicationApis } from "../services/api.service";
 import { setInformationObjectSource } from "../services/informationSource.service";
+import { deleteInformation, getInformationUsage } from "../services/informationUsage.service";
 
 const router: Router = express.Router();
+
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
+    const user = getUser(req);
+
+    try {
+        res.json(await InformationObject.find({ environmentId: user.environmentId }));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
 
 router.post('/:id/informationFields', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
@@ -57,6 +70,25 @@ router.delete('/:id/informationFields/:informationFieldId', async (req: Authenti
         // Applications that output this object can no longer send the field, unless they still have it some other way
         await cleanupApisForInformationObject(user, req.params.id as string);
         res.status(200).json(result);
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// What still uses the object: it can only be deleted when nothing does
+router.get('/:id/usage', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.json({ usage: await getInformationUsage(getUser(req), 'object', req.params.id as string) });
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.json(await deleteInformation(getUser(req), 'object', req.params.id as string));
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });

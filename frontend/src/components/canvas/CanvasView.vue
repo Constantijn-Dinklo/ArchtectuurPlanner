@@ -69,6 +69,19 @@ watch(
   () => componentStore.fetchComponents()
 );
 
+// Removing a resource also removes its endpoints
+watch(
+  () => [
+    applicationStore.applications.length,
+    tableStore.tables.length,
+    databaseStore.databases.length,
+    fileLocationStore.fileLocations.length,
+    serverStore.servers.length,
+    externalStore.externals.length
+  ],
+  () => endpointStore.fetchEndpoints()
+);
+
 // The relations are changed in the backend whenever information is added to or removed from a resource,
 // and when a resource is removed (its relations are removed with it)
 watch(

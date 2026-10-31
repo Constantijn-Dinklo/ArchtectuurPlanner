@@ -16,6 +16,13 @@ const router = createRouter({
             meta: { label: 'Architecture', icon: 'pi pi-sitemap' }
         },
         {
+            path: '/data-catalogue',
+            name: 'dataCatalogue',
+            // Loaded when it is opened for the first time
+            component: () => import('../components/dataCatalogue/DataCatalogueView.vue'),
+            meta: { label: 'Data catalogue', icon: 'pi pi-book' }
+        },
+        {
             path: '/management',
             name: 'management',
             // Loaded when it is opened for the first time

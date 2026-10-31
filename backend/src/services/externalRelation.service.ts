@@ -1,4 +1,5 @@
 import { removeComponentEndReferences, removeResourceComponents } from "./component.service";
+import Endpoint from "../models/endpoint.model";
 import { UserJwtPayload } from "../middelware";
 import External from "../models/resources/external.model";
 import Application from "../models/resources/application.model";
@@ -136,14 +137,18 @@ export async function syncOtherConnectionRelations(user: UserJwtPayload, connect
     }
 }
 
-// A resource was removed: removes the relations of all its fields and objects, whether the resource was the source
-// or the target. External elements that received information from the resource get their received lists updated.
+// A resource was removed: removes its components and endpoints, and the relations of all its fields and objects,
+// whether the resource was the source or the target. External elements that received information from the resource
+// get their received lists updated.
 export async function removeResourceRelations(user: UserJwtPayload, resourceIds: string[]) {
     if(!resourceIds.length) return;
 
     // The components of the resources go with them, and scripts no longer read from or write to them
     await removeResourceComponents(user, resourceIds);
     await removeComponentEndReferences(user, resourceIds);
+
+    // An endpoint is part of its resource and goes with it
+    await Endpoint.deleteMany({ environmentId: user.environmentId, resourceId: { $in: resourceIds } });
 
     const touchingResources = {
         environmentId: user.environmentId,
