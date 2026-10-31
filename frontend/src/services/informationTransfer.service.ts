@@ -150,11 +150,35 @@ export function useInformationTransferService() {
         return transferWarnings.value.get(`${sourceId}->${targetId}`);
     }
 
+    // A script is connected to a database or file location without a table or file being chosen. An edge only goes to
+    // the script itself from the database level on (before that it goes to its host), so this only shows on that level
+    function getMissingPartWarning(sourceId: string, targetId: string): ConnectionWarning | undefined {
+        const reader = componentStore.getComponent(targetId);
+        const writer = componentStore.getComponent(sourceId);
+        const script = reader ?? writer;
+        const resource = resourceService.getResource(reader ? sourceId : targetId);
+        if (script?.kind !== 'script' || (resource?.type !== 'database' && resource?.type !== 'fileLocation')) return undefined;
+
+        const ends = reader ? script.inputs : script.outputs;
+        if (!ends.some(end => end.resourceId === resource.id && !end.componentId)) return undefined;
+
+        const noun = resource.type === 'database' ? 'table' : 'file';
+        return {
+            severity: 'warning',
+            title: `No ${noun} chosen`,
+            items: [`${script.name} ${reader ? 'reads from' : 'writes to'} ${resource.name}`],
+            hint: `Open ${script.name} and choose the ${noun} under ${reader ? 'Reads from' : 'Writes to'}.`
+        };
+    }
+
     // All warnings for the connection from the source to the target, used by the canvas edge and the connection details
     function getConnectionWarnings(sourceId: string, targetId: string): ConnectionWarning[] {
         const warnings: ConnectionWarning[] = [];
         const sourceName = resourceService.getResource(sourceId)?.name ?? 'the source';
         const targetName = resourceService.getResource(targetId)?.name ?? 'the target';
+
+        const missingPartWarning = getMissingPartWarning(sourceId, targetId);
+        if (missingPartWarning) warnings.push(missingPartWarning);
 
         const connectionsWithoutUrl = apiConnectionStore.apiConnections.filter(connection =>
             connection.sourceId === sourceId && connection.targetId === targetId && !connection.sourceUrlId
