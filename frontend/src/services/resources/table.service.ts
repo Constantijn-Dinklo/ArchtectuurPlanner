@@ -1,5 +1,6 @@
 import { useViewStore } from "../../stores/canvas/view.store";
 import { useTableStore } from "../../stores/resources/table.store";
+import { useComponentStore } from "../../stores/resources/component.store";
 
 
 export function useTableService() {
@@ -20,6 +21,8 @@ export function useTableService() {
     async function deleteTable(tableId: string) {
         const res = await tableStore.deleteTable(tableId);
         viewStore.removeViewNode(res.viewNodeId);
+        // Scripts that used the table stay connected to its database
+        await useComponentStore().fetchComponents();
     }
 
     return { createTable, renameTable, deleteTable }

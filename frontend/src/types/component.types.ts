@@ -1,3 +1,5 @@
+import type { ConnectionEnd, ConnectionEndTarget } from "./connectionEnd.types";
+
 // Levels of the architecture: a host (server) holds resources, a resource holds components.
 // A component is a part of a resource: a script that runs in an application or file location,
 // or a file in a file location. Components never contain other components.
@@ -21,18 +23,12 @@ export function getComponentIcon(component: Pick<Component, 'kind' | 'fileType'>
     return component.kind === 'script' ? 'pi pi-code' : getFileTypeInfo(component.fileType).icon;
 }
 
-// One side of what a script reads from or writes to: a resource (a table is a resource as well),
-// or a component inside a resource, like a file in a file location.
-// The information is what the script reads from this end or writes to it; it is always part of the inputs or outputs of the script as well
-export interface ComponentEnd {
-    resourceId: string;
-    componentId: string | null;
-    informationFieldIds: string[];
-    informationObjectIds: string[];
-}
+// One side of what a script reads from or writes to.
+// The information on an end is always part of the inputs or outputs of the script as well
+export type ComponentEnd = ConnectionEnd;
 
 // Where a script reads from or writes to, before it has any information
-export type ComponentEndTarget = Pick<ComponentEnd, 'resourceId' | 'componentId'>;
+export type ComponentEndTarget = ConnectionEndTarget;
 
 // Where information sits in a component: a script takes it in (input) and produces it (output), a file contains it
 export type InformationSlot = 'input' | 'output' | 'contains';

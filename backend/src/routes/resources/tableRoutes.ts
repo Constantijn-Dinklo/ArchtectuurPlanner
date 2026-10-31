@@ -1,4 +1,5 @@
 import { removeResourceRelations } from "../../services/externalRelation.service";
+import { keepConnectionsWithoutPart } from "../../services/component.service";
 import express, { Router, Response } from "express";
 
 import Table from "../../models/resources/table.model";
@@ -85,6 +86,8 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
                 message: 'The Table was not deleted correctly.',
             });
         }
+        // Scripts that used the table stay connected to its database
+        await keepConnectionsWithoutPart(user, deleted.databaseId.toString(), { resourceId: req.params.id as string });
         await removeResourceRelations(user, [req.params.id as string]);
 
         res.json({

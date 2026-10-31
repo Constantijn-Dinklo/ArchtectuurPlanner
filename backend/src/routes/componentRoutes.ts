@@ -8,6 +8,7 @@ import {
     createComponent,
     deleteComponent,
     getComponents,
+    removeComponentConnection,
     removeComponentEnd,
     removeComponentEndInformation,
     removeComponentInformationField,
@@ -83,6 +84,16 @@ router.post('/:id/:side', async (req: AuthenticatedRequest, res: Response) => {
 router.delete('/:id/:side/:index', async (req: AuthenticatedRequest, res: Response) => {
     try {
         res.json(await removeComponentEnd(getUser(req), req.params.id as string, getSide(req.params.side as string), Number(req.params.index)));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// The whole connection to a resource: the resource and every table or file of it
+router.delete('/:id/:side/connection/:connectionId', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        res.json(await removeComponentConnection(getUser(req), req.params.id as string, getSide(req.params.side as string), req.params.connectionId as string));
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });

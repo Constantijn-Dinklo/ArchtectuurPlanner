@@ -89,8 +89,10 @@ export const useComponentStore = defineStore('component', () => {
             .forEach(viewNode => viewStore.removeViewNode(viewNode.id));
     }
 
-    function createComponent(resourceId: string, kind: ComponentKind, name: string, fileType?: FileType) {
-        return withErrorToast(async () => {
+    // Returns the new component, or undefined when it could not be made
+    async function createComponent(resourceId: string, kind: ComponentKind, name: string, fileType?: FileType) {
+        let created: Component | undefined;
+        await withErrorToast(async () => {
             const viewStore = useViewStore();
             const res = await api.post<{ component: Component, viewNode: any }>('/components', {
                 resourceId,
@@ -101,7 +103,9 @@ export const useComponentStore = defineStore('component', () => {
             });
             setComponent(res.data.component);
             viewStore.addViewNode(res.data.viewNode);
+            created = res.data.component;
         });
+        return created;
     }
 
     function updateComponent(id: string, patch: Partial<Pick<Component, 'name' | 'description' | 'fileType'>>) {
@@ -115,16 +119,12 @@ export const useComponentStore = defineStore('component', () => {
         return withErrorToast(async () => {
             const res = await api.delete<{ componentId: string, viewNodeId?: string }>(`/components/${id}`);
             components.value = components.value.filter(component => component.id !== id);
-            // Scripts that read from or wrote to this component no longer do
-            for (const component of components.value) {
-                component.inputs = component.inputs.filter(end => end.componentId !== id);
-                component.outputs = component.outputs.filter(end => end.componentId !== id);
-            }
             if (res.data.viewNodeId) {
                 useViewStore().removeViewNode(res.data.viewNodeId);
             }
-            // The relations through a removed script are gone as well
-            await refreshReceivedInformation();
+            // Scripts that read from or wrote to a removed file stay connected to its file location,
+            // and the relations through a removed script are gone as well
+            await Promise.all([fetchComponents(), refreshReceivedInformation()]);
         });
     }
 
@@ -149,6 +149,11 @@ export const useComponentStore = defineStore('component', () => {
             useApplicationService().fetchApplications(),
             useTableStore().fetchTables()
         ]);
+    }
+
+    // Removes the whole connection: the resource and every table or file of it
+    function removeConnection(id: string, side: 'inputs' | 'outputs', connectionId: string) {
+        return withErrorToast(() => applyAndRefresh(api.delete(`/components/${id}/${side}/connection/${connectionId}`)));
     }
 
     // The information a script reads from one end or writes to one end; it also goes in the inputs or outputs of the script
@@ -200,6 +205,7 @@ export const useComponentStore = defineStore('component', () => {
         deleteComponent,
         addEnd,
         removeEnd,
+        removeConnection,
         addEndInformationField,
         removeEndInformationField,
         addEndInformationObject,

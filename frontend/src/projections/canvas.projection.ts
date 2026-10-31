@@ -236,10 +236,10 @@ export function useCanvasProjection() {
             if(component.kind !== 'script') continue;
 
             const scriptEndId = componentsVisible ? component.id : component.resourceId;
-            for(const input of component.inputs) {
+            for(const input of getDrawnEnds(component.inputs)) {
                 addConnection(getVisibleEndId(input), scriptEndId, component.id, 'componentScriptIds');
             }
-            for(const output of component.outputs) {
+            for(const output of getDrawnEnds(component.outputs)) {
                 addConnection(scriptEndId, getVisibleEndId(output), component.id, 'componentScriptIds');
             }
         }
@@ -274,6 +274,17 @@ export function useCanvasProjection() {
             viewNode.entityType !== 'component' && visibleResourceTypes.includes(viewNode.entityType)
         );
         return visibleNodes;
+    }
+
+    // The ends of a script that get an edge. A database or file location only gets its own edge while no table or file
+    // of it is known; otherwise the edges go to those (when collapsed they end up at the database or file location anyway)
+    function getDrawnEnds(ends: ComponentEnd[]): ComponentEnd[] {
+        const parentIds = new Set(ends.flatMap((end) => {
+            if(end.componentId) return [end.resourceId];
+            const resource = resourceService.getResource(end.resourceId);
+            return resource?.type === 'table' ? [resource.databaseId] : [];
+        }));
+        return ends.filter((end) => end.componentId || !parentIds.has(end.resourceId));
     }
 
     // Where an end of a script is shown on the canvas: a file in a file location when components are visible,

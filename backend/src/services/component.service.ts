@@ -1,9 +1,10 @@
 import { Types } from "mongoose";
 import { UserJwtPayload } from "../middelware";
-import Component, { COMPONENT_KINDS, ComponentKind, FILE_TYPES, IComponent, INFORMATION_SLOTS, InformationSlot } from "../models/component.model";
+import Component, { COMPONENT_KINDS, ComponentKind, FILE_TYPES, IComponent, IComponentEnd, INFORMATION_SLOTS, InformationSlot } from "../models/component.model";
 import ViewNode from "../models/canvas/viewNode.model";
 import Application from "../models/resources/application.model";
 import FileLocation from "../models/resources/fileLocation.model";
+import Table from "../models/resources/table.model";
 import InformationField from "../models/information/informationField.model";
 import InformationObject from "../models/information/informationObject.models";
 import { createInformationField } from "./resourceField.service";
@@ -131,12 +132,45 @@ export async function deleteComponent(user: UserJwtPayload, componentId: string)
     const component = await getComponent(user, componentId);
     const viewNode = await ViewNode.findOneAndDelete({ environmentId: user.environmentId, entityId: componentId });
     await component.deleteOne();
-    // Scripts that read from or wrote to this component (a file) no longer do
-    await removeComponentEndReferences(user, [], [componentId]);
+    // Scripts that read from or wrote to this component (a file) no longer do, but stay connected to its file location
+    if(component.kind === 'file') {
+        await keepConnectionsWithoutPart(user, component.resourceId.toString(), { componentId });
+    }
     return { componentId, viewNodeId: viewNode?._id };
 }
 
 // <-- What a script reads from and writes to -->
+
+// A script connects to a resource. To a database or a file location it can connect without a known table or file, or
+// with one or more of them. Every known table or file is an end of its own; the end of the database or file location
+// itself is only there while none is known.
+
+// The database of every table
+async function getTableDatabases(user: UserJwtPayload) {
+    const tables = await Table.find({ environmentId: user.environmentId });
+    return new Map(tables.map((table) => [table._id.toString(), table.databaseId.toString()]));
+}
+
+// The resource the script is connected to through this end. A file end already has its file location as its resource
+function getConnectionId(end: IComponentEnd, tableDatabases: Map<string, string>) {
+    const resourceId = end.resourceId.toString();
+    return tableDatabases.get(resourceId) ?? resourceId;
+}
+
+function createEnd(resourceId: string, componentId: string | null = null): IComponentEnd {
+    return {
+        resourceId: new Types.ObjectId(resourceId),
+        componentId: componentId ? new Types.ObjectId(componentId) : null,
+        informationFieldIds: [],
+        informationObjectIds: []
+    };
+}
+
+function keepConnection(component: IComponent, side: 'inputs' | 'outputs', connectionId: string, tableDatabases: Map<string, string>) {
+    if(!component[side].some((end) => getConnectionId(end, tableDatabases) === connectionId)) {
+        component[side].push(createEnd(connectionId));
+    }
+}
 
 export async function addComponentEnd(user: UserJwtPayload, componentId: string, side: 'inputs' | 'outputs', end: { resourceId: string, componentId?: string | null }) {
     const component = await getComponent(user, componentId);
@@ -148,23 +182,73 @@ export async function addComponentEnd(user: UserJwtPayload, componentId: string,
         existing.resourceId.toString() === end.resourceId &&
         (existing.componentId?.toString() ?? null) === endComponentId
     );
-    if(!alreadyThere) {
-        component[side].push({
-            resourceId: new Types.ObjectId(end.resourceId),
-            componentId: endComponentId ? new Types.ObjectId(endComponentId) : null,
-            informationFieldIds: [],
-            informationObjectIds: []
-        });
-        await component.save();
+    if(alreadyThere) return withReferencedInformation(user, component);
+
+    const tableDatabases = await getTableDatabases(user);
+    const newEnd = createEnd(end.resourceId, endComponentId);
+    const connectionId = getConnectionId(newEnd, tableDatabases);
+    const isTableOrFile = !!endComponentId || connectionId !== end.resourceId;
+
+    if(!isTableOrFile && component[side].some((existing) => getConnectionId(existing, tableDatabases) === connectionId)) {
+        return withReferencedInformation(user, component);
     }
+    if(isTableOrFile) {
+        // Now a table or file is known, the connection without one is no longer needed
+        const unknownIndex = component[side].findIndex((existing) =>
+            existing.resourceId.toString() === connectionId && !existing.componentId &&
+            !existing.informationFieldIds.length && !existing.informationObjectIds.length
+        );
+        if(unknownIndex !== -1) component[side].splice(unknownIndex, 1);
+    }
+
+    component[side].push(newEnd);
+    await component.save();
     return withReferencedInformation(user, component);
 }
 
+// The script stays connected to the database or file location when its last table or file is removed
 export async function removeComponentEnd(user: UserJwtPayload, componentId: string, side: 'inputs' | 'outputs', index: number) {
     const component = await getComponent(user, componentId);
+    const end = component[side][index];
+    if(!end) throw new Error("The script no longer reads from or writes to this");
+
+    const tableDatabases = await getTableDatabases(user);
+    const connectionId = getConnectionId(end, tableDatabases);
+    const isTableOrFile = !!end.componentId || connectionId !== end.resourceId.toString();
+
     component[side].splice(index, 1);
+    if(isTableOrFile) keepConnection(component, side, connectionId, tableDatabases);
     await component.save();
     return withReferencedInformation(user, component);
+}
+
+// Removes the whole connection: the resource and every table or file of it
+export async function removeComponentConnection(user: UserJwtPayload, componentId: string, side: 'inputs' | 'outputs', connectionId: string) {
+    const component = await getComponent(user, componentId);
+    const tableDatabases = await getTableDatabases(user);
+    component[side] = component[side].filter((end) => getConnectionId(end, tableDatabases) !== connectionId);
+    await component.save();
+    return withReferencedInformation(user, component);
+}
+
+// A table or file was removed: scripts no longer read from or write to it, but stay connected to its database or
+// file location. Only for a table or file on its own: when the parent is removed as well, the connection goes with it
+export async function keepConnectionsWithoutPart(user: UserJwtPayload, parentId: string, part: { resourceId: string } | { componentId: string }) {
+    const isPart = (end: IComponentEnd) => 'resourceId' in part
+        ? end.resourceId.toString() === part.resourceId
+        : end.componentId?.toString() === part.componentId;
+
+    const tableDatabases = await getTableDatabases(user);
+    const scripts = await Component.find({ environmentId: user.environmentId, kind: 'script' });
+    for(const script of scripts) {
+        if(![...script.inputs, ...script.outputs].some(isPart)) continue;
+        for(const side of ['inputs', 'outputs'] as const) {
+            if(!script[side].some(isPart)) continue;
+            script[side] = script[side].filter((end) => !isPart(end));
+            keepConnection(script, side, parentId, tableDatabases);
+        }
+        await script.save();
+    }
 }
 
 // <-- The information a script reads from one end or writes to one end -->
