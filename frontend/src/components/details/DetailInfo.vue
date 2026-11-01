@@ -430,7 +430,8 @@
     background: #f8fafc;
 }
 
-.detail-prime-select .p-select-label {
+/* .p-select as well, to win from the small size of PrimeVue, which is loaded after this */
+.detail-prime-select.p-select .p-select-label {
     padding: 0 8px;
 
     color: #64748b;
@@ -438,12 +439,12 @@
     line-height: 26px;
 }
 
-.detail-prime-select .p-select-dropdown {
+.detail-prime-select.p-select .p-select-dropdown {
     width: 26px;
     color: #94a3b8;
 }
 
-.detail-prime-select .p-select-dropdown .p-icon {
+.detail-prime-select.p-select .p-select-dropdown .p-icon {
     width: 10px;
     height: 10px;
 }

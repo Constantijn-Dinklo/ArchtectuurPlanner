@@ -38,7 +38,8 @@ export function useArchitectureViewService() {
         fetchPromises.push(fileLocationStore.fetchFileLocations());
     }
 
-    if (visibleTypes.includes('table')) {
+    // A database also needs its tables while they are hidden: searching looks inside them
+    if (visibleTypes.includes('table') || visibleTypes.includes('database')) {
       fetchPromises.push(tableStore.fetchTables())
     }
 

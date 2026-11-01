@@ -2,6 +2,7 @@ import { computed } from "vue";
 import { MarkerType } from "@vue-flow/core";
 import { useResourceService, type ResolvedResource, type Resource } from "../services/resources/resource.service";
 import { useViewStore, type ViewNode } from "../stores/canvas/view.store";
+import { useApiStore } from "../stores/api.store";
 import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useScriptStore } from "../stores/script.store";
@@ -85,6 +86,7 @@ export function useCanvasProjection() {
     const otherConnectionStore = useOtherConnectionStore();
     const informationTransferService = useInformationTransferService();
 
+    const apiStore = useApiStore();
     const apiConnectionStore = useApiConnectionStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
     const scriptStore = useScriptStore();
@@ -277,14 +279,21 @@ export function useCanvasProjection() {
     }
 
     // The ends of a script that get an edge. A database or file location only gets its own edge while no table or file
-    // of it is known; otherwise the edges go to those (when collapsed they end up at the database or file location anyway)
+    // of it is known; otherwise the edges go to those (when collapsed they end up at the database or file location anyway).
+    // The apis of a resource have no place of their own on the canvas, so reading through several of them is one edge
     function getDrawnEnds(ends: ComponentEnd[]): ComponentEnd[] {
         const parentIds = new Set(ends.flatMap((end) => {
             if(end.componentId) return [end.resourceId];
             const resource = resourceService.getResource(end.resourceId);
             return resource?.type === 'table' ? [resource.databaseId] : [];
         }));
-        return ends.filter((end) => end.componentId || !parentIds.has(end.resourceId));
+        const drawnResourceIds = new Set<string>();
+        return ends.filter((end) => {
+            if(end.componentId) return true;
+            if(parentIds.has(end.resourceId) || drawnResourceIds.has(end.resourceId)) return false;
+            drawnResourceIds.add(end.resourceId);
+            return true;
+        });
     }
 
     // Where an end of a script is shown on the canvas: a file in a file location when components are visible,
@@ -324,6 +333,13 @@ export function useCanvasProjection() {
     // What a script reads from or writes to, as a line in its opened row
     function getEndLink(end: ComponentEnd): CanvasComponentLink {
         const resource = resourceService.getResource(end.resourceId);
+        if(end.apiId) {
+            return {
+                key: `api:${end.apiId}`,
+                name: `${apiStore.getApi(end.apiId)?.url ?? 'Unknown API'}${resource ? ` (${resource.name})` : ''}`,
+                icon: 'pi pi-globe'
+            };
+        }
         if(end.componentId) {
             const component = componentStore.getComponent(end.componentId);
             return {
@@ -535,8 +551,22 @@ export function useCanvasProjection() {
         );
     }
 
+    // What tables hold. A table only has fields: it holds an object when it has a column for each of the fields of the object
+    function getTableInformationNames(tables: Table[]) {
+        const allObjects = [...informationObjectStore.informationObjects.values()];
+        return {
+            fieldNames: tables.flatMap((table) => table.columns.map((column) => column.fieldName)),
+            objectNames: allObjects
+                .filter(({ informationFieldIds }) => informationFieldIds.length > 0 && tables.some((table) =>
+                    informationFieldIds.every((fieldId) => table.columns.some((column) => column.id === fieldId))
+                ))
+                .map((informationObject) => informationObject.objectName)
+        };
+    }
+
     // Nodes that contain the searched InformationField and/or InformationObject are highlighted, all others are dimmed.
-    // A resource also matches when one of its components (a script, a file) uses the searched information
+    // A resource also matches when one of its components (a script, a file) uses the searched information,
+    // a database when one of its tables holds it
     function getSearchClass(resource: ResolvedResource): string {
         if(matchesSearch([], []) === undefined) { return ''; }
 
@@ -556,7 +586,10 @@ export function useCanvasProjection() {
             ];
         }
         else if(resource.type === 'table') {
-            fieldNames = resource.columns.map((column) => column.fieldName);
+            ({ fieldNames, objectNames } = getTableInformationNames([resource]));
+        }
+        else if(resource.type === 'database') {
+            ({ fieldNames, objectNames } = getTableInformationNames(tableStore.getTables(resource.id)));
         }
         else if(resource.type === 'external') {
             const informationObjects = [

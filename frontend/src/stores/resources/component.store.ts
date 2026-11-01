@@ -76,6 +76,10 @@ export const useComponentStore = defineStore('component', () => {
         );
     }
 
+    function isApiRead(apiId: string) {
+        return components.value.some(component => component.inputs.some(end => end.apiId === apiId));
+    }
+
     async function fetchComponents() {
         const res = await api.get<GetComponentsResponse>('/components');
         setInformation(res.data.informationFields, res.data.informationObjects);
@@ -199,6 +203,7 @@ export const useComponentStore = defineStore('component', () => {
         getComponent,
         getResourceComponents,
         getScriptsBetween,
+        isApiRead,
         fetchComponents,
         createComponent,
         updateComponent,

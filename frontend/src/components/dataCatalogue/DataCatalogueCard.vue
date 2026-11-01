@@ -385,18 +385,18 @@
     width: 130px;
 }
 
-.property-select :deep(.p-select-label) {
+.property-select.p-select :deep(.p-select-label) {
     padding: 0 6px;
     color: #1e293b;
     font-size: 11px;
     line-height: 20px;
 }
 
-.property-select :deep(.p-select-label.p-placeholder) {
+.property-select.p-select :deep(.p-select-label.p-placeholder) {
     color: #94a3b8;
 }
 
-.property-select :deep(.p-select-dropdown) {
+.property-select.p-select :deep(.p-select-dropdown) {
     width: 20px;
 }
 

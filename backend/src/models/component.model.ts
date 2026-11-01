@@ -14,11 +14,13 @@ export type InformationSlot = typeof INFORMATION_SLOTS[number];
 export type FileType = typeof FILE_TYPES[number];
 
 // One side of what a script reads from or writes to: a resource (a table is a resource as well),
-// or a component inside a resource, like a file in a file location.
+// a component inside a resource, like a file in a file location, or an api of an application or external element.
 // The information is what the script reads from this end or writes to it; it is always part of the inputs or outputs of the script as well
 export interface IComponentEnd {
     resourceId: Types.ObjectId;
     componentId: Types.ObjectId | null;
+    // Only when reading: the api of the resource the script reads through
+    apiId: Types.ObjectId | null;
     informationFieldIds: Types.ObjectId[];
     informationObjectIds: Types.ObjectId[];
 }
@@ -31,6 +33,11 @@ const ComponentEndSchema = new Schema<IComponentEnd>(
         },
         componentId: {
             type: Schema.Types.ObjectId,
+            default: null
+        },
+        apiId: {
+            type: Schema.Types.ObjectId,
+            ref: 'Api',
             default: null
         },
         informationFieldIds: {

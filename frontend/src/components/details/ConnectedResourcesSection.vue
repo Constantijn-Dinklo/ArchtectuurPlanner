@@ -2,6 +2,7 @@
     import { computed, onMounted, ref } from 'vue';
     import { Select } from 'primevue';
     import { vCollapsible } from '../../directives/collapsible';
+    import { useApiStore } from '../../stores/api.store';
     import { useComponentStore } from '../../stores/resources/component.store';
     import { useTableStore } from '../../stores/resources/table.store';
     import { useResourceService } from '../../services/resources/resource.service';
@@ -14,7 +15,7 @@
 
     // What something reads from or writes to, as a detail section. It does not know what it is used for:
     // the parent gives the ends and what information can go on them, and saves what is emitted.
-    // - an application or external element gets its information directly
+    // - an application or external element gets its information directly, or per api when it is read through one
     // - a database has its information per table, a file location per file. Both can also be connected without one
     const props = withDefaults(defineProps<{
         title: string;
@@ -29,10 +30,13 @@
         objectOptionsEmpty?: string;
         // Whether new information can be made on an end
         allowNewInformation?: boolean;
+        // Whether an application or external element is connected through its apis
+        readsThroughApi?: boolean;
     }>(), {
         fieldOptionsEmpty: undefined,
         objectOptionsEmpty: undefined,
-        allowNewInformation: false
+        allowNewInformation: false,
+        readsThroughApi: false
     });
 
     const emit = defineEmits<{
@@ -47,6 +51,7 @@
         removeObject: [index: number, informationObjectId: string];
     }>();
 
+    const apiStore = useApiStore();
     const componentStore = useComponentStore();
     const tableStore = useTableStore();
     const tableService = useTableService();
@@ -64,14 +69,19 @@
         external: 'pi pi-globe'
     };
 
-    // What a resource holds its information in, when it does not hold it directly
-    const PART_NOUNS: Partial<Record<ResourceType, 'table' | 'file'>> = {
-        database: 'table',
-        fileLocation: 'file'
-    };
+    const API_ICON = 'pi pi-globe';
+
+    // What a resource holds its information in or passes it on through, when it is not connected directly
+    type PartNoun = 'table' | 'file' | 'API';
+
+    function getPartNoun(type: ResourceType): PartNoun | undefined {
+        if (type === 'database') return 'table';
+        if (type === 'fileLocation') return 'file';
+        return props.readsThroughApi && (type === 'application' || type === 'external') ? 'API' : undefined;
+    }
 
     function endKey(end: ConnectionEndTarget) {
-        return `${end.resourceId}:${end.componentId ?? ''}`;
+        return `${end.resourceId}:${end.componentId ?? ''}:${end.apiId ?? ''}`;
     }
 
     function informationCount(end: ConnectionEnd) {
@@ -83,7 +93,7 @@
         end: ConnectionEnd;
     }
 
-    // A known table or file of a connection
+    // A known table, file or api of a connection
     interface ConnectionPart extends PositionedEnd {
         label: string;
         icon: string;
@@ -94,7 +104,7 @@
         id: string;
         label: string;
         icon: string;
-        partNoun?: 'table' | 'file';
+        partNoun?: PartNoun;
         parts: ConnectionPart[];
         // The end of the resource itself
         own?: PositionedEnd;
@@ -109,7 +119,7 @@
             id,
             label: resource?.name ?? 'Unknown resource',
             icon: resource ? RESOURCE_ICONS[resource.type] : 'pi pi-box',
-            partNoun: resource ? PART_NOUNS[resource.type] : undefined,
+            partNoun: resource ? getPartNoun(resource.type) : undefined,
             parts: []
         };
         connections.set(id, connection);
@@ -121,7 +131,10 @@
 
         props.ends.forEach((end, index) => {
             const resource = resourceService.getResource(end.resourceId);
-            if (end.componentId) {
+            if (end.apiId) {
+                const api = apiStore.getApi(end.apiId);
+                getConnection(result, end.resourceId).parts.push({ index, end, label: api?.url ?? 'Unknown API', icon: API_ICON });
+            } else if (end.componentId) {
                 const file = componentStore.getComponent(end.componentId);
                 getConnection(result, end.resourceId).parts.push({
                     index,
@@ -150,21 +163,27 @@
             .sort((a, b) => a.label.localeCompare(b.label))
     );
 
-    // <-- The tables and files of a connection -->
+    // <-- The tables, files and apis of a connection -->
     interface PartOption {
         key: string;
         target: ConnectionEndTarget;
         label: string;
     }
 
-    function getPartOptions(connection: Connection): PartOption[] {
-        const targets = connection.partNoun === 'table'
-            ? tableStore.getTables(connection.id).map(table => ({ target: { resourceId: table.id, componentId: null }, label: table.name }))
-            : componentStore.getResourceComponents(connection.id)
-                .filter(component => component.kind === 'file')
-                .map(file => ({ target: { resourceId: connection.id, componentId: file.id }, label: file.name }));
+    function getPartTargets(connection: Connection): Omit<PartOption, 'key'>[] {
+        if (connection.partNoun === 'table') {
+            return tableStore.getTables(connection.id).map(table => ({ target: { resourceId: table.id, componentId: null }, label: table.name }));
+        }
+        if (connection.partNoun === 'API') {
+            return apiStore.getApplicationApis(connection.id).map(api => ({ target: { resourceId: connection.id, componentId: null, apiId: api.id }, label: api.url }));
+        }
+        return componentStore.getResourceComponents(connection.id)
+            .filter(component => component.kind === 'file')
+            .map(file => ({ target: { resourceId: connection.id, componentId: file.id }, label: file.name }));
+    }
 
-        return targets
+    function getPartOptions(connection: Connection): PartOption[] {
+        return getPartTargets(connection)
             .map(option => ({ ...option, key: endKey(option.target) }))
             .sort((a, b) => a.label.localeCompare(b.label));
     }
@@ -183,6 +202,11 @@
 
         if (connection.partNoun === 'table') {
             emit('connect', { resourceId: await tableService.createTable(name, connection.id), componentId: null });
+            return;
+        }
+        if (connection.partNoun === 'API') {
+            const api = await apiStore.commitApi(connection.id, name);
+            if (api) emit('connect', { resourceId: connection.id, componentId: null, apiId: api.id });
             return;
         }
         const file = await componentStore.createComponent(connection.id, 'file', name, newFileType.value);
@@ -225,9 +249,9 @@
                 @remove-object="id => emit('removeObject', connection.own!.index, id)"
             />
 
-            <!-- A database or file location: first a table or file, the information goes on that -->
+            <!-- A database, file location or something read through an api: first a table, file or api, the information goes on that -->
             <template v-else-if="connection.partNoun">
-                <!-- Information that was put on the database or file location itself before it had to go on a table or file -->
+                <!-- Information that was put on the resource itself before it had to go on a table, file or api -->
                 <InformationEditor
                     v-if="connection.own && informationCount(connection.own.end)"
                     :information-field-ids="connection.own.end.informationFieldIds"
@@ -272,7 +296,7 @@
                     :options="getPartOptions(connection)"
                     option-label="label"
                     :option-disabled="(option: PartOption) => isPartConnected(connection, option)"
-                    :placeholder="`+ Choose a ${connection.partNoun}…`"
+                    :placeholder="`+ Choose ${connection.partNoun === 'API' ? 'an' : 'a'} ${connection.partNoun}…`"
                     filter
                     :filter-placeholder="`Search ${connection.partNoun}`"
                     :empty-message="`No ${connection.partNoun}s yet`"

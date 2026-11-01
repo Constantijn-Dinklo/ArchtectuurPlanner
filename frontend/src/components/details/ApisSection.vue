@@ -3,6 +3,7 @@
     import { vCollapsible } from '../../directives/collapsible';
     import { useApiStore, type Api } from '../../stores/api.store';
     import { useApiConnectionStore } from '../../stores/apiConnection.store';
+    import { useComponentStore } from '../../stores/resources/component.store';
     import { useSendableInformationService } from '../../services/sendableInformation.service';
     import CarriedInformationEditor from './CarriedInformationEditor.vue';
 
@@ -14,13 +15,15 @@
 
     const apiStore = useApiStore();
     const apiConnectionStore = useApiConnectionStore();
+    const componentStore = useComponentStore();
     const sendableInformationService = useSendableInformationService();
 
     const apis = computed(() => apiStore.getApplicationApis(props.resourceId));
 
-    // An api url that no api connection uses is shown in a warning colour
+    // An api url that no api connection or script uses is shown in a warning colour
     function isApiUsed(apiId: string) {
-        return apiConnectionStore.apiConnections.some(connection => connection.sourceUrlId === apiId);
+        return apiConnectionStore.apiConnections.some(connection => connection.sourceUrlId === apiId)
+            || componentStore.isApiRead(apiId);
     }
 
     const unusedApiCount = computed(() => apis.value.filter(api => !isApiUsed(api.id)).length);
@@ -65,7 +68,7 @@
             <span
                 v-if="unusedApiCount"
                 class="unused-api-count"
-                :title="`${unusedApiCount} API url(s) not used in any API connection`"
+                :title="`${unusedApiCount} API url(s) not used in any API connection or script`"
             >
                 <i class="pi pi-exclamation-triangle" />
                 {{ unusedApiCount }} unused
@@ -109,7 +112,7 @@
                 <span
                     v-if="!isApiUsed(api.id)"
                     class="api-unused-badge"
-                    title="No API connection uses this url"
+                    title="No API connection or script uses this url"
                 >
                     Not used
                 </span>

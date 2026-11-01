@@ -1,6 +1,7 @@
 <script setup lang="ts">
     import { computed, ref } from 'vue';
     import { vCollapsible } from '../../directives/collapsible';
+    import { useApiStore } from '../../stores/api.store';
     import { useComponentStore } from '../../stores/resources/component.store';
     import { useInformationFieldStore } from '../../stores/information/informationField.store';
     import { useInformationObjectStore } from '../../stores/information/informationObject.store';
@@ -16,6 +17,7 @@
         componentId: string;
     }>();
 
+    const apiStore = useApiStore();
     const componentStore = useComponentStore();
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
@@ -30,7 +32,7 @@
         return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
     }
 
-    // What one end can pass on: a file passes on what it contains, a resource what it can send
+    // What one end can pass on: a file passes on what it contains, an api what it sends, a resource what it can send
     function getEndFieldOptions(end: ComponentEndTarget, fields = new Map<string, InformationOption>()) {
         if (end.componentId) {
             componentStore.getComponent(end.componentId)?.informationFieldIds.forEach(fieldId => {
@@ -38,16 +40,21 @@
                 if (field) fields.set(field.id, { id: field.id, label: field.fieldName });
             });
         } else {
+            const apiFieldIds = end.apiId ? apiStore.getApi(end.apiId)?.informationFieldIds ?? [] : undefined;
             sendableInformationService.getSendableFields(end.resourceId)
+                .filter(field => !apiFieldIds || apiFieldIds.includes(field.id))
                 .forEach(field => fields.set(field.id, { id: field.id, label: field.label }));
         }
         return fields;
     }
 
     function getEndObjectOptions(end: ComponentEndTarget, objects = new Map<string, InformationOption>()) {
+        const apiObjectIds = end.apiId ? apiStore.getApi(end.apiId)?.informationObjectIds ?? [] : undefined;
         const objectIds = end.componentId
             ? componentStore.getComponent(end.componentId)?.informationObjectIds ?? []
-            : sendableInformationService.getSendableObjects(end.resourceId).map(object => object.id);
+            : sendableInformationService.getSendableObjects(end.resourceId)
+                .map(object => object.id)
+                .filter(objectId => !apiObjectIds || apiObjectIds.includes(objectId));
         objectIds.forEach(objectId => {
             const informationObject = informationObjectStore.getInformationObject(objectId);
             if (informationObject) objects.set(informationObject.id, { id: informationObject.id, label: informationObject.objectName });
@@ -115,7 +122,8 @@
             getObjectOptions: (end: ComponentEnd) => byLabel(getEndObjectOptions(end)),
             fieldOptionsEmpty: 'This has no fields to read',
             objectOptionsEmpty: 'This has no objects to read',
-            allowNewInformation: false
+            allowNewInformation: false,
+            readsThroughApi: true
         },
         {
             side: 'outputs' as const,
@@ -127,7 +135,8 @@
             getObjectOptions: () => producible.value.objects,
             fieldOptionsEmpty: 'The script takes in no fields yet',
             objectOptionsEmpty: 'The script takes in no objects yet',
-            allowNewInformation: true
+            allowNewInformation: true,
+            readsThroughApi: false
         }
     ]);
 
@@ -295,6 +304,7 @@
                 :field-options-empty="section.fieldOptionsEmpty"
                 :object-options-empty="section.objectOptionsEmpty"
                 :allow-new-information="section.allowNewInformation"
+                :reads-through-api="section.readsThroughApi"
                 @connect="target => componentStore.addEnd(component!.id, section.side, target)"
                 @disconnect="connectionId => componentStore.removeConnection(component!.id, section.side, connectionId)"
                 @remove-end="index => componentStore.removeEnd(component!.id, section.side, index)"

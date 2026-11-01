@@ -5,6 +5,7 @@ import { Menu, Button } from 'primevue'
 import { useApiStore, type Api } from '../stores/api.store';
 import { useApiConnectionStore } from '../stores/apiConnection.store';
 import { useApplicationStore } from '../stores/resources/application.store';
+import { useComponentStore } from '../stores/resources/component.store';
 import { useApplicationService } from '../services/resources/application.service';
 import { exportToCsv } from '../helpers/export';
 
@@ -22,6 +23,7 @@ const vFocus = { mounted: (el: HTMLElement) => el.focus() };
 const tempApplicationId = ref<string | null>(null);
 
 const apiConnectionStore = useApiConnectionStore();
+const componentStore = useComponentStore();
 
 // The API urls of an application start hidden and can be shown per application
 const expandedApplications = ref<Set<string>>(new Set());
@@ -36,9 +38,10 @@ function toggleApplication(applicationId: string) {
     expandedApplications.value = expanded;
 }
 
-// An API url that no API connection uses is shown as a warning
+// An API url that no API connection or script uses is shown as a warning
 function isApiUsed(apiId: string) {
-    return apiConnectionStore.apiConnections.some(connection => connection.sourceUrlId === apiId);
+    return apiConnectionStore.apiConnections.some(connection => connection.sourceUrlId === apiId)
+        || componentStore.isApiRead(apiId);
 }
 
 function getUnusedApiCount(applicationId: string) {
@@ -210,7 +213,7 @@ function deleteApi(id: string) {
                             :key="api.id"
                             class="sidebar-item"
                             :class="{ warning: !isApiUsed(api.id) }"
-                            :title="isApiUsed(api.id) ? undefined : 'Not used in any API connection'"
+                            :title="isApiUsed(api.id) ? undefined : 'Not used in any API connection or script'"
                         >
                             <i class="pi pi-globe sidebar-sub-icon" />
                             <span class="sidebar-item-name" :title="api.url">{{ api.url }}</span>

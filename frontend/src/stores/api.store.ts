@@ -3,6 +3,7 @@ import { ref } from "vue";
 import api from "../helpers/axios";
 import { useToast } from "primevue";
 import { refreshReceivedInformation } from "../services/receivedInformation";
+import { useComponentStore } from "./resources/component.store";
 
 
 export interface Api {
@@ -35,6 +36,7 @@ export const useApiStore = defineStore('api', () => {
             applicationId: applicationId
         });
         apis.value.push(res.data);
+        return res.data as Api;
     }
 
     async function updateApi(id: string, patch: Partial<Api>) {
@@ -50,7 +52,8 @@ export const useApiStore = defineStore('api', () => {
             const res = await api.delete(`/apis/${id}`);
             if(!res) return;
             apis.value = apis.value.filter((api) => api.id !== id);
-            await refreshReceivedInformation();
+            // Scripts that read through a removed api stay connected to its application
+            await Promise.all([useComponentStore().fetchComponents(), refreshReceivedInformation()]);
         }
         catch(error: any) {
             if(error.response?.status === 409){

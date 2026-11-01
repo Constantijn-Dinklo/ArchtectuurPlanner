@@ -1,9 +1,11 @@
-// One place something is connected to: a resource (a table is a resource as well), or a component inside a resource,
-// like a file in a file location. A connection to a database or file location has one end per known table or file,
-// and only an end of the database or file location itself while none is known
+// One place something is connected to: a resource (a table is a resource as well), a component inside a resource,
+// like a file in a file location, or an api of an application or external element. A connection to a database or file
+// location has one end per known table or file, and only an end of the resource itself while none is known.
+// The same goes for reading from an application or external element, per api
 export interface ConnectionEndTarget {
     resourceId: string;
     componentId: string | null;
+    apiId?: string | null;
 }
 
 // The information is what is read from this end or written to it
