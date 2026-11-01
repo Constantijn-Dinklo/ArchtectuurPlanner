@@ -25,6 +25,7 @@ import type { ResolvedInformationFieldReference } from "../types/informationFiel
 import type { ResolvedInformationObjectReference } from "../types/informationObject.type";
 import { useResourceResolver } from "../resolvers/resource.resolver";
 import { getWebsiteHref, type ResolvedApplication } from "../types/application.types";
+import { RESOURCE_ICONS } from "../types/resource.type";
 import type { ResolvedExternal } from "../types/external.types";
 import { useComponentStore } from "../stores/resources/component.store";
 import { getComponentHandleId, getComponentIcon, getInformationSlotIds, type CanvasComponentInformation, type CanvasComponentLink, type CanvasComponentRow, type Component, type ComponentEnd, type InformationSlot } from "../types/component.types";
@@ -321,15 +322,6 @@ export function useCanvasProjection() {
         return viewNodeId ? { nodeId: viewNodeId } : undefined;
     }
 
-    const RESOURCE_ICONS: Record<string, string> = {
-        application: 'pi pi-desktop',
-        database: 'pi pi-database',
-        table: 'pi pi-table',
-        fileLocation: 'pi pi-folder',
-        external: 'pi pi-globe',
-        server: 'pi pi-server'
-    };
-
     // What a script reads from or writes to, as a line in its opened row
     function getEndLink(end: ComponentEnd): CanvasComponentLink {
         const resource = resourceService.getResource(end.resourceId);
@@ -352,7 +344,7 @@ export function useCanvasProjection() {
         return {
             key: `resource:${end.resourceId}`,
             name: `${databaseName ? `${databaseName}.` : ''}${resource?.name ?? 'Unknown'}`,
-            icon: RESOURCE_ICONS[resource?.type ?? ''] ?? 'pi pi-box'
+            icon: resource ? RESOURCE_ICONS[resource.type] : 'pi pi-box'
         };
     }
 

@@ -8,7 +8,7 @@
     import { getOtherConnectionMethodInfo, useOtherConnectionStore } from '../../stores/otherConnection.store';
     import { useResourceService } from '../../services/resources/resource.service';
     import { useComponentStore } from '../../stores/resources/component.store';
-    import type { ResourceType } from '../../types/resource.type';
+    import { RESOURCE_ICONS, type ResourceType } from '../../types/resource.type';
 
     // The resources on the other side of the connections of this resource, grouped per resource:
     // incoming: the resources that send to this resource (this resource is the target)
@@ -41,15 +41,6 @@
     const otherConnectionStore = useOtherConnectionStore();
     const resourceService = useResourceService();
     const componentStore = useComponentStore();
-
-    const RESOURCE_ICONS: Record<ResourceType, string> = {
-        application: 'pi pi-desktop',
-        database: 'pi pi-database',
-        table: 'pi pi-table',
-        fileLocation: 'pi pi-folder',
-        server: 'pi pi-server',
-        external: 'pi pi-globe'
-    };
 
     const isIncoming = computed(() => props.direction === 'incoming');
 

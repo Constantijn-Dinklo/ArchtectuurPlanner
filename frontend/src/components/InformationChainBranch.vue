@@ -44,9 +44,8 @@ const stepTitle = computed(() => {
                     class="break-icon"
                 />
                 <i
-                    v-if="informationChainService.getStepIcon(step)"
                     :class="informationChainService.getStepIcon(step)"
-                    class="endpoint-step-icon"
+                    class="step-icon"
                 />
                 {{ informationChainService.getStepLabel(step) }}
             </span>
@@ -255,16 +254,20 @@ const stepTitle = computed(() => {
     font-size: 10px;
 }
 
+.step-icon {
+    margin-right: 4px;
+    color: var(--p-text-muted-color);
+    font-size: 10px;
+}
+
 .chain-step.endpoint {
     border-color: #c4b5fd;
     background: #faf5ff;
     color: #5b21b6;
 }
 
-.endpoint-step-icon {
-    margin-right: 3px;
+.chain-step.endpoint .step-icon {
     color: #7c3aed;
-    font-size: 10px;
 }
 
 .chain-step.script {
@@ -273,7 +276,7 @@ const stepTitle = computed(() => {
     color: #3730a3;
 }
 
-.chain-step.script .endpoint-step-icon {
+.chain-step.script .step-icon {
     color: #4f46e5;
 }
 
@@ -285,7 +288,7 @@ const stepTitle = computed(() => {
     color: #b91c1c;
 }
 
-.chain-step.broken .endpoint-step-icon,
+.chain-step.broken .step-icon,
 .chain-step.broken .break-icon {
     color: #dc2626;
 }
@@ -298,7 +301,7 @@ const stepTitle = computed(() => {
     color: #92400e;
 }
 
-.chain-step.warned .endpoint-step-icon,
+.chain-step.warned .step-icon,
 .chain-step.warned .break-icon {
     color: #d97706;
 }
@@ -316,5 +319,9 @@ const stepTitle = computed(() => {
     border-color: #86efac;
     background: #f0fdf4;
     color: #166534;
+}
+
+.chain-step.source .step-icon {
+    color: #16a34a;
 }
 </style>

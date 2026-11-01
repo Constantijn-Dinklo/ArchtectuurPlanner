@@ -9,8 +9,9 @@ import { useComponentStore } from "../stores/resources/component.store";
 import { useResourceService } from "./resources/resource.service";
 import { useEndpointInformationService } from "./endpointInformation.service";
 import { useInformationEndpointService } from "./informationEndpoint.service";
-import { getInformationSlotIds, type Component, type ComponentEnd, type InformationSlot } from "../types/component.types";
+import { getComponentIcon, getInformationSlotIds, type Component, type ComponentEnd, type InformationSlot } from "../types/component.types";
 import type { InformationSource } from "../types/informationField.type";
+import { RESOURCE_ICONS } from "../types/resource.type";
 
 // Information is always identified by its id; the name is only used to show it
 export type InformationKind = 'field' | 'object';
@@ -941,10 +942,14 @@ export function useInformationChainService() {
         return step.side ? `${name} (${step.side})` : name;
     }
 
+    // What kind of step it is: a script or file, an endpoint, or otherwise the type of the resource
     function getStepIcon(step: ChainStep) {
-        if (step.componentId) return 'pi pi-code';
+        const component = step.componentId ? componentStore.getComponent(step.componentId) : undefined;
+        if (component) return getComponentIcon(component);
         const endpoint = endpointStore.endpoints.find(endpoint => endpoint.id === step.endpointId);
-        return endpoint ? getEndpointTypeInfo(endpoint.type).icon : undefined;
+        if (endpoint) return getEndpointTypeInfo(endpoint.type).icon;
+        const resource = resourceService.getResource(step.resourceId);
+        return resource ? RESOURCE_ICONS[resource.type] : 'pi pi-box';
     }
 
     return { getChain, getStepLabel, getStepIcon };

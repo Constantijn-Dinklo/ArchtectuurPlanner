@@ -9,7 +9,7 @@
     import { useTableService } from '../../services/resources/table.service';
     import { FILE_TYPES, getComponentIcon, type FileType } from '../../types/component.types';
     import type { ConnectionEnd, ConnectionEndTarget, InformationFieldToAdd, InformationObjectToAdd, InformationOption } from '../../types/connectionEnd.types';
-    import type { ResourceType } from '../../types/resource.type';
+    import { RESOURCE_ICONS, type ResourceType } from '../../types/resource.type';
     import ExpandableDetailRow from './ExpandableDetailRow.vue';
     import InformationEditor from './InformationEditor.vue';
 
@@ -59,15 +59,6 @@
 
     // Tables are not always loaded on the higher levels of the canvas
     onMounted(() => tableStore.fetchTables());
-
-    const RESOURCE_ICONS: Record<ResourceType, string> = {
-        application: 'pi pi-desktop',
-        database: 'pi pi-database',
-        table: 'pi pi-table',
-        fileLocation: 'pi pi-folder',
-        server: 'pi pi-server',
-        external: 'pi pi-globe'
-    };
 
     const API_ICON = 'pi pi-globe';
 
