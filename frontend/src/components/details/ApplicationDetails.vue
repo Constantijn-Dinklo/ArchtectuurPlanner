@@ -24,7 +24,7 @@ import EndpointsSection from './EndpointsSection.vue';
 import ApisSection from './ApisSection.vue';
 import ComponentsSection from './ComponentsSection.vue';
 import ConnectionPartnersSection from './ConnectionPartnersSection.vue';
-import { APPLICATION_HOSTINGS, type ResolvedApplication } from '../../types/application.types.ts';
+import { APPLICATION_HOSTINGS, getWebsiteHref, type ResolvedApplication } from '../../types/application.types.ts';
 
 const resourceService = useResourceService();
 const selectedNodeProjection = useSelectedNodeProjection();
@@ -182,11 +182,6 @@ function getInputObjectRelation(informationObjectId: string) {
 function updateProperty(property: 'version' | 'developer' | 'hosting' | 'websiteUrl', value: string) {
     if (!application.value) return;
     applicationStore.updateApplication(application.value.id, { [property]: value });
-}
-
-// A website typed without a protocol is opened as https
-function websiteHref(url: string) {
-    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
 // <-- Information Field -->
@@ -425,7 +420,7 @@ function isInformationObjectExpanded(informationObjectId: string) {
                 />
                 <a
                     v-if="application.websiteUrl"
-                    :href="websiteHref(application.websiteUrl)"
+                    :href="getWebsiteHref(application.websiteUrl)"
                     target="_blank"
                     rel="noopener noreferrer"
                     class="website-link"

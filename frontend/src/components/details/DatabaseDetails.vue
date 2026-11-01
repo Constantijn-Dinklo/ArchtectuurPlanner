@@ -2,7 +2,7 @@
     import { vCollapsible } from '../../directives/collapsible';
     import { computed, onMounted, ref } from 'vue';
     import { useSelectedNodeProjection } from '../../projections/selectedNode.projection';
-    import { useDatabaseStore, type Database } from '../../stores/resources/database.store';
+    import { DATABASE_ENGINES, useDatabaseStore, type Database } from '../../stores/resources/database.store';
 
     import ConnectionsDetail from '../ConnectionsDetail.vue';
     import EndpointsSection from './EndpointsSection.vue';
@@ -61,9 +61,19 @@
                     class="detail-select"
                     @change="onEngineChange"
                 >
-                    <option key="SQL" value="SQL">SQL</option>
-                    <option key="MySQL" value="MySQL">MySQL</option>
-                    <option key="NoSQL" value="NoSQL">NoSQL</option>
+                    <optgroup
+                        v-for="group in DATABASE_ENGINES"
+                        :key="group.label"
+                        :label="group.label"
+                    >
+                        <option
+                            v-for="engine in group.engines"
+                            :key="engine"
+                            :value="engine"
+                        >
+                            {{ engine }}
+                        </option>
+                    </optgroup>
                 </select>
             </label>
         </section>

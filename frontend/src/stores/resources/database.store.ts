@@ -10,6 +10,14 @@ export interface Database extends BaseResource {
     engine?: string;
 }
 
+// SQL and NoSQL are for a database of which the exact engine is not known
+export const DATABASE_ENGINES: { label: string, engines: string[] }[] = [
+    { label: 'Relational', engines: ['PostgreSQL', 'MySQL', 'MariaDB', 'SQL Server', 'Oracle', 'SQLite', 'IBM Db2'] },
+    { label: 'NoSQL', engines: ['MongoDB', 'Redis', 'Cassandra', 'DynamoDB', 'Cosmos DB', 'Elasticsearch', 'Neo4j'] },
+    { label: 'Data warehouse', engines: ['Snowflake', 'BigQuery', 'Redshift'] },
+    { label: 'General', engines: ['SQL', 'NoSQL'] }
+];
+
 export const useDatabaseStore = defineStore('database', () => {
     const databases = ref<Database[]>([]);
 

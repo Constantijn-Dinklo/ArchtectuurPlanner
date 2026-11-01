@@ -209,7 +209,8 @@ import ComponentRows from './ComponentRows.vue';
                     props.data.inputInformationFields ||
                     props.data.outputInformationFields ||
                     props.data.inputInformationObjects ||
-                    props.data.outputInformationObjects
+                    props.data.outputInformationObjects,
+                'has-website': props.data.websiteHref
             }"
         >
             <span class="application-icon">
@@ -224,6 +225,20 @@ import ComponentRows from './ComponentRows.vue';
             <span class="application-name">
                 {{ props.data.label }}
             </span>
+
+            <!-- Opens the website without selecting the node -->
+            <a
+                v-if="props.data.websiteHref"
+                :href="props.data.websiteHref"
+                target="_blank"
+                rel="noopener noreferrer"
+                draggable="false"
+                class="website-link nodrag"
+                title="Open the website"
+                @click.stop
+            >
+                <i class="pi pi-external-link" />
+            </a>
         </header>
 
         <div
@@ -548,6 +563,38 @@ import ComponentRows from './ComponentRows.vue';
     background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
 
     font-size: var(--canvas-type-node-title);
+}
+
+/* Room for the website link, so a long name stops before it */
+.application-header.has-website {
+    position: relative;
+    padding-right: 2em;
+}
+
+.website-link {
+    position: absolute;
+    top: 50%;
+    right: 0.4em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 1.4em;
+    height: 1.4em;
+    border-radius: 0.3em;
+
+    color: #3b82f6;
+    text-decoration: none;
+    transform: translateY(-50%);
+}
+
+.website-link .pi {
+    font-size: 0.8em;
+}
+
+.website-link:hover {
+    background: #dbeafe;
+    color: #1d4ed8;
 }
 
 .application-icon {

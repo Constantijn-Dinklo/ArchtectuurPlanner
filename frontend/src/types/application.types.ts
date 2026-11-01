@@ -13,6 +13,11 @@ export const APPLICATION_HOSTINGS: { hosting: ApplicationHosting, label: string 
     { hosting: 'onPremise', label: 'On-premise' }
 ];
 
+// A website typed without a protocol is opened as https
+export function getWebsiteHref(url: string) {
+    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
 export interface Application extends BaseResource {
     type: 'application';
     version?: string;
@@ -63,6 +68,9 @@ export type ApplicationNode = Node<ApplicationNodeData>;
 export interface ApplicationNodeData {
     label: string;
     resourceId: string;
+
+    // Only for a SaaS application with a website: where to open it
+    websiteHref?: string;
 
     inputInformationFields?: ResolvedInformationFieldReference[];
     outputInformationFields?: ResolvedInformationFieldReference[];

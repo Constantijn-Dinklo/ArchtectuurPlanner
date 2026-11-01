@@ -23,7 +23,7 @@ import { useInformationTransferService } from "../services/informationTransfer.s
 import type { ResolvedInformationFieldReference } from "../types/informationField.type";
 import type { ResolvedInformationObjectReference } from "../types/informationObject.type";
 import { useResourceResolver } from "../resolvers/resource.resolver";
-import type { ApplicationNode, ResolvedApplication } from "../types/application.types";
+import { getWebsiteHref, type ResolvedApplication } from "../types/application.types";
 import type { ResolvedExternal } from "../types/external.types";
 import { useComponentStore } from "../stores/resources/component.store";
 import { getComponentHandleId, getComponentIcon, getInformationSlotIds, type CanvasComponentInformation, type CanvasComponentLink, type CanvasComponentRow, type Component, type ComponentEnd, type InformationSlot } from "../types/component.types";
@@ -663,6 +663,9 @@ export function useCanvasProjection() {
             data:{
                 label,
                 resourceId: application.id,
+                websiteHref: application.hosting === 'saas' && application.websiteUrl
+                    ? getWebsiteHref(application.websiteUrl)
+                    : undefined,
                 inputInformationFields,
                 outputInformationFields,
                 inputInformationObjects,
