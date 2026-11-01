@@ -79,7 +79,7 @@ app.use('/components', inEnvironment, syncsExternalSources, componentRoutes);
 app.use('/apis', inEnvironment, syncsExternalSources, apiRoutes);
 
 // ** Information ** //
-app.use('/informationFields', inEnvironment, informationFieldRoutes);
+app.use('/informationFields', inEnvironment, syncsExternalSources, informationFieldRoutes);
 app.use('/informationObjects', inEnvironment, syncsExternalSources, informationObjectRoutes);
 app.use('/informationRelations', inEnvironment, informationRelationRoutes);
 app.use('/endpoints', inEnvironment, endpointRoutes);

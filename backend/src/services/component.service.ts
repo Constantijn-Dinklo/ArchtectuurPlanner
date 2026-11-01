@@ -135,6 +135,11 @@ export async function deleteComponent(user: UserJwtPayload, componentId: string)
     // Scripts that read from or wrote to this component (a file) no longer do, but stay connected to its file location
     if(component.kind === 'file') {
         await keepConnectionsWithoutPart(user, component.resourceId.toString(), { componentId });
+
+        // Information that had the file as its source has no source anymore
+        const sourcedHere = { environmentId: user.environmentId, 'source.componentId': componentId };
+        await InformationField.updateMany(sourcedHere, { $set: { source: null } });
+        await InformationObject.updateMany(sourcedHere, { $set: { source: null } });
     }
     return { componentId, viewNodeId: viewNode?._id };
 }

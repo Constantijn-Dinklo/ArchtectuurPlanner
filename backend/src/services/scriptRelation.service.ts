@@ -7,6 +7,7 @@ import InformationObject from "../models/information/informationObject.models";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import { getResourceType, updateReceivedInformation } from "./externalRelation.service";
+import { addTableInformation } from "./table.service";
 
 // Relations go between resources. When information goes into or out of a component (a script, a file), the
 // resource the component is part of gets the relation:
@@ -64,17 +65,7 @@ export async function addScriptWrittenInput(user: UserJwtPayload, resourceId: st
         );
     }
 
-    if(type === 'table') {
-        const fieldIds = kind === 'field'
-            ? [informationId]
-            : ((await InformationObject.findOne({ _id: informationId, environmentId: user.environmentId }))?.informationFieldIds ?? []).map((id) => id.toString());
-        for(const fieldId of fieldIds) {
-            await Table.updateOne(
-                { _id: resourceId, environmentId: user.environmentId, 'columns.informationFieldId': { $ne: fieldId } },
-                { $push: { columns: { informationFieldId: fieldId, position: 0 } } }
-            );
-        }
-    }
+    if(type === 'table') await addTableInformation(user, resourceId, kind, informationId);
 }
 
 export async function syncScriptRelations(user: { environmentId: string }) {

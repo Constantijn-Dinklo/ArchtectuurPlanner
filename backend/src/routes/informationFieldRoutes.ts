@@ -3,7 +3,7 @@ import express, { Router, Response } from "express";
 import { AuthenticatedRequest, authenticateToken, getUser } from "../middelware";
 import InformationField from "../models/information/informationField.model";
 import { createInformationField } from "../services/information.service";
-import { setInformationFieldSource } from "../services/informationSource.service";
+import { setInformationFieldSource, setInformationFieldSourceMethod } from "../services/informationSource.service";
 import { deleteInformation, getInformationUsage } from "../services/informationUsage.service";
 
 const router: Router = express.Router();
@@ -54,12 +54,27 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
     }
 });
 
-// Sets the source of the field: the resource it originates from. { resourceId: null } removes the source
+// Sets the source of the field: the resource or file it originates from, which also gets the field.
+// { resourceId: null } removes the source
 router.patch('/:id/source', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
-        const informationField = await setInformationFieldSource(user, req.params.id as string, req.body.resourceId ?? null);
+        const { resourceId, componentId } = req.body;
+        const informationField = await setInformationFieldSource(user, req.params.id as string, resourceId ? { resourceId, componentId } : null);
+        res.json(informationField);
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// Sets how the field comes into being at its source. { sourceMethod: null } removes the method
+router.patch('/:id/sourceMethod', async (req: AuthenticatedRequest, res: Response) => {
+    const user = getUser(req);
+
+    try {
+        const informationField = await setInformationFieldSourceMethod(user, req.params.id as string, req.body.sourceMethod ?? null);
         res.json(informationField);
     }
     catch(err: any) {

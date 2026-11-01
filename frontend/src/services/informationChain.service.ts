@@ -10,6 +10,7 @@ import { useResourceService } from "./resources/resource.service";
 import { useEndpointInformationService } from "./endpointInformation.service";
 import { useInformationEndpointService } from "./informationEndpoint.service";
 import { getInformationSlotIds, type Component, type ComponentEnd, type InformationSlot } from "../types/component.types";
+import type { InformationSource } from "../types/informationField.type";
 
 // Information is always identified by its id; the name is only used to show it
 export type InformationKind = 'field' | 'object';
@@ -28,6 +29,8 @@ export interface ChainEdge {
     source: ChainStep;
     target: ChainStep;
     carriedByObjectIds: string[];
+    // The source has to reach this step, but it is not known how yet
+    unconnected?: boolean;
 }
 
 export interface ChainStepView extends ChainStep {
@@ -35,11 +38,15 @@ export interface ChainStepView extends ChainStep {
     objectNames: string[];
     // The breaks in the chain at this step
     breaks: ChainBreak[];
+    // This step is the source of the information
+    isSource: boolean;
 }
 
 export interface ChainLinkView {
     // Names of the InformationObjects that carry the information to the next step
     objectNames: string[];
+    // It is not known yet how the information gets to the next step
+    unconnected: boolean;
 }
 
 // One path through the chain, from a start (nothing flows into it) to an end (nothing flows out of it)
@@ -47,6 +54,14 @@ export interface Chain {
     steps: ChainStepView[];
     // links[i] connects steps[i] to steps[i + 1]
     links: ChainLinkView[];
+}
+
+// The paths merged for showing them: what paths share from their start is one step, that splits where they go apart
+export interface ChainBranch {
+    step: ChainStepView;
+    // How the information gets here from the previous step; undefined at the start
+    link?: ChainLinkView;
+    children: ChainBranch[];
 }
 
 // How a place holds the information:
@@ -74,7 +89,8 @@ export interface ChainHolder {
 // - sourceMissing: a resource sends the information on, but no longer has it
 // - endpointMissing: an endpoint uses the information, but it has no way of getting to the resource
 // - deadEnd: an application outputs the information, but no other resource or endpoint uses it (as shown on the node)
-export type ChainBreakKind = 'noSource' | 'sourceNotHeld' | 'unknownOrigin' | 'sourceMissing' | 'endpointMissing' | 'deadEnd';
+// - notConnected: the information is here, but it is not known how it gets here from the source (a warning)
+export type ChainBreakKind = 'noSource' | 'sourceNotHeld' | 'unknownOrigin' | 'sourceMissing' | 'endpointMissing' | 'deadEnd' | 'notConnected';
 
 export interface ChainBreak {
     kind: ChainBreakKind;
@@ -95,6 +111,9 @@ export interface InformationChain {
     steps: ChainStep[];
     edges: ChainEdge[];
     chains: Chain[];
+    branches: ChainBranch[];
+    // The objects a field is part of
+    containingObjectNames: string[];
     holders: ChainHolder[];
     breaks: ChainBreak[];
     status: ChainStatus;
@@ -125,15 +144,16 @@ export function useInformationChainService() {
         if (kind === 'field') {
             const field = informationFieldStore.getInformationField(id);
             if (!field) return undefined;
-            return assemble(kind, id, field.fieldName, field.source?.resourceId ?? null, getContainingObjectIdsOf(id));
+            return assemble(kind, id, field.fieldName, field.source, getContainingObjectIdsOf(id));
         }
 
         const object = informationObjectStore.getInformationObject(id);
         if (!object) return undefined;
-        return assemble(kind, id, object.objectName, object.source?.resourceId ?? null, []);
+        return assemble(kind, id, object.objectName, object.source, []);
     }
 
-    function assemble(kind: InformationKind, id: string, name: string, sourceId: string | null, containingObjectIds: string[]): InformationChain {
+    function assemble(kind: InformationKind, id: string, name: string, source: InformationSource | null, containingObjectIds: string[]): InformationChain {
+        const sourceId = source?.resourceId ?? null;
         const holders = getHolders(kind, id, containingObjectIds);
         const relations = getRelations(kind, id, containingObjectIds);
         const endHas = getEndHas(kind, id);
@@ -142,7 +162,7 @@ export function useInformationChainService() {
             ...(kind === 'field' ? getFieldEdges(id, containingObjectIds) : getObjectEdges(id)),
             ...externalEdges
         ];
-        const breaks = getBreaks(kind, id, sourceId, containingObjectIds, relations, externalEdges, holders, endHas);
+        const holderBreaks = getBreaks(kind, id, sourceId, containingObjectIds, relations, externalEdges, holders, endHas);
 
         const steps = new Map<string, ChainStep>();
         edges.forEach(edge => {
@@ -164,18 +184,42 @@ export function useInformationChainService() {
             steps.set(stepKey(edge.target), edge.target);
         });
 
-        // Places that hold the information without any relation still show, as a chain of their own
+        const sourceStep = source && resourceService.getResource(source.resourceId) ? getSourceStep(source) : undefined;
+        const flowEdges = sourceStep ? toSourceFlow([...edges, ...throughEdges], sourceStep) : [...edges, ...throughEdges];
+        const flowKeys = new Set(flowEdges.flatMap(edge => [stepKey(edge.source), stepKey(edge.target)]));
+        const ownInputKey = sourceStep?.side === 'output' ? stepKey({ resourceId: sourceStep.resourceId, side: 'input' }) : undefined;
+
+        // Places that hold the information without any relation still show: as a chain of their own,
+        // or with a source as the next thing to connect to it
         const looseSteps = new Map<string, ChainStep>();
-        holderSteps
-            .filter(step => !steps.has(stepKey(step)))
+        [...holderSteps, ...(sourceStep ? [sourceStep] : [])]
+            .filter(step => !flowKeys.has(stepKey(step)) && stepKey(step) !== ownInputKey)
             .forEach(step => looseSteps.set(stepKey(step), step));
         looseSteps.forEach((step, key) => steps.set(key, step));
 
+        const unconnectedSteps = sourceStep ? getUnconnectedSteps(sourceStep, flowEdges, [...looseSteps.values()]) : [];
+        const unconnectedEdges: ChainEdge[] = unconnectedSteps.map(target => ({ source: sourceStep!, target, carriedByObjectIds: [], unconnected: true }));
+
+        // A source with a broken arrow is not a dead end: where it goes is known, how it gets there is not
+        const noun = kind === 'field' ? 'field' : 'object';
+        const breaks: ChainBreak[] = [
+            ...holderBreaks.filter(chainBreak =>
+                !(unconnectedSteps.length && chainBreak.kind === 'deadEnd' && chainBreak.stepKey === (sourceStep && stepKey(sourceStep)))
+            ),
+            ...unconnectedSteps.map(step => ({
+                kind: 'notConnected' as const,
+                severity: 'warning' as const,
+                message: `It is not known yet how this ${noun} gets from ${getStepLabel(sourceStep!)} to ${getStepLabel(step)}`,
+                stepKey: stepKey(step)
+            }))
+        ];
+
         const chains = buildChains(
-            [...edges, ...throughEdges],
+            [...flowEdges, ...unconnectedEdges],
             [...looseSteps.values()],
             step => kind === 'field' ? getStepObjectIds(step, containingObjectIds) : [],
-            key => breaks.filter(chainBreak => chainBreak.stepKey === key)
+            key => breaks.filter(chainBreak => chainBreak.stepKey === key),
+            sourceStep && stepKey(sourceStep)
         );
 
         let status: ChainStatus = 'complete';
@@ -183,7 +227,67 @@ export function useInformationChainService() {
         else if (breaks.some(chainBreak => chainBreak.kind === 'noSource')) status = 'noSource';
         else if (breaks.length) status = 'warning';
 
-        return { kind, id, name, steps: [...steps.values()], edges, chains, holders, breaks, status };
+        return { kind, id, name, steps: [...steps.values()], edges, chains, branches: mergeChains(chains), containingObjectNames: getObjectNames(containingObjectIds), holders, breaks, status };
+    }
+
+    // ---- The source ----
+
+    // An application has the information to send on at its output, and a file is a step of its own
+    function getSourceStep(source: InformationSource): ChainStep {
+        if (source.componentId) return { resourceId: source.resourceId, componentId: source.componentId };
+        return source.resourceType === 'application' ? { resourceId: source.resourceId, side: 'output' } : { resourceId: source.resourceId };
+    }
+
+    // What leaves the source can be stored one level up: a relation goes from a file location or a database, not from
+    // its file or table. An application that is the source can also have the information as an input: without anything
+    // feeding that input it says nothing about the route, so it is left out
+    function toSourceFlow(edges: ChainEdge[], sourceStep: ChainStep): ChainEdge[] {
+        const parentId = sourceStep.componentId ? sourceStep.resourceId : getDatabaseId(sourceStep.resourceId);
+        const flow = edges
+            .map(edge => edge.source.resourceId === parentId && !edge.source.componentId && !edge.source.endpointId
+                ? { ...edge, source: sourceStep }
+                : edge)
+            .filter(edge => stepKey(edge.source) !== stepKey(edge.target));
+        if (sourceStep.side !== 'output') return flow;
+
+        const sourceKey = stepKey(sourceStep);
+        const inputKey = stepKey({ resourceId: sourceStep.resourceId, side: 'input' });
+        const isOwnInput = !flow.some(edge => stepKey(edge.target) === inputKey) &&
+            flow.every(edge => stepKey(edge.source) !== inputKey || stepKey(edge.target) === sourceKey);
+        return isOwnInput ? flow.filter(edge => stepKey(edge.source) !== inputKey) : flow;
+    }
+
+    // The first steps of everything the source does not reach: these get a broken arrow from the source.
+    // Steps that only a loop leads to have no first step, so the first of them that is left is used
+    function getUnconnectedSteps(sourceStep: ChainStep, edges: ChainEdge[], looseSteps: ChainStep[]): ChainStep[] {
+        const steps = new Map<string, ChainStep>(looseSteps.map(step => [stepKey(step), step]));
+        const next = new Map<string, string[]>();
+        const hasIncoming = new Set<string>();
+        for (const edge of edges) {
+            steps.set(stepKey(edge.source), edge.source);
+            steps.set(stepKey(edge.target), edge.target);
+            hasIncoming.add(stepKey(edge.target));
+            next.set(stepKey(edge.source), [...(next.get(stepKey(edge.source)) ?? []), stepKey(edge.target)]);
+        }
+
+        const reached = new Set<string>();
+        function reach(key: string) {
+            if (reached.has(key)) return;
+            reached.add(key);
+            next.get(key)?.forEach(reach);
+        }
+        reach(stepKey(sourceStep));
+
+        const unconnected: ChainStep[] = [];
+        function connect(key: string) {
+            if (reached.has(key)) return;
+            unconnected.push(steps.get(key)!);
+            reach(key);
+        }
+        [...steps.keys()].filter(key => !hasIncoming.has(key)).forEach(connect);
+        [...steps.keys()].forEach(connect);
+
+        return unconnected;
     }
 
     // ---- Edges ----
@@ -363,18 +467,21 @@ export function useInformationChainService() {
     }
 
     // Returns every path from a start (nothing flows into it) to an end (nothing flows out of it).
-    // looseSteps: steps without any edge, each one a chain of its own
+    // looseSteps: steps without any edge, each one a chain of its own.
+    // sourceKey: the source, which is then the one start of every path
     function buildChains(
         edges: ChainEdge[],
         looseSteps: ChainStep[],
         getStepObjectIdsOf: (step: ChainStep) => string[],
-        getStepBreaks: (key: string) => ChainBreak[]
+        getStepBreaks: (key: string) => ChainBreak[],
+        sourceKey?: string
     ): Chain[] {
         const steps = new Map<string, ChainStep>(looseSteps.map(step => [stepKey(step), step]));
         const next = new Map<string, string[]>();
         const hasIncoming = new Set<string>();
         // The same hop can exist on its own and in one or more objects; they are merged into one link
         const linkObjectIds = new Map<string, Set<string>>();
+        const unconnectedLinks = new Set<string>();
 
         for (const edge of edges) {
             const sourceKey = stepKey(edge.source);
@@ -392,6 +499,7 @@ export function useInformationChainService() {
             const objectIds = linkObjectIds.get(linkKey) ?? new Set<string>();
             edge.carriedByObjectIds.forEach(objectId => objectIds.add(objectId));
             linkObjectIds.set(linkKey, objectIds);
+            if (edge.unconnected) unconnectedLinks.add(linkKey);
         }
 
         const chains: Chain[] = [];
@@ -404,11 +512,13 @@ export function useInformationChainService() {
                     return {
                         ...step,
                         objectNames: getObjectNames(getStepObjectIdsOf(step)),
-                        breaks: getStepBreaks(key)
+                        breaks: getStepBreaks(key),
+                        isSource: key === sourceKey
                     };
                 }),
                 links: path.slice(1).map((key, index) => ({
-                    objectNames: getObjectNames([...(linkObjectIds.get(`${path[index]}|${key}`) ?? [])])
+                    objectNames: getObjectNames([...(linkObjectIds.get(`${path[index]}|${key}`) ?? [])]),
+                    unconnected: unconnectedLinks.has(`${path[index]}|${key}`)
                 }))
             };
         }
@@ -428,8 +538,13 @@ export function useInformationChainService() {
             }
         }
 
-        for (const key of steps.keys()) {
-            if (!hasIncoming.has(key)) walk(key, []);
+        if (sourceKey) {
+            walk(sourceKey, []);
+        }
+        else {
+            for (const key of steps.keys()) {
+                if (!hasIncoming.has(key)) walk(key, []);
+            }
         }
         // Whatever is left over is part of a loop without a start
         for (const key of steps.keys()) {
@@ -437,6 +552,24 @@ export function useInformationChainService() {
         }
 
         return chains;
+    }
+
+    function mergeChains(chains: Chain[]): ChainBranch[] {
+        const starts: ChainBranch[] = [];
+
+        for (const chain of chains) {
+            let siblings = starts;
+            chain.steps.forEach((step, index) => {
+                let branch = siblings.find(sibling => stepKey(sibling.step) === stepKey(step));
+                if (!branch) {
+                    branch = { step, link: chain.links[index - 1], children: [] };
+                    siblings.push(branch);
+                }
+                siblings = branch.children;
+            });
+        }
+
+        return starts;
     }
 
     // ---- Holders ----
@@ -486,8 +619,12 @@ export function useInformationChainService() {
             );
         }
 
+        // A table only has fields: it holds an object when it has a column for each of the fields of the object
+        const objectFieldIds = kind === 'object' ? informationObjectStore.getInformationObject(id)?.informationFieldIds ?? [] : [];
         for (const table of tableStore.tables) {
-            add({ resourceId: table.id, role: 'column' }, table.columns.map(column => column.id), []);
+            const columnIds = table.columns.map(column => column.id);
+            const holdsObject = objectFieldIds.length > 0 && objectFieldIds.every(fieldId => columnIds.includes(fieldId));
+            add({ resourceId: table.id, role: 'column' }, columnIds, holdsObject ? [id] : []);
         }
 
         for (const external of externalStore.externals) {
@@ -793,7 +930,9 @@ export function useInformationChainService() {
     function getStepLabel(step: ChainStep) {
         const name = resourceService.getResource(step.resourceId)?.name ?? 'Unknown resource';
         if (step.componentId) {
-            return `${componentStore.getComponent(step.componentId)?.name ?? 'Unknown script'} (script on ${name})`;
+            const component = componentStore.getComponent(step.componentId);
+            if (component?.kind === 'file') return `${component.name} (file in ${name})`;
+            return `${component?.name ?? 'Unknown script'} (script on ${name})`;
         }
         if (step.endpointId) {
             const endpoint = endpointStore.endpoints.find(endpoint => endpoint.id === step.endpointId);

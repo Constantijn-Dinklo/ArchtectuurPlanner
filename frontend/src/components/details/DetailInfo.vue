@@ -415,7 +415,7 @@
 
 /* Compact PrimeVue select */
 
-.detail-panel .detail-prime-select.p-select {
+.detail-prime-select.p-select {
     width: 100%;
     height: 28px;
     margin-top: 6px;
@@ -425,12 +425,12 @@
     box-shadow: none;
 }
 
-.detail-panel .detail-prime-select.p-select:hover {
+.detail-prime-select.p-select:hover {
     border-color: #cbd5e1;
     background: #f8fafc;
 }
 
-.detail-panel .detail-prime-select .p-select-label {
+.detail-prime-select .p-select-label {
     padding: 0 8px;
 
     color: #64748b;
@@ -438,12 +438,12 @@
     line-height: 26px;
 }
 
-.detail-panel .detail-prime-select .p-select-dropdown {
+.detail-prime-select .p-select-dropdown {
     width: 26px;
     color: #94a3b8;
 }
 
-.detail-panel .detail-prime-select .p-select-dropdown .p-icon {
+.detail-prime-select .p-select-dropdown .p-icon {
     width: 10px;
     height: 10px;
 }

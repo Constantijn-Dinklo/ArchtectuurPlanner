@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 
 import api from "../../helpers/axios";
-import type { InformationField } from "../../types/informationField.type";
+import type { InformationField, SourceMethod, SourceTarget } from "../../types/informationField.type";
 
 
 export const useInformationFieldStore = defineStore('informationField', () => {
@@ -24,12 +24,18 @@ export const useInformationFieldStore = defineStore('informationField', () => {
         setInformationFields(res.data);
     }
 
-    // Sets the resource the field originates from; null removes the source
-    async function setSource(id: string, resourceId: string | null) {
-        const res = await api.patch<InformationField>(`/informationFields/${id}/source`, { resourceId });
+    // Sets the resource or file the field originates from; null removes the source
+    async function setSource(id: string, target: SourceTarget | null) {
+        const res = await api.patch<InformationField>(`/informationFields/${id}/source`, target ?? { resourceId: null });
         informationFields.value.set(id, res.data);
+        return res.data;
     }
 
+    // Sets how the field comes into being at its source; null removes the method
+    async function setSourceMethod(id: string, sourceMethod: SourceMethod | null) {
+        const res = await api.patch<InformationField>(`/informationFields/${id}/sourceMethod`, { sourceMethod });
+        informationFields.value.set(id, res.data);
+    }
 
     // What still uses the field: it can only be deleted when nothing does
     async function fetchUsage(id: string) {
@@ -42,6 +48,6 @@ export const useInformationFieldStore = defineStore('informationField', () => {
         informationFields.value.delete(id);
     }
 
-    return { informationFields, setInformationFields, getInformationField, fetchInformationFields, setSource, fetchUsage, deleteInformationField };
+    return { informationFields, setInformationFields, getInformationField, fetchInformationFields, setSource, setSourceMethod, fetchUsage, deleteInformationField };
 
 });

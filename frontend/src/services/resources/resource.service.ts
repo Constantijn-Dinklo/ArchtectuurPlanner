@@ -149,6 +149,7 @@ export function useResourceService() {
                         id: outputInformationField.informationField.id,
                         fieldName: outputInformationField.informationField.fieldName,
                         source: outputInformationField.informationField.source,
+                        sourceMethod: outputInformationField.informationField.sourceMethod,
                         accessibleFromId: resource.id,
                         accessibleFromType: 'application'
                     });
@@ -161,6 +162,7 @@ export function useResourceService() {
                                 id: informationField.id,
                                 fieldName: informationField.fieldName,
                                 source: informationField.source,
+                                sourceMethod: informationField.sourceMethod,
                                 accessibleFromId: resource.id,
                                 accessibleFromType: 'application',
                                 objectNames: []
@@ -181,6 +183,7 @@ export function useResourceService() {
                     id: providedInformationField.informationField.id,
                     fieldName: providedInformationField.informationField.fieldName,
                     source: providedInformationField.informationField.source,
+                    sourceMethod: providedInformationField.informationField.sourceMethod,
                     accessibleFromId: resource.id,
                     accessibleFromType: 'external'
                 }));

@@ -4,19 +4,19 @@ import { computed, onMounted } from 'vue';
 import { useUIStore } from '../stores/canvas/ui.store';
 import { useInformationFieldStore } from '../stores/information/informationField.store';
 import { useInformationObjectStore } from '../stores/information/informationObject.store';
-import { useInformationRelationStore } from '../stores/information/informationRelation.store';
+import { useDataCatalogueService } from '../services/dataCatalogue.service';
 import { useInformationChainService, type InformationChain } from '../services/informationChain.service';
 import InformationChainView from './InformationChainView.vue';
 
 const UIStore = useUIStore();
 const informationFieldStore = useInformationFieldStore();
 const informationObjectStore = useInformationObjectStore();
-const informationRelationStore = useInformationRelationStore();
+const dataCatalogueService = useDataCatalogueService();
 const informationChainService = useInformationChainService();
 
-// The relations are kept up to date by CanvasView; this only makes sure they are fresh when the sheet opens
+// A chain shows every place that holds the information, also those the canvas has not loaded for its level of detail
 onMounted(() => {
-    informationRelationStore.fetchInformationRelations();
+    dataCatalogueService.fetchDataCatalogue();
 });
 
 const fieldSearch = computed(() => UIStore.informationFieldSearch.trim().toLowerCase());

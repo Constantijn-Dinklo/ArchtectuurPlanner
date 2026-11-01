@@ -18,13 +18,16 @@
         allowNew?: boolean;
         // Only the chips, without a way to add more
         chipsOnly?: boolean;
+        // Only fields can be added, for a list that cannot hold objects
+        fieldsOnly?: boolean;
     }>(), {
         fieldOptions: () => [],
         objectOptions: () => [],
         fieldOptionsEmpty: 'No fields available',
         objectOptionsEmpty: 'No objects available',
         allowNew: false,
-        chipsOnly: false
+        chipsOnly: false,
+        fieldsOnly: false
     });
 
     const emit = defineEmits<{
@@ -84,6 +87,7 @@
     <template v-if="!chipsOnly">
         <div class="information-pickers">
             <Select
+                v-if="!fieldsOnly"
                 :model-value="undefined"
                 :options="objectOptions"
                 option-label="label"
@@ -112,7 +116,7 @@
         </div>
 
         <template v-if="allowNew">
-            <div class="detail-add-row">
+            <div v-if="!fieldsOnly" class="detail-add-row">
                 <input
                     v-model="newObjectName"
                     type="text"

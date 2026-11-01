@@ -26,6 +26,8 @@
         }
     });
 
+    const sourceOptions = computed(() => dataCatalogueService.getSourceOptions());
+
     const sections = computed(() => [
         {
             kind: 'object' as const,
@@ -80,6 +82,7 @@
                             :kind="section.kind"
                             :information-id="item.id"
                             :name="item.name"
+                            :source-options="sourceOptions"
                         />
                     </div>
                 </section>

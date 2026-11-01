@@ -5,7 +5,7 @@ import InformationObject from "../models/information/informationObject.models";
 import { addInformationFieldToInformationObject, deleteInformationFieldFromInformationObject } from "../services/resourceObject.service";
 import { moveApplicationInformationFieldToInformationObject, moveInformationFieldFromInformationObjectToApplication } from "../services/application.service";
 import { cleanupApisForInformationObject, cleanupApplicationApis } from "../services/api.service";
-import { setInformationObjectSource } from "../services/informationSource.service";
+import { setInformationObjectSource, setInformationObjectSourceMethod } from "../services/informationSource.service";
 import { deleteInformation, getInformationUsage } from "../services/informationUsage.service";
 
 const router: Router = express.Router();
@@ -95,12 +95,27 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
     }
 });
 
-// Sets the source of the object: the resource it originates from. { resourceId: null } removes the source
+// Sets the source of the object: the resource or file it originates from, which also gets the object.
+// { resourceId: null } removes the source
 router.patch('/:id/source', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
-        const informationObject = await setInformationObjectSource(user, req.params.id as string, req.body.resourceId ?? null);
+        const { resourceId, componentId } = req.body;
+        const informationObject = await setInformationObjectSource(user, req.params.id as string, resourceId ? { resourceId, componentId } : null);
+        res.json(informationObject);
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// Sets how the object comes into being at its source. { sourceMethod: null } removes the method
+router.patch('/:id/sourceMethod', async (req: AuthenticatedRequest, res: Response) => {
+    const user = getUser(req);
+
+    try {
+        const informationObject = await setInformationObjectSourceMethod(user, req.params.id as string, req.body.sourceMethod ?? null);
         res.json(informationObject);
     }
     catch(err: any) {

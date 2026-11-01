@@ -2,6 +2,7 @@ import { UserJwtPayload } from "../middelware";
 import ViewNode from "../models/canvas/viewNode.model";
 import { createInformationField, ResourceFieldInformation } from "./resourceField.service";
 import InformationField from "../models/information/informationField.model";
+import InformationObject from "../models/information/informationObject.models";
 import { IResourceFieldExpanded, resolveResourceField } from "../models/information/resourceField.model";
 import Table from "../models/resources/table.model";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
@@ -90,6 +91,19 @@ export async function addTableColumn(user: UserJwtPayload, tableId: string, reso
     
     const resultTable = resolveTableColumns(updatedTable);
     return resultTable;
+}
+
+// The table gets a column for the information; a table only has fields, so an object gives a column for each of its fields
+export async function addTableInformation(user: UserJwtPayload, tableId: string, kind: 'field' | 'object', informationId: string) {
+    const fieldIds = kind === 'field'
+        ? [informationId]
+        : ((await InformationObject.findOne({ _id: informationId, environmentId: user.environmentId }))?.informationFieldIds ?? []).map((id) => id.toString());
+    for(const fieldId of fieldIds) {
+        await Table.updateOne(
+            { _id: tableId, environmentId: user.environmentId, 'columns.informationFieldId': { $ne: fieldId } },
+            { $push: { columns: { informationFieldId: fieldId, position: 0 } } }
+        );
+    }
 }
 
 export async function removeTableColumn(user: UserJwtPayload, tableId: string, informationFieldId: string) {

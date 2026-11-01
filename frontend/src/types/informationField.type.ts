@@ -17,16 +17,33 @@ export type AddInformationFieldRequest =
 
 
 // The resource a piece of information originates from. Every InformationField and InformationObject has at most
-// one source; it is never set automatically, and information without a source is shown with a warning
+// one source; it is never set automatically, and information without a source is shown with a warning.
+// A file is its file location plus the file as componentId
 export interface InformationSource {
     resourceId: string;
     resourceType: ResourceType;
+    componentId?: string | null;
 }
+
+// What can be picked as a source: a resource, or a file in a file location
+export type SourceTarget = Pick<InformationSource, 'resourceId' | 'componentId'>;
+
+// How a piece of information comes into being at its source
+export type SourceMethod = 'input' | 'computed' | 'imported' | 'generated' | 'other';
+
+export const SOURCE_METHODS: { method: SourceMethod, label: string }[] = [
+    { method: 'input', label: 'Input' },
+    { method: 'computed', label: 'Computed' },
+    { method: 'imported', label: 'Imported' },
+    { method: 'generated', label: 'Generated' },
+    { method: 'other', label: 'Other' }
+];
 
 export interface InformationField {
     id: string;
     fieldName: string;
     source: InformationSource | null;
+    sourceMethod: SourceMethod | null;
 }
 
 export interface InformationFieldReference {
