@@ -2,7 +2,8 @@ import axios from 'axios';
 import { getStoredEnvironmentId } from './environment';
 
 const api = axios.create({
-    baseURL: 'http://localhost:3001',
+    // Set in VITE_API_URL. Only development can do without it: a build fails without it (see vite.config.ts)
+    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
     withCredentials: true,
     timeout: 5000,
 });

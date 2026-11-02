@@ -13,3 +13,12 @@ npm run dev
 ## Run backend
 cd backend
 npm run dev
+
+## Build frontend
+The build needs the address of the backend in `VITE_API_URL`: copy `frontend/.env.example` to `frontend/.env.production` and fill it in, or set it in the environment of the build.
+
+cd frontend
+npm run build
+
+## Run backend in production
+The backend needs the address of the frontend in `CORS_ORIGINS`, and `NODE_ENV=production`. See `backend/.env.example` for all settings.

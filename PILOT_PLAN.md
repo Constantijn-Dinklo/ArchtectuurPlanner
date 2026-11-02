@@ -6,10 +6,10 @@ Written on 2026-11-01. Work through the steps in order and tick items off as the
 
 ## Step 1: Build, settings and staging
 
-- [ ] Make the API address configurable: it is fixed to `http://localhost:3001` in `frontend/src/helpers/axios.ts`
-- [ ] Make the allowed CORS origin configurable: it is fixed to `http://localhost:5173` in `backend/src/app.ts`
-- [ ] Set the login cookie to `secure: true` on HTTPS: both `res.cookie` calls in `backend/src/routes/auth.ts` use `secure: false`
-- [ ] Check that `sameSite: 'strict'` on that cookie still works with how frontend and backend are hosted
+- [x] Make the API address configurable: `VITE_API_URL`, required for a build (see `frontend/.env.example`)
+- [x] Make the allowed CORS origin configurable: `CORS_ORIGINS`, required in production (see `backend/.env.example`)
+- [x] Set the login cookie to `secure: true`, so the backend has to be served over HTTPS
+- [ ] Host frontend and backend on the same site, like `app.example.com` and `api.example.com`: the login cookie stays on `sameSite: 'strict'`, so login does not work across unrelated domains
 - [ ] Fix the 10 type errors so `npm run build` can pass. All are unused code: `ApplicationBar.vue`, `DatabaseBar.vue`, `apiConnection.service.ts`, `apiConnection.store.ts`, `auth.store.ts`
 - [ ] Add the hosting setup: the repo has no Docker or CI configuration yet
 - [ ] Deploy to a staging environment
@@ -28,6 +28,9 @@ Written on 2026-11-01. Work through the steps in order and tick items off as the
   - [ ] `backend/src/routes/resources/tableRoutes.ts`
   - [ ] `backend/src/routes/scriptRoutes.ts`
 - [ ] Add login rate limiting and security headers: `app.ts` has neither *(the rest of the backend is unchecked)*
+- [ ] Decide how people get an account: signup in `backend/src/routes/auth.ts` puts every new user in one hardcoded `organisationId`, and anyone can sign up
+- [ ] Remove the login token from the signup response in `backend/src/routes/auth.ts`, which partly undoes the protection of `httpOnly`. Check first that the frontend does not use it
+- [ ] Decide how long a login should last: the cookie lasts 60 minutes and the token inside it 24 hours, so people get logged out after an hour. Make them match
 
 ## Step 3: Data safety
 
@@ -55,6 +58,7 @@ Written on 2026-11-01. Work through the steps in order and tick items off as the
 ## Step 6: Usability, then start the pilot
 
 - [ ] Style the login and signup pages: they currently have no styling at all, and they are the first thing testers see
+- [ ] Make the connections on the canvas move, so you can see the direction information flows in
 - [ ] Add catalogue filters such as "no source" and "broken chain", plus a progress count. At the last scan, 30 of 37 items were not in any resource *(check whether filters already exist)*
 - [ ] Add a short getting-started path for an empty canvas *(unchecked)*
 - [ ] Add a catalogue export: CSV export currently only appears in the application and database bars

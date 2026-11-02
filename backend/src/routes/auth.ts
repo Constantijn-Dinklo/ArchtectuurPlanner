@@ -9,6 +9,14 @@ const router: Router = express.Router();
 
 const SECRET = process.env.JWT_SECRET as string;
 
+// Secure: the cookie only goes over https (browsers make an exception for localhost, so development keeps working).
+// Logging out uses the same options: a browser can ignore clearing a cookie when they differ
+const ACCESS_COOKIE_OPTIONS = {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict'
+} as const;
+
 router.post('/signup', async (req: Request, res: Response) => {
 
     const user: IUser | null = await User.findOne({email: req.body.email});
@@ -25,12 +33,7 @@ router.post('/signup', async (req: Request, res: Response) => {
 
         const token = jwt.sign({id: user._id, username: user.email, organisationId: user.organisationId}, SECRET, { expiresIn: '24h'});
         const min = 60;
-        res.cookie('accessToken', token, {
-            httpOnly: true,
-            secure: false,
-            sameSite: 'strict',
-            maxAge: 1000 * 60 * min 
-        });
+        res.cookie('accessToken', token, { ...ACCESS_COOKIE_OPTIONS, maxAge: 1000 * 60 * min });
 
         res.status(201).json({token: token, email: user.email});
     } catch (err: any) {
@@ -50,12 +53,7 @@ router.post('/login', async (req: Request, res: Response) => {
     const token = jwt.sign({id: user._id, username: user.email, organisationId: user.organisationId}, SECRET, {expiresIn: '24h'});
 
     const min = 60;
-    res.cookie('accessToken', token, {
-        httpOnly: true,
-        secure: false,
-        sameSite: 'strict',
-        maxAge: 1000 * 60 * min 
-    });
+    res.cookie('accessToken', token, { ...ACCESS_COOKIE_OPTIONS, maxAge: 1000 * 60 * min });
 
 
     res.status(200).json({
@@ -64,7 +62,7 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 router.post('/logout', async (_req: Request, res: Response) => {
-    res.clearCookie('accessToken');
+    res.clearCookie('accessToken', ACCESS_COOKIE_OPTIONS);
     res.json({ message: 'Logged out' });
 })
 
