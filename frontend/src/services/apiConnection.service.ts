@@ -16,7 +16,7 @@ export function useApiConnectionService() {
     }
 
     async function updateApiConnection(id: string, patch: Partial<ApiConnection>) {
-        const updatedConnection = await apiConnectionStore.updateApiConnection(id, patch);
+        await apiConnectionStore.updateApiConnection(id, patch);
     }
 
     async function deleteApiConnection(id: string) {

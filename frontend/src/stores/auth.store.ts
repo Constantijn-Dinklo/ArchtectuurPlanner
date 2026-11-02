@@ -39,7 +39,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     async function logout() {
-        const res = await api.post('/auth/logout');
+        await api.post('/auth/logout');
         auth.value.email = ''
         auth.value.isAuthenticated = false;
     }
@@ -51,7 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     async function createOrg(name: string) {
-        const res = await api.post('/org/create', {
+        await api.post('/org/create', {
             name: name
         });
     }

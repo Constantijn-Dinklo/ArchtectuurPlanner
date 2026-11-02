@@ -39,7 +39,7 @@ onMounted(() => {
 })
 
 function addApiConnection() {
-  apiConnectionStore.createApiConnection('', '', '', '');
+  apiConnectionStore.createApiConnection('', '', '');
 }
 
 function onCellEditComplete(event: any){

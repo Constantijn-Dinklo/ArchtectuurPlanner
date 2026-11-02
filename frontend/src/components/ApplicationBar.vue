@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { Menu, Button } from 'primevue'
 
 import { useApiStore, type Api } from '../stores/api.store';
 import { useApiConnectionStore } from '../stores/apiConnection.store';
 import { useApplicationStore } from '../stores/resources/application.store';
 import { useComponentStore } from '../stores/resources/component.store';
 import { useApplicationService } from '../services/resources/application.service';
-import { exportToCsv } from '../helpers/export';
 
 const applicationStore = useApplicationStore();
 const applicationService = useApplicationService();
@@ -49,32 +47,10 @@ function getUnusedApiCount(applicationId: string) {
 }
 const tempUrl = ref<string | null>(null);
 
-const menu = ref();
-const menuItems = ref([
-  {
-    label: 'Export',
-    icon: 'pi pi-download',
-    command: () => {
-      exportToCsv(applicationStore.applications, ['name'], 'Application Export.csv');
-    }
-  },
-  {
-    label: 'Import',
-    icon: 'pi pi-upload',
-    command: () => {
-      console.log("Import")
-    }
-  }
-]);
-
 onMounted(() => {
     applicationService.fetchApplications();
     apiStore.fetchApis();
 });
-
-function toggleMenu(event: Event) {
-  menu.value.toggle(event);
-}
 
 function addApplication(){
     if(!newApplicationName.value.trim()) return;
@@ -141,16 +117,6 @@ function deleteApi(id: string) {
                 >
                     <i class="pi pi-plus" />
                 </button>
-                <!-- <Button
-                  icon="pi pi-ellipsis-v"
-                  text
-                  @click="toggleMenu($event)"
-                />
-                <Menu
-                    ref="menu"
-                    :model="menuItems"
-                    popup
-                /> -->
             </div>
 
             <div v-if="!applicationStore.applications.length" class="sidebar-empty">

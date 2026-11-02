@@ -18,7 +18,7 @@ export const useApiConnectionStore = defineStore('apiConnection', () => {
         apiConnections.value = connects
     }
 
-    async function createApiConnection(sourceId: string, sourceUrlId: string, targetId: string, apiString: string) {
+    async function createApiConnection(sourceId: string, sourceUrlId: string, targetId: string) {
         const res = await api.post('/apiConnections', {
             sourceId,
             sourceUrlId,

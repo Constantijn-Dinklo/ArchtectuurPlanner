@@ -6,11 +6,13 @@ Written on 2026-11-01. Work through the steps in order and tick items off as the
 
 ## Step 1: Build, settings and staging
 
+The three hosting items (same site, hosting setup, staging) wait until there is a domain and a name. Do them before Step 6, so problems with the deployment show up before testers do. Step 3's production database and backups depend on the hosting choice as well.
+
 - [x] Make the API address configurable: `VITE_API_URL`, required for a build (see `frontend/.env.example`)
 - [x] Make the allowed CORS origin configurable: `CORS_ORIGINS`, required in production (see `backend/.env.example`)
 - [x] Set the login cookie to `secure: true`, so the backend has to be served over HTTPS
 - [ ] Host frontend and backend on the same site, like `app.example.com` and `api.example.com`: the login cookie stays on `sameSite: 'strict'`, so login does not work across unrelated domains
-- [ ] Fix the 10 type errors so `npm run build` can pass. All are unused code: `ApplicationBar.vue`, `DatabaseBar.vue`, `apiConnection.service.ts`, `apiConnection.store.ts`, `auth.store.ts`
+- [x] Fix the 10 type errors so `npm run build` can pass. All were unused code
 - [ ] Add the hosting setup: the repo has no Docker or CI configuration yet
 - [ ] Deploy to a staging environment
 
@@ -61,7 +63,7 @@ Written on 2026-11-01. Work through the steps in order and tick items off as the
 - [ ] Make the connections on the canvas move, so you can see the direction information flows in
 - [ ] Add catalogue filters such as "no source" and "broken chain", plus a progress count. At the last scan, 30 of 37 items were not in any resource *(check whether filters already exist)*
 - [ ] Add a short getting-started path for an empty canvas *(unchecked)*
-- [ ] Add a catalogue export: CSV export currently only appears in the application and database bars
+- [ ] Add a catalogue export: there is no export in the app yet. `frontend/src/helpers/export.ts` (`exportToCsv`) can be reused
 - [ ] Add a simple way for testers to give feedback, and error monitoring
 - [ ] Start the pilot
 
