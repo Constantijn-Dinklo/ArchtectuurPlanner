@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon -r tsconfig-paths/register src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "seed:test-users": "ts-node src/scripts/seedTestUsers.ts"
   },
   "keywords": [],
   "author": "",

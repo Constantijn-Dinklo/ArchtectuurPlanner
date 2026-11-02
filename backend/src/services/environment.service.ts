@@ -45,6 +45,10 @@ export async function getAccessibleEnvironments(user: UserJwtPayload) {
         await createEnvironment(user, 'Main environment');
     }
 
+    // An admin of the organisation is admin in every environment of it
+    const account = await User.findById(user.id);
+    const isOrganisationAdmin = account?.organisationRole === 'admin';
+
     const memberships = await EnvironmentMember.find({ userId: user.id });
     const environments = await Environment.find({
         $or: [
@@ -64,7 +68,9 @@ export async function getAccessibleEnvironments(user: UserJwtPayload) {
         organisationId: environment.organisationId.toString(),
         organisationName: organisationNames.get(environment.organisationId.toString()) ?? 'Unknown organisation',
         isOwnOrganisation: environment.organisationId.toString() === user.organisationId?.toString(),
-        role: memberships.find((membership) => membership.environmentId.toString() === environment._id.toString())?.role ?? 'editor'
+        role: isOrganisationAdmin && environment.organisationId.toString() === user.organisationId?.toString()
+            ? 'admin'
+            : memberships.find((membership) => membership.environmentId.toString() === environment._id.toString())?.role ?? 'editor'
     }));
 }
 

@@ -4,6 +4,7 @@ import { migrateOrganisationsToEnvironments } from '../migrations/organisationsT
 import { migrateScriptCarriedToInputsOutputs } from '../migrations/scriptCarriedToInputsOutputs';
 import { migrateExternalSourceRelations } from '../migrations/externalSourceRelations';
 import { migrateScriptRelations } from '../migrations/scriptRelations';
+import { migrateOrganisationRoles } from '../migrations/organisationRoles';
 
 const uri = process.env.MONGO_URI;
 
@@ -22,6 +23,7 @@ const connectDB = async (): Promise<void> => {
     await migrateScriptCarriedToInputsOutputs();
     await migrateScriptRelations();
     await migrateExternalSourceRelations();
+    await migrateOrganisationRoles();
   } catch (err: any) {
     console.error('❌ MongoDB connection error:', err.message);
     process.exit(1); // stop server if DB fails

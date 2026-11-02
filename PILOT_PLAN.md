@@ -27,8 +27,12 @@ The three hosting items (same site, hosting setup, staging) wait until there is 
   - [x] `backend/src/routes/resources/serverRoutes.ts`
   - [x] `backend/src/routes/resources/tableRoutes.ts`
   - [x] `backend/src/routes/scriptRoutes.ts`
-- [ ] User management and roles, as one piece of work. Admin, editor and viewer are stored per environment (`environmentMember.model.ts`), but nothing checks them and an admin cannot change them: the management area (`ManagementView.vue`) only says "Building in progress"
-  - [ ] Build the management area, where an admin can see the members of an environment and change their role
+- [ ] User management and roles, as one piece of work. Admin, editor and viewer are stored per environment (`environmentMember.model.ts`), but nothing checks them and an admin cannot change them yet in the management area (`ManagementView.vue`)
+  - [x] Show an overview of the users of the organisation and their role per environment (`GET /org/users`, `ManagementView.vue`)
+  - [x] Add an organisation role (`admin` or `member`) on `User`. An organisation admin is admin in every environment of the organisation, the first user of an organisation becomes admin, and the last admin cannot become a member. Existing users become admin through a migration (`migrations/organisationRoles.ts`)
+  - [x] Let an organisation admin change the organisation role of a user (`PATCH /org/users/:id/role`, checked by `requireOrganisationAdmin`)
+  - [x] Let an organisation admin change the role of a member in an environment (`PATCH /org/users/:id/environments/:environmentId/role`)
+  - [ ] Let an organisation admin remove a user, also keeping the last admin
   - [ ] Enforce the roles in the backend. Start with one check that blocks writes for viewers
   - [ ] Hide or disable editing in the frontend for viewers
 - [ ] Add login rate limiting and security headers: `app.ts` has neither *(the rest of the backend is unchecked)*

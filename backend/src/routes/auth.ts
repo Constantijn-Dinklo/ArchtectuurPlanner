@@ -24,10 +24,14 @@ router.post('/signup', async (req: Request, res: Response) => {
 
     try {
         const passwordHash = await bcrypt.hash(req.body.password, 10);
+        const organisationId = '6a1fcd7562e012033bbccaf6';
+        // The first user of an organisation becomes its admin, so every organisation has someone to manage it
+        const isFirstUser = !(await User.exists({ organisationId }));
         const newUser: IUser = new User({
             email: req.body.email,
             password: passwordHash,
-            organisationId: '6a1fcd7562e012033bbccaf6'
+            organisationId,
+            organisationRole: isFirstUser ? 'admin' : 'member'
         });
         const user: IUser = await newUser.save();
 

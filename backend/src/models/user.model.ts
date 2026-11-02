@@ -1,9 +1,15 @@
 import mongoose, { Document, Schema, Model, Types } from 'mongoose';
 
+// What a user may do in its organisation: an admin manages the users and environments of the organisation,
+// and is admin in every environment of it. A member only has the roles of its environments
+export const ORGANISATION_ROLES = ['admin', 'member'] as const;
+export type OrganisationRole = typeof ORGANISATION_ROLES[number];
+
 export interface IUser extends Document {
   email: string;
   password: string;
   organisationId: Types.ObjectId;
+  organisationRole: OrganisationRole;
 }
 
 const UserSchema: Schema<IUser> = new Schema<IUser>({
@@ -20,6 +26,11 @@ const UserSchema: Schema<IUser> = new Schema<IUser>({
     type: Schema.Types.ObjectId,
     ref: 'Organistation',
     required: true
+  },
+  organisationRole: {
+    type: String,
+    enum: ORGANISATION_ROLES,
+    default: 'member'
   }
 },
 {
