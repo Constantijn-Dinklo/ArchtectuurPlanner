@@ -7,6 +7,7 @@ import { AuthenticatedRequest, getUser } from "../../middelware";
 import { createTable, addTableColumn, removeTableColumn } from "../../services/table.service";
 import ViewNode from "../../models/canvas/viewNode.model";
 import { IResourceFieldExpanded, resolveResourceField } from "../../models/information/resourceField.model";
+import { pickFields } from "../pickFields";
 
 const router: Router = express.Router();
 
@@ -52,7 +53,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
                 _id: req.params.id,
                 environmentId: user.environmentId
             },
-            { $set: req.body },
+            { $set: pickFields(req.body, ['name']) },
             { returnDocument: 'after'}
         );
         res.json(updated);

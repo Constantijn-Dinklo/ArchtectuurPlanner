@@ -18,17 +18,19 @@ The three hosting items (same site, hosting setup, staging) wait until there is 
 
 ## Step 2: Permissions and safe updates
 
-- [ ] Enforce the roles: admin, editor and viewer are stored, but nothing checks them in the backend or frontend. Start with one backend check that blocks writes for viewers
-- [ ] Hide or disable editing in the frontend for viewers
-- [ ] Replace `$set: req.body` with a list of allowed fields, like `backend/src/routes/resources/applicationRoutes.ts` already does. A request can currently overwrite any field, including `environmentId`. Routes:
-  - [ ] `backend/src/routes/apiConnectionRoutes.ts`
-  - [ ] `backend/src/routes/apiRoutes.ts`
-  - [ ] `backend/src/routes/canvas/viewRoutes.ts`
-  - [ ] `backend/src/routes/databaseConnectionRoutes.ts`
-  - [ ] `backend/src/routes/resources/databaseRoutes.ts`
-  - [ ] `backend/src/routes/resources/serverRoutes.ts`
-  - [ ] `backend/src/routes/resources/tableRoutes.ts`
-  - [ ] `backend/src/routes/scriptRoutes.ts`
+- [x] Replace `$set: req.body` with a list of allowed fields, using `pickFields` in `backend/src/routes/pickFields.ts`. A request could overwrite any field, including `environmentId`. Routes:
+  - [x] `backend/src/routes/apiConnectionRoutes.ts`
+  - [x] `backend/src/routes/apiRoutes.ts`
+  - [x] `backend/src/routes/canvas/viewRoutes.ts`
+  - [x] `backend/src/routes/databaseConnectionRoutes.ts` (also checks that operations are `read` or `write`)
+  - [x] `backend/src/routes/resources/databaseRoutes.ts`
+  - [x] `backend/src/routes/resources/serverRoutes.ts`
+  - [x] `backend/src/routes/resources/tableRoutes.ts`
+  - [x] `backend/src/routes/scriptRoutes.ts`
+- [ ] User management and roles, as one piece of work. Admin, editor and viewer are stored per environment (`environmentMember.model.ts`), but nothing checks them and an admin cannot change them: the management area (`ManagementView.vue`) only says "Building in progress"
+  - [ ] Build the management area, where an admin can see the members of an environment and change their role
+  - [ ] Enforce the roles in the backend. Start with one check that blocks writes for viewers
+  - [ ] Hide or disable editing in the frontend for viewers
 - [ ] Add login rate limiting and security headers: `app.ts` has neither *(the rest of the backend is unchecked)*
 - [ ] Decide how people get an account: signup in `backend/src/routes/auth.ts` puts every new user in one hardcoded `organisationId`, and anyone can sign up
 - [ ] Remove the login token from the signup response in `backend/src/routes/auth.ts`, which partly undoes the protection of `httpOnly`. Check first that the frontend does not use it

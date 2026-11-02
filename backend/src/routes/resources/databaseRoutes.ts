@@ -2,6 +2,7 @@ import express, { Router, Response } from "express";
 import { AuthenticatedRequest, getUser } from "../../middelware";
 import Database from "../../models/resources/database.model";
 import { createDatabase, deleteDatabase } from "../../services/database.service";
+import { pickFields } from "../pickFields";
 
 
 const router: Router = express.Router();
@@ -41,7 +42,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
                 _id: req.params.id,
                 environmentId: user.environmentId
             },
-            { $set: req.body },
+            { $set: pickFields(req.body, ['name', 'engine']) },
             { returnDocument: 'after'}
         );        
         res.status(201).json(updated);

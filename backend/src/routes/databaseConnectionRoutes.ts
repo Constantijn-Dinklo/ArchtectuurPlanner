@@ -1,6 +1,7 @@
 import express, { Router, Response } from "express";
 import { AuthenticatedRequest, getUser } from "../middelware";
 import DatabaseConnection from "../models/databaseConnection.model";
+import { pickFields } from "./pickFields";
 
 const router: Router = express.Router();
 
@@ -42,12 +43,18 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
+        const patch = pickFields(req.body, ['databaseId', 'entityId', 'operation']);
+        // Updates skip the schema enum check, so the operations are checked here
+        if(patch.operation !== undefined) {
+            if(!Array.isArray(patch.operation) || patch.operation.some((operation) => !['read', 'write'].includes(operation))) throw new Error("Unknown operation");
+        }
+
         const updated = await DatabaseConnection.findOneAndUpdate(
             {
                 _id: req.params.id,
                 environmentId: user.environmentId
             },
-            { $set: req.body },
+            { $set: patch },
             { returnDocument: 'after' }
         );
         res.json(updated);

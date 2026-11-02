@@ -4,6 +4,7 @@ import { AuthenticatedRequest, getUser } from "../middelware";
 import ApiConnection from "../models/apiConnection.model";
 import { addApiInformationField, addApiInformationObject, removeApiInformationField, removeApiInformationObject } from "../services/api.service";
 import { keepConnectionsWithoutPart } from "../services/component.service";
+import { pickFields } from "./pickFields";
 
 const router: Router = express.Router();
 
@@ -51,7 +52,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
                 _id: req.params.id,
                 environmentId: user.environmentId
             },
-            { $set: req.body },
+            { $set: pickFields(req.body, ['url', 'hasAuthentication']) },
             { returnDocument: 'after'}
         );        
         res.status(201).json(updated);

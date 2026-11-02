@@ -2,6 +2,7 @@ import express, { Router, Response } from "express";
 import { AuthenticatedRequest, getUser } from "../../middelware";
 import View from "../../models/canvas/view.model";
 import ViewNode from "../../models/canvas/viewNode.model";
+import { pickFields } from "../pickFields";
 
 const router: Router = express.Router();
 
@@ -44,7 +45,7 @@ router.patch('/:viewId/nodes/:nodeId', async (req: AuthenticatedRequest, res: Re
                 viewId: req.params.viewId,
                 environmentId: user.environmentId,
             },
-            { $set: req.body },
+            { $set: pickFields(req.body, ['position']) },
             { returnDocument: 'after'}
         );
         res.json(updated);

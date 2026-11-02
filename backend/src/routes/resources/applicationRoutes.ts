@@ -1,6 +1,7 @@
 import express, { Router, Response } from "express";
 import { AuthenticatedRequest, getUser } from "../../middelware";
 import Application, { APPLICATION_HOSTINGS } from "../../models/resources/application.model";
+import { pickFields } from "../pickFields";
 import { createAppliction, deleteApplication, addApplicationInputInformationField, deleteApplicationInputInformationField, addApplicationOutputInformationField, deleteApplicationOutputInformationField, getApplications, addApplicationInputInformationObject, deleteApplicationInputInformationObject, addApplicationOutputInformationObject, deleteApplicationOutputInformationObject } from "../../services/application.service";
 
 
@@ -35,10 +36,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
 
     try {
         // Only the properties of the application can be changed here; its information has its own routes
-        const patch: Record<string, unknown> = {};
-        for(const property of ['name', 'version', 'developer', 'websiteUrl'] as const) {
-            if(req.body[property] !== undefined) patch[property] = req.body[property];
-        }
+        const patch = pickFields(req.body, ['name', 'version', 'developer', 'websiteUrl']);
         if(req.body.hosting !== undefined) {
             if(!APPLICATION_HOSTINGS.includes(req.body.hosting)) throw new Error("Unknown hosting");
             patch.hosting = req.body.hosting;

@@ -1,6 +1,7 @@
 import express, { Router, Response } from "express";
 import ApiConnection from "../models/apiConnection.model";
 import { AuthenticatedRequest, getUser } from "../middelware";
+import { pickFields } from "./pickFields";
 
 const router: Router = express.Router();
 
@@ -52,7 +53,7 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
                 _id: req.params.id,
                 environmentId: user.environmentId
             },
-            { $set: req.body},
+            { $set: pickFields(req.body, ['sourceId', 'sourceUrlId', 'targetId']) },
             { returnDocument: 'after'}
         );
         res.json(updated);
