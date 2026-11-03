@@ -4,6 +4,7 @@ import { isValidObjectId } from 'mongoose';
 import Environment from './models/environment.model';
 import EnvironmentMember, { EnvironmentRole } from './models/environmentMember.model';
 import User, { ACTIVE_USER } from './models/user.model';
+import { setAccessCookie, shouldRefreshSession } from './config/session';
 
 const SECRET = process.env.JWT_SECRET as string;
 
@@ -51,6 +52,11 @@ export async function authenticateToken(
     }
     catch(err: any) {
         return res.status(400).json({ error: err.message });
+    }
+
+    // The user is active, so the login is renewed: it then only ends after 4 hours without any request
+    if(shouldRefreshSession(payload.iat)) {
+        setAccessCookie(res, payload);
     }
 
     req.user = payload;

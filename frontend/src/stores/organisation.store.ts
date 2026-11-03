@@ -40,6 +40,12 @@ export const useOrganisationStore = defineStore('organisation', () => {
         organisationUsers.value = res.data;
     }
 
+    // Only an admin of the organisation can add a user; it becomes a member of the organisation
+    async function addUser(email: string, password: string) {
+        await api.post('/auth/signup', { email, password });
+        await fetchUsers();
+    }
+
     // Removing makes a user inactive; restoring brings it back; deleting an inactive user hides it for everyone
     async function deactivateUser(userId: string) {
         const res = await api.post<OrganisationUsers>(`/org/users/${userId}/deactivate`);
@@ -61,6 +67,7 @@ export const useOrganisationStore = defineStore('organisation', () => {
         fetchUsers,
         updateOrganisationRole,
         updateEnvironmentRole,
+        addUser,
         deactivateUser,
         restoreUser,
         deleteUser

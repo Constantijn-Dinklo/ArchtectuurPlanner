@@ -8,9 +8,6 @@ const authStore = useAuthStore();
 const loginUsername = ref('');
 const loginPassword = ref('');
 
-const signupUsername = ref('');
-const signupPassword = ref('');
-
 const orgName = ref('');
 
 </script>
@@ -25,17 +22,6 @@ const orgName = ref('');
     </div>
     <div>
         <button @click="authStore.login(loginUsername, loginPassword)">Login</button>
-    </div>
-
-    Signup
-    <div>
-        Username: <input v-model="signupUsername"/>
-    </div>
-    <div>
-        Password: <input v-model="signupPassword"/>
-    </div>
-    <div>
-        <button @click="authStore.signup(signupUsername, signupPassword)">Signup</button>
     </div>
 
     Org

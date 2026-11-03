@@ -1,6 +1,6 @@
 import rateLimit from 'express-rate-limit';
 
-// Limits per IP address, so a script cannot try passwords or create accounts endlessly.
+// Limits per IP address, so a script cannot try passwords endlessly.
 // Behind a proxy (most hosting platforms) TRUST_PROXY must be set, or every user shares the proxy's address and limit
 
 // Only failed logins count, so someone who logs in often is never blocked
@@ -11,14 +11,6 @@ export const loginLimiter = rateLimit({
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     message: { message: 'Too many failed login attempts, try again in 15 minutes' }
-});
-
-export const signupLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
-    limit: 5,
-    standardHeaders: 'draft-8',
-    legacyHeaders: false,
-    message: { message: 'Too many accounts created, try again later' }
 });
 
 // The number of proxies in front of the backend, for example 1 behind the proxy of a hosting platform. Not set: no proxy

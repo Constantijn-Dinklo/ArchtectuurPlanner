@@ -14,18 +14,6 @@ export const useAuthStore = defineStore('auth', () => {
         isAuthenticated: false
     });
 
-    async function signup(email: string, password: string) {
-        const res = await api.post('/auth/signup', {
-            email, 
-            password
-        });
-
-        auth.value = {
-            email: res.data.email,
-            isAuthenticated: true,
-        }
-    }
-
     async function login(email: string, password: string) {
         const res = await api.post('/auth/login', {
             email,
@@ -56,5 +44,5 @@ export const useAuthStore = defineStore('auth', () => {
         });
     }
 
-    return { auth, signup, login, logout, getProfile, createOrg }
+    return { auth, login, logout, getProfile, createOrg }
 })

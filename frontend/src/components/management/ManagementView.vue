@@ -71,6 +71,22 @@ function restoreUser(userId: string) {
     runAction(() => organisationStore.restoreUser(userId), 'The user could not be brought back');
 }
 
+// A new user starts as member with the password the admin gives it
+const newUserEmail = ref('');
+const newUserPassword = ref('');
+const addedMessage = ref('');
+
+async function addUser() {
+    addedMessage.value = '';
+    const email = newUserEmail.value.trim();
+    await runAction(async () => {
+        await organisationStore.addUser(email, newUserPassword.value);
+        addedMessage.value = `${email} was added. Share the password with them.`;
+        newUserEmail.value = '';
+        newUserPassword.value = '';
+    }, 'The user could not be added');
+}
+
 function deleteUser(userId: string, email: string) {
     if (!window.confirm(`Delete ${email} for good? They cannot be brought back, and nobody will see them anymore.`)) return;
     runAction(() => organisationStore.deleteUser(userId), 'The user could not be deleted');
@@ -95,7 +111,33 @@ function deleteUser(userId: string, email: string) {
             <div v-else-if="error" class="management-message error">{{ error }}</div>
 
             <template v-else-if="organisationStore.organisationUsers">
-                <div v-if="actionError" class="management-message error action-error">{{ actionError }}</div>
+                <form v-if="isCurrentUserAdmin" class="add-user" @submit.prevent="addUser">
+                    <input
+                        v-model="newUserEmail"
+                        type="email"
+                        class="add-user-input"
+                        placeholder="E-mail address"
+                        autocomplete="off"
+                    />
+                    <input
+                        v-model="newUserPassword"
+                        type="password"
+                        class="add-user-input"
+                        placeholder="Password (at least 8 characters)"
+                        autocomplete="new-password"
+                    />
+                    <button
+                        type="submit"
+                        class="action-button"
+                        :disabled="!newUserEmail.trim() || newUserPassword.length < 8"
+                    >
+                        <i class="pi pi-user-plus" />
+                        Add user
+                    </button>
+                </form>
+                <div v-if="addedMessage" class="management-message action-message">{{ addedMessage }}</div>
+
+                <div v-if="actionError" class="management-message error action-message">{{ actionError }}</div>
 
                 <ul class="user-list">
                     <li v-for="user in activeUsers" :key="user.id" class="user-item">
@@ -248,7 +290,7 @@ function deleteUser(userId: string, email: string) {
     color: #dc2626;
 }
 
-.action-error {
+.action-message {
     margin-bottom: 12px;
 }
 
@@ -422,6 +464,33 @@ function deleteUser(userId: string, email: string) {
 
 .action-button:hover {
     background: #f1f5f9;
+}
+
+.action-button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.add-user {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.add-user-input {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+
+    font: inherit;
+    font-size: 13px;
+}
+
+.add-user-input:focus {
+    border-color: #a5b4fc;
+    outline: none;
 }
 
 .action-button.danger {
