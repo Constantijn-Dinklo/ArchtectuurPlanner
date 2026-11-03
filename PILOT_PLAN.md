@@ -27,13 +27,14 @@ The three hosting items (same site, hosting setup, staging) wait until there is 
   - [x] `backend/src/routes/resources/serverRoutes.ts`
   - [x] `backend/src/routes/resources/tableRoutes.ts`
   - [x] `backend/src/routes/scriptRoutes.ts`
-- [ ] User management and roles, as one piece of work. Admin, editor and viewer are stored per environment (`environmentMember.model.ts`), but nothing checks them and an admin cannot change them yet in the management area (`ManagementView.vue`)
+- [ ] User management and roles, as one piece of work. Admin, editor and viewer are stored per environment (`environmentMember.model.ts`), and can be managed in the management area (`ManagementView.vue`)
   - [x] Show an overview of the users of the organisation and their role per environment (`GET /org/users`, `ManagementView.vue`)
   - [x] Add an organisation role (`admin` or `member`) on `User`. An organisation admin is admin in every environment of the organisation, the first user of an organisation becomes admin, and the last admin cannot become a member. Existing users become admin through a migration (`migrations/organisationRoles.ts`)
   - [x] Let an organisation admin change the organisation role of a user (`PATCH /org/users/:id/role`, checked by `requireOrganisationAdmin`)
   - [x] Let an organisation admin change the role of a member in an environment (`PATCH /org/users/:id/environments/:environmentId/role`)
-  - [x] Let an organisation admin remove a user: the user becomes inactive (`status` on `User`), cannot log in, and can be brought back. Deleting an inactive user marks it `deleted`, which hides it for everyone. Nobody can remove itself, and the last active admin cannot be removed  - [ ] Enforce the roles in the backend. Start with one check that blocks writes for viewers
-  - [ ] Hide or disable editing in the frontend for viewers
+  - [x] Let an organisation admin remove a user: the user becomes inactive (`status` on `User`), cannot log in, and can be brought back. Deleting an inactive user marks it `deleted`, which hides it for everyone. Nobody can remove itself, and the last active admin cannot be removed
+  - [x] Enforce the roles in the backend: `requireEnvironment` refuses every request except GET for viewers, and viewers cannot add or remove environment members (`getEnvironmentRole` in `middelware.ts`)
+  - [ ] Hide or disable editing in the frontend for viewers. Until then a viewer sees edit controls, and their changes fail with "A viewer cannot make changes in this environment"
 - [ ] Add login rate limiting and security headers: `app.ts` has neither *(the rest of the backend is unchecked)*
 - [ ] Decide how people get an account: signup in `backend/src/routes/auth.ts` puts every new user in one hardcoded `organisationId`, and anyone can sign up
 - [ ] Remove the login token from the signup response in `backend/src/routes/auth.ts`, which partly undoes the protection of `httpOnly`. Check first that the frontend does not use it

@@ -2,7 +2,7 @@ import { Request, Response, NextFunction} from 'express';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { isValidObjectId } from 'mongoose';
 import Environment from './models/environment.model';
-import EnvironmentMember from './models/environmentMember.model';
+import EnvironmentMember, { EnvironmentRole } from './models/environmentMember.model';
 import User, { ACTIVE_USER } from './models/user.model';
 
 const SECRET = process.env.JWT_SECRET as string;
@@ -57,20 +57,31 @@ export async function authenticateToken(
     next();
 }
 
-// Whether the user may work in the environment: every user of the organisation that owns it,
-// and every user that was added as a member (for example a consultant of another organisation)
-export async function hasEnvironmentAccess(user: { id: string, organisationId: string }, environmentId: string) {
-    if(!isValidObjectId(environmentId)) return false;
+// The role of the user in the environment, or null without access. Every user of the organisation that owns it
+// has access: an admin of the organisation as admin, others with the role of their membership or else as editor.
+// Users of other organisations (for example consultants) only have access as a member
+export async function getEnvironmentRole(user: { id: string, organisationId: string }, environmentId: string): Promise<EnvironmentRole | null> {
+    if(!isValidObjectId(environmentId)) return null;
 
     const environment = await Environment.findById(environmentId);
-    if(!environment) return false;
-    if(environment.organisationId.toString() === user.organisationId?.toString()) return true;
+    if(!environment) return null;
 
-    return !!(await EnvironmentMember.exists({ environmentId, userId: user.id }));
+    const membership = await EnvironmentMember.findOne({ environmentId, userId: user.id });
+    if(environment.organisationId.toString() !== user.organisationId?.toString()) {
+        return membership?.role ?? null;
+    }
+
+    const account = await User.findById(user.id);
+    if(account?.organisationRole === 'admin') return 'admin';
+    return membership?.role ?? 'editor';
 }
 
+// Requests that only read. Every other request changes data, which a viewer may not do
+const READ_METHODS = ['GET', 'HEAD', 'OPTIONS'];
+
 // Every request for architecture data works in one environment, given by the X-Environment-Id header.
-// Use after authenticateToken. All data is then read and written with user.environmentId
+// Use after authenticateToken. All data is then read and written with user.environmentId.
+// A viewer can only read: all its other requests are refused
 export async function requireEnvironment(
     req: AuthenticatedRequest,
     res: Response,
@@ -85,8 +96,12 @@ export async function requireEnvironment(
     }
 
     try {
-        if(!(await hasEnvironmentAccess(user, environmentId))) {
+        const role = await getEnvironmentRole(user, environmentId);
+        if(!role) {
             return res.status(403).json({ error: "No access to this environment" });
+        }
+        if(role === 'viewer' && !READ_METHODS.includes(req.method)) {
+            return res.status(403).json({ error: "A viewer cannot make changes in this environment" });
         }
         user.environmentId = environmentId;
         next();

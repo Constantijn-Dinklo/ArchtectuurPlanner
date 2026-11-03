@@ -1,5 +1,5 @@
 import { Types } from "mongoose";
-import { hasEnvironmentAccess, UserJwtPayload } from "../middelware";
+import { getEnvironmentRole, UserJwtPayload } from "../middelware";
 import Environment from "../models/environment.model";
 import EnvironmentMember from "../models/environmentMember.model";
 import Organisation from "../models/organisatie.model";
@@ -74,9 +74,14 @@ export async function getAccessibleEnvironments(user: UserJwtPayload) {
     }));
 }
 
-async function requireAccess(user: UserJwtPayload, environmentId: string) {
-    if(!(await hasEnvironmentAccess(user, environmentId))) {
+// With canEdit, a viewer is refused as well: it can only read
+async function requireAccess(user: UserJwtPayload, environmentId: string, canEdit = false) {
+    const role = await getEnvironmentRole(user, environmentId);
+    if(!role) {
         throw new Error("No access to this environment");
+    }
+    if(canEdit && role === 'viewer') {
+        throw new Error("A viewer cannot make changes in this environment");
     }
     const environment = await Environment.findById(environmentId);
     if(!environment) {
@@ -120,7 +125,7 @@ export async function getEnvironmentMembers(user: UserJwtPayload, environmentId:
 
 // Gives an existing user access to the environment, for example a consultant of another organisation
 export async function addEnvironmentMember(user: UserJwtPayload, environmentId: string, email: string) {
-    const environment = await requireAccess(user, environmentId);
+    const environment = await requireAccess(user, environmentId, true);
 
     const member = await User.findOne({ email: email?.trim(), ...ACTIVE_USER });
     if(!member) {
@@ -144,7 +149,7 @@ export async function addEnvironmentMember(user: UserJwtPayload, environmentId: 
 }
 
 export async function removeEnvironmentMember(user: UserJwtPayload, environmentId: string, memberId: string) {
-    await requireAccess(user, environmentId);
+    await requireAccess(user, environmentId, true);
     await EnvironmentMember.deleteOne({ _id: memberId, environmentId });
     return getEnvironmentMembers(user, environmentId);
 }
