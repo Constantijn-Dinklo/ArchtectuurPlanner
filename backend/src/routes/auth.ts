@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 
 import User, { ACTIVE_USER, IUser } from "../models/user.model";
 import { AuthenticatedRequest, authenticateToken } from "../middelware";
+import { loginLimiter, signupLimiter } from "../config/rateLimit";
 
 const router: Router = express.Router();
 
@@ -17,7 +18,7 @@ const ACCESS_COOKIE_OPTIONS = {
     sameSite: 'strict'
 } as const;
 
-router.post('/signup', async (req: Request, res: Response) => {
+router.post('/signup', signupLimiter, async (req: Request, res: Response) => {
 
     const user: IUser | null = await User.findOne({email: req.body.email});
     if(user) return res.status(400).json({ message: 'User already exists'});
@@ -45,7 +46,7 @@ router.post('/signup', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     const { email, password } = req.body;
     // A removed (inactive or deleted) user cannot log in
     const user: IUser | null = await User.findOne({ email, ...ACTIVE_USER });

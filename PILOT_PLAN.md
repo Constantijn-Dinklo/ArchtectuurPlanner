@@ -35,7 +35,9 @@ The three hosting items (same site, hosting setup, staging) wait until there is 
   - [x] Let an organisation admin remove a user: the user becomes inactive (`status` on `User`), cannot log in, and can be brought back. Deleting an inactive user marks it `deleted`, which hides it for everyone. Nobody can remove itself, and the last active admin cannot be removed
   - [x] Enforce the roles in the backend: `requireEnvironment` refuses every request except GET for viewers, and viewers cannot add or remove environment members (`getEnvironmentRole` in `middelware.ts`)
   - [ ] Hide or disable editing in the frontend for viewers. Until then a viewer sees edit controls, and their changes fail with "A viewer cannot make changes in this environment"
-- [ ] Add login rate limiting and security headers: `app.ts` has neither *(the rest of the backend is unchecked)*
+- [x] Add login rate limiting and security headers: 10 failed logins per 15 minutes and 5 signups per hour per IP address (`backend/src/config/rateLimit.ts`), and `helmet` for the headers of the backend
+- [ ] Set the security headers for the frontend at the hosting platform: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `frame-ancestors 'none'` (or `X-Frame-Options: DENY`), and a `Content-Security-Policy` that allows the API address. Do this with the hosting setup in Step 1
+- [ ] Set `TRUST_PROXY` on the hosting platform (usually `1`), or all users share one login limit
 - [ ] Decide how people get an account: signup in `backend/src/routes/auth.ts` puts every new user in one hardcoded `organisationId`, and anyone can sign up
 - [ ] Remove the login token from the signup response in `backend/src/routes/auth.ts`, which partly undoes the protection of `httpOnly`. Check first that the frontend does not use it
 - [ ] Decide how long a login should last: the cookie lasts 60 minutes and the token inside it 24 hours, so people get logged out after an hour. Make them match

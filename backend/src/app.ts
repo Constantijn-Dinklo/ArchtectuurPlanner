@@ -1,8 +1,10 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 
 import { getAllowedOrigins } from './config/cors';
+import { getTrustProxy } from './config/rateLimit';
 import connectDB from './config/db';
 import { authenticateToken, requireEnvironment } from './middelware';
 import environmentRoutes from './routes/environmentRoutes';
@@ -36,6 +38,10 @@ const app = express();
 connectDB();
 
 // ✅ Middleware
+// The real IP address of a user is needed for the login and signup limits (config/rateLimit.ts)
+app.set('trust proxy', getTrustProxy());
+// Security headers on every response, such as HTTPS only and no embedding in other websites
+app.use(helmet());
 app.use(cookieParser());
 app.use(
   cors({
