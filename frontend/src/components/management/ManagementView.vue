@@ -1,4 +1,4 @@
-<!-- The management environment (beheer omgeving). For now an overview of the users of the organisation and their roles -->
+<!-- The management environment (beheer omgeving). For now the users of the organisation: their roles, removing them and bringing them back -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useOrganisationStore, type OrganisationRole } from '../../stores/organisation.store';
@@ -8,10 +8,13 @@ const organisationStore = useOrganisationStore();
 
 const isLoading = ref(true);
 const error = ref('');
-const roleError = ref('');
+const actionError = ref('');
 
 // The users whose environments are shown
 const expandedUsers = ref<Set<string>>(new Set());
+
+const activeUsers = computed(() => organisationStore.organisationUsers?.users.filter(user => user.isActive) ?? []);
+const inactiveUsers = computed(() => organisationStore.organisationUsers?.users.filter(user => !user.isActive) ?? []);
 
 const isCurrentUserAdmin = computed(() => {
     const overview = organisationStore.organisationUsers;
@@ -40,24 +43,37 @@ function toggleUser(userId: string) {
     expandedUsers.value = expanded;
 }
 
-async function changeOrganisationRole(userId: string, organisationRole: OrganisationRole) {
-    roleError.value = '';
+// Runs a change and shows the message of the backend when it fails, for example when the last admin would be removed
+async function runAction(action: () => Promise<void>, fallbackMessage: string) {
+    actionError.value = '';
     try {
-        await organisationStore.updateOrganisationRole(userId, organisationRole);
+        await action();
     }
     catch (err: any) {
-        roleError.value = err.response?.data?.error ?? 'The role could not be changed';
+        actionError.value = err.response?.data?.error ?? fallbackMessage;
     }
 }
 
-async function changeEnvironmentRole(userId: string, environmentId: string, role: Environment['role']) {
-    roleError.value = '';
-    try {
-        await organisationStore.updateEnvironmentRole(userId, environmentId, role);
-    }
-    catch (err: any) {
-        roleError.value = err.response?.data?.error ?? 'The role could not be changed';
-    }
+function changeOrganisationRole(userId: string, organisationRole: OrganisationRole) {
+    runAction(() => organisationStore.updateOrganisationRole(userId, organisationRole), 'The role could not be changed');
+}
+
+function changeEnvironmentRole(userId: string, environmentId: string, role: Environment['role']) {
+    runAction(() => organisationStore.updateEnvironmentRole(userId, environmentId, role), 'The role could not be changed');
+}
+
+function removeUser(userId: string, email: string) {
+    if (!window.confirm(`Remove ${email}? They can no longer log in, but you can bring them back later.`)) return;
+    runAction(() => organisationStore.deactivateUser(userId), 'The user could not be removed');
+}
+
+function restoreUser(userId: string) {
+    runAction(() => organisationStore.restoreUser(userId), 'The user could not be brought back');
+}
+
+function deleteUser(userId: string, email: string) {
+    if (!window.confirm(`Delete ${email} for good? They cannot be brought back, and nobody will see them anymore.`)) return;
+    runAction(() => organisationStore.deleteUser(userId), 'The user could not be deleted');
 }
 </script>
 
@@ -70,7 +86,7 @@ async function changeEnvironmentRole(userId: string, environmentId: string, role
                     <h1>Users</h1>
                     <p v-if="organisationStore.organisationUsers">
                         {{ organisationStore.organisationUsers.organisationName }}
-                        · {{ organisationStore.organisationUsers.users.length }} user(s)
+                        · {{ activeUsers.length }} user(s)
                     </p>
                 </div>
             </header>
@@ -79,10 +95,10 @@ async function changeEnvironmentRole(userId: string, environmentId: string, role
             <div v-else-if="error" class="management-message error">{{ error }}</div>
 
             <template v-else-if="organisationStore.organisationUsers">
-                <div v-if="roleError" class="management-message error role-error">{{ roleError }}</div>
+                <div v-if="actionError" class="management-message error action-error">{{ actionError }}</div>
 
                 <ul class="user-list">
-                    <li v-for="user in organisationStore.organisationUsers.users" :key="user.id" class="user-item">
+                    <li v-for="user in activeUsers" :key="user.id" class="user-item">
                         <button type="button" class="user-row" @click="toggleUser(user.id)">
                             <i class="pi pi-chevron-right user-chevron" :class="{ expanded: expandedUsers.has(user.id) }" />
                             <span class="user-email">{{ user.email }}</span>
@@ -129,9 +145,38 @@ async function changeEnvironmentRole(userId: string, environmentId: string, role
                                     <span v-else class="role-badge" :class="environment.role">{{ environment.role }}</span>
                                 </li>
                             </ul>
+
+                            <div
+                                v-if="isCurrentUserAdmin && user.id !== organisationStore.organisationUsers.currentUserId"
+                                class="user-actions"
+                            >
+                                <button type="button" class="action-button danger" @click="removeUser(user.id, user.email)">
+                                    <i class="pi pi-user-minus" />
+                                    Remove user
+                                </button>
+                            </div>
                         </div>
                     </li>
                 </ul>
+
+                <!-- Removed users: only admins can bring them back or delete them for good -->
+                <template v-if="isCurrentUserAdmin && inactiveUsers.length">
+                    <h2 class="section-title">Inactive users</h2>
+                    <ul class="user-list">
+                        <li v-for="user in inactiveUsers" :key="user.id" class="user-item inactive-row">
+                            <i class="pi pi-user inactive-icon" />
+                            <span class="user-email">{{ user.email }}</span>
+                            <button type="button" class="action-button" @click="restoreUser(user.id)">
+                                <i class="pi pi-undo" />
+                                Bring back
+                            </button>
+                            <button type="button" class="action-button danger" @click="deleteUser(user.id, user.email)">
+                                <i class="pi pi-trash" />
+                                Delete
+                            </button>
+                        </li>
+                    </ul>
+                </template>
             </template>
         </section>
     </div>
@@ -203,7 +248,7 @@ async function changeEnvironmentRole(userId: string, environmentId: string, role
     color: #dc2626;
 }
 
-.role-error {
+.action-error {
     margin-bottom: 12px;
 }
 
@@ -348,6 +393,77 @@ async function changeEnvironmentRole(userId: string, environmentId: string, role
 .environment-name {
     flex: 1;
     color: #334155;
+}
+
+.user-actions {
+    display: flex;
+    justify-content: flex-end;
+
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.action-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    padding: 4px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+
+    background: #ffffff;
+    color: #475569;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.action-button:hover {
+    background: #f1f5f9;
+}
+
+.action-button.danger {
+    color: #dc2626;
+}
+
+.action-button.danger:hover {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.action-button i {
+    font-size: 11px;
+}
+
+.section-title {
+    margin: 24px 0 8px;
+
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.inactive-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 10px 8px;
+    font-size: 13px;
+}
+
+.inactive-row .user-email {
+    color: #94a3b8;
+    font-weight: 400;
+}
+
+.inactive-icon {
+    color: #cbd5e1;
+    font-size: 12px;
 }
 
 .role-badge {

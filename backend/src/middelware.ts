@@ -3,7 +3,7 @@ import jwt, { JwtPayload } from 'jsonwebtoken';
 import { isValidObjectId } from 'mongoose';
 import Environment from './models/environment.model';
 import EnvironmentMember from './models/environmentMember.model';
-import User from './models/user.model';
+import User, { ACTIVE_USER } from './models/user.model';
 
 const SECRET = process.env.JWT_SECRET as string;
 
@@ -20,7 +20,7 @@ export interface AuthenticatedRequest extends Request {
     user?: UserJwtPayload;
 }
 
-export function authenticateToken(
+export async function authenticateToken(
     req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
@@ -33,16 +33,28 @@ export function authenticateToken(
 
     if(!accessToken) return res.sendStatus(401);
 
+    let payload: UserJwtPayload;
     try {
-        const payload = jwt.verify(accessToken, SECRET) as UserJwtPayload;
-        req.user = payload;
-        next();
+        payload = jwt.verify(accessToken, SECRET) as UserJwtPayload;
     }
     catch {
         return res.status(401).json({
             message: "Invalid token"
         })
     }
+
+    // A removed user is logged out at once, also while its token has not expired yet
+    try {
+        if(!(await User.exists({ _id: payload.id, ...ACTIVE_USER }))) {
+            return res.status(401).json({ message: "This account is not active" });
+        }
+    }
+    catch(err: any) {
+        return res.status(400).json({ error: err.message });
+    }
+
+    req.user = payload;
+    next();
 }
 
 // Whether the user may work in the environment: every user of the organisation that owns it,

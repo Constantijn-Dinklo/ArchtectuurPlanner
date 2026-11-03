@@ -10,6 +10,8 @@ export interface OrganisationUser {
     id: string;
     email: string;
     organisationRole: OrganisationRole;
+    // An inactive user was removed: it cannot log in, but can be brought back
+    isActive: boolean;
     // Every environment of the organisation, with the role of the user in it
     environments: (Pick<Environment, 'id' | 'name' | 'role'>)[];
 }
@@ -38,10 +40,29 @@ export const useOrganisationStore = defineStore('organisation', () => {
         organisationUsers.value = res.data;
     }
 
+    // Removing makes a user inactive; restoring brings it back; deleting an inactive user hides it for everyone
+    async function deactivateUser(userId: string) {
+        const res = await api.post<OrganisationUsers>(`/org/users/${userId}/deactivate`);
+        organisationUsers.value = res.data;
+    }
+
+    async function restoreUser(userId: string) {
+        const res = await api.post<OrganisationUsers>(`/org/users/${userId}/restore`);
+        organisationUsers.value = res.data;
+    }
+
+    async function deleteUser(userId: string) {
+        const res = await api.delete<OrganisationUsers>(`/org/users/${userId}`);
+        organisationUsers.value = res.data;
+    }
+
     return {
         organisationUsers,
         fetchUsers,
         updateOrganisationRole,
-        updateEnvironmentRole
+        updateEnvironmentRole,
+        deactivateUser,
+        restoreUser,
+        deleteUser
     };
 });

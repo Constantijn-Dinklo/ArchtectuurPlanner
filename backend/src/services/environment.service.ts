@@ -3,7 +3,7 @@ import { hasEnvironmentAccess, UserJwtPayload } from "../middelware";
 import Environment from "../models/environment.model";
 import EnvironmentMember from "../models/environmentMember.model";
 import Organisation from "../models/organisatie.model";
-import User from "../models/user.model";
+import User, { ACTIVE_USER, VISIBLE_USER } from "../models/user.model";
 import View from "../models/canvas/view.model";
 
 // Creates an environment owned by the organisation of the user, with the user as its admin and a first view
@@ -89,8 +89,12 @@ async function requireAccess(user: UserJwtPayload, environmentId: string) {
 export async function getEnvironmentMembers(user: UserJwtPayload, environmentId: string) {
     const environment = await requireAccess(user, environmentId);
 
-    const memberships = await EnvironmentMember.find({ environmentId });
-    const users = await User.find({ _id: { $in: memberships.map((membership) => membership.userId) } });
+    const allMemberships = await EnvironmentMember.find({ environmentId });
+    const users = await User.find({ _id: { $in: allMemberships.map((membership) => membership.userId) }, ...VISIBLE_USER });
+    // Deleted users are invisible, so their memberships are left out
+    const memberships = allMemberships.filter((membership) =>
+        users.some((member) => member._id.toString() === membership.userId.toString())
+    );
     const organisations = await Organisation.find({
         _id: { $in: [...new Set(users.map((member) => member.organisationId.toString()))] }
     });
@@ -118,7 +122,7 @@ export async function getEnvironmentMembers(user: UserJwtPayload, environmentId:
 export async function addEnvironmentMember(user: UserJwtPayload, environmentId: string, email: string) {
     const environment = await requireAccess(user, environmentId);
 
-    const member = await User.findOne({ email: email?.trim() });
+    const member = await User.findOne({ email: email?.trim(), ...ACTIVE_USER });
     if(!member) {
         throw new Error("There is no user with this e-mail address");
     }

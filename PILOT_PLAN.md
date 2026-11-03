@@ -32,8 +32,7 @@ The three hosting items (same site, hosting setup, staging) wait until there is 
   - [x] Add an organisation role (`admin` or `member`) on `User`. An organisation admin is admin in every environment of the organisation, the first user of an organisation becomes admin, and the last admin cannot become a member. Existing users become admin through a migration (`migrations/organisationRoles.ts`)
   - [x] Let an organisation admin change the organisation role of a user (`PATCH /org/users/:id/role`, checked by `requireOrganisationAdmin`)
   - [x] Let an organisation admin change the role of a member in an environment (`PATCH /org/users/:id/environments/:environmentId/role`)
-  - [ ] Let an organisation admin remove a user, also keeping the last admin
-  - [ ] Enforce the roles in the backend. Start with one check that blocks writes for viewers
+  - [x] Let an organisation admin remove a user: the user becomes inactive (`status` on `User`), cannot log in, and can be brought back. Deleting an inactive user marks it `deleted`, which hides it for everyone. Nobody can remove itself, and the last active admin cannot be removed  - [ ] Enforce the roles in the backend. Start with one check that blocks writes for viewers
   - [ ] Hide or disable editing in the frontend for viewers
 - [ ] Add login rate limiting and security headers: `app.ts` has neither *(the rest of the backend is unchecked)*
 - [ ] Decide how people get an account: signup in `backend/src/routes/auth.ts` puts every new user in one hardcoded `organisationId`, and anyone can sign up

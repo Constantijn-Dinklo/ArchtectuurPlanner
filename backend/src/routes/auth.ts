@@ -2,7 +2,7 @@ import express, { Router, Request, Response } from "express";
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 
-import User, { IUser } from "../models/user.model";
+import User, { ACTIVE_USER, IUser } from "../models/user.model";
 import { AuthenticatedRequest, authenticateToken } from "../middelware";
 
 const router: Router = express.Router();
@@ -26,7 +26,7 @@ router.post('/signup', async (req: Request, res: Response) => {
         const passwordHash = await bcrypt.hash(req.body.password, 10);
         const organisationId = '6a1fcd7562e012033bbccaf6';
         // The first user of an organisation becomes its admin, so every organisation has someone to manage it
-        const isFirstUser = !(await User.exists({ organisationId }));
+        const isFirstUser = !(await User.exists({ organisationId, ...ACTIVE_USER }));
         const newUser: IUser = new User({
             email: req.body.email,
             password: passwordHash,
@@ -47,7 +47,8 @@ router.post('/signup', async (req: Request, res: Response) => {
 
 router.post('/login', async (req: Request, res: Response) => {
     const { email, password } = req.body;
-    const user: IUser | null = await User.findOne({ email });
+    // A removed (inactive or deleted) user cannot log in
+    const user: IUser | null = await User.findOne({ email, ...ACTIVE_USER });
 
     if(!user || !user.password) return res.status(401).json({message: 'Invalid credentials'});
 
