@@ -6,6 +6,7 @@ import { useApplicationStore } from "../stores/resources/application.store";
 import { useTableStore } from "../stores/resources/table.store";
 import { useExternalStore } from "../stores/resources/external.store";
 import { useComponentStore } from "../stores/resources/component.store";
+import { useApiStore } from "../stores/api.store";
 import { useResourceService } from "./resources/resource.service";
 import { useEndpointInformationService } from "./endpointInformation.service";
 import { useInformationEndpointService } from "./informationEndpoint.service";
@@ -32,6 +33,8 @@ export interface ChainEdge {
     carriedByObjectIds: string[];
     // The source has to reach this step, but it is not known how yet
     unconnected?: boolean;
+    // A script reads the information from the source through these apis of the source
+    apiIds?: string[];
 }
 
 export interface ChainStepView extends ChainStep {
@@ -48,6 +51,8 @@ export interface ChainLinkView {
     objectNames: string[];
     // It is not known yet how the information gets to the next step
     unconnected: boolean;
+    // The urls of the apis a script reads the information through
+    apiUrls: string[];
 }
 
 // One path through the chain, from a start (nothing flows into it) to an end (nothing flows out of it)
@@ -137,6 +142,7 @@ export function useInformationChainService() {
     const tableStore = useTableStore();
     const externalStore = useExternalStore();
     const componentStore = useComponentStore();
+    const apiStore = useApiStore();
     const resourceService = useResourceService();
     const endpointInformationService = useEndpointInformationService();
     const informationEndpointService = useInformationEndpointService();
@@ -338,6 +344,13 @@ export function useInformationChainService() {
             script.outputs.some(end => isEndOf(end, relation.targetResourceId) && endHas(end));
     }
 
+    // The apis a script reads the information through from one of these resources
+    function getReadApiIds(script: Component, resourceIds: string[], endHas: (end: ComponentEnd) => boolean) {
+        return [...new Set(script.inputs
+            .filter(end => resourceIds.includes(end.resourceId) && end.apiId && endHas(end))
+            .map(end => end.apiId!))];
+    }
+
     // Tables are connected through their database
     function getDatabaseId(resourceId: string) {
         const resource = resourceService.getResource(resourceId);
@@ -370,15 +383,16 @@ export function useInformationChainService() {
 
         return scripts.flatMap(script => {
             const scriptStep: ChainStep = { resourceId: script.resourceId, componentId: script.id };
+            const apiIds = getReadApiIds(script, [relation.sourceResourceId], endHas);
             // A script reads into its host and writes from its host: there the script is the step of the host
             if (script.resourceId === relation.targetResourceId) {
-                return [{ source: edge.source, target: scriptStep, carriedByObjectIds: edge.carriedByObjectIds }];
+                return [{ source: edge.source, target: scriptStep, carriedByObjectIds: edge.carriedByObjectIds, apiIds }];
             }
             if (script.resourceId === relation.sourceResourceId) {
                 return [{ source: scriptStep, target: edge.target, carriedByObjectIds: edge.carriedByObjectIds }];
             }
             return [
-                { source: edge.source, target: scriptStep, carriedByObjectIds: edge.carriedByObjectIds },
+                { source: edge.source, target: scriptStep, carriedByObjectIds: edge.carriedByObjectIds, apiIds },
                 { source: scriptStep, target: edge.target, carriedByObjectIds: edge.carriedByObjectIds }
             ];
         });
@@ -483,6 +497,7 @@ export function useInformationChainService() {
         // The same hop can exist on its own and in one or more objects; they are merged into one link
         const linkObjectIds = new Map<string, Set<string>>();
         const unconnectedLinks = new Set<string>();
+        const linkApiIds = new Map<string, Set<string>>();
 
         for (const edge of edges) {
             const sourceKey = stepKey(edge.source);
@@ -501,6 +516,9 @@ export function useInformationChainService() {
             edge.carriedByObjectIds.forEach(objectId => objectIds.add(objectId));
             linkObjectIds.set(linkKey, objectIds);
             if (edge.unconnected) unconnectedLinks.add(linkKey);
+            const apiIds = linkApiIds.get(linkKey) ?? new Set<string>();
+            edge.apiIds?.forEach(apiId => apiIds.add(apiId));
+            linkApiIds.set(linkKey, apiIds);
         }
 
         const chains: Chain[] = [];
@@ -519,7 +537,8 @@ export function useInformationChainService() {
                 }),
                 links: path.slice(1).map((key, index) => ({
                     objectNames: getObjectNames([...(linkObjectIds.get(`${path[index]}|${key}`) ?? [])]),
-                    unconnected: unconnectedLinks.has(`${path[index]}|${key}`)
+                    unconnected: unconnectedLinks.has(`${path[index]}|${key}`),
+                    apiUrls: [...(linkApiIds.get(`${path[index]}|${key}`) ?? [])].map(apiId => apiStore.getApi(apiId)?.url ?? 'Unknown API')
                 }))
             };
         }
@@ -699,7 +718,8 @@ export function useInformationChainService() {
                     edges.push({
                         source: { resourceId: provider.resourceId },
                         target: { resourceId: receiver.resourceId, componentId: receiver.componentId },
-                        carriedByObjectIds: carriedBy(provider, receiver)
+                        carriedByObjectIds: carriedBy(provider, receiver),
+                        apiIds: getReadApiIds(script, [provider.resourceId], endHas)
                     });
                 }
                 continue;
@@ -777,7 +797,7 @@ export function useInformationChainService() {
 
             for (const end of script.inputs.filter(endHas)) {
                 const source = toStep(end, 'output');
-                if (source) edges.push({ source, target: scriptStep, carriedByObjectIds: [] });
+                if (source) edges.push({ source, target: scriptStep, carriedByObjectIds: [], apiIds: end.apiId ? [end.apiId] : [] });
             }
             for (const end of script.outputs.filter(endHas)) {
                 const target = toStep(end, 'input');

@@ -30,7 +30,7 @@ Written on 2026-11-01. Work through the steps in order and tick items off as the
 ## Step 2: Settle the model
 
 - [x] Choose one kind of script: the old `script` model (the Scripts tab) is removed, so scripts only exist as components inside an application or file location. Relations that went via an old script keep their information but lose that route (`migrations/removeOldScripts.ts`)
-- [ ] Show the API a script reads through in the information chain
+- [x] Show the API a script reads through in the information chain: the arrow into the script shows the url of the API (`InformationChainBranch.vue`)
 - [ ] Add other ways to read from an application or external: queue or event stream, scraping or RPA, email, inside the application, unknown. The list on other connections (`human`, `feature`, `file`, `email`, `unknown`) could be extended
 - [ ] Show a yellow warning when that way of reading is not filled in
 - [ ] Decide whether a script read should count as an API connection in the relations. It is still recorded as going via the script

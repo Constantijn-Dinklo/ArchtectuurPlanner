@@ -88,6 +88,14 @@ const stepTitle = computed(() => {
                     >
                         {{ child.link.objectNames.join(', ') }}
                     </span>
+                    <span
+                        v-if="child.link?.apiUrls.length"
+                        class="link-label link-api"
+                        title="The script reads the information through this API"
+                    >
+                        <i class="pi pi-globe" />
+                        {{ child.link.apiUrls.join(', ') }}
+                    </span>
                 </span>
 
                 <InformationChainBranch :branch="child" />
@@ -221,6 +229,20 @@ const stepTitle = computed(() => {
     line-height: 1;
     text-align: center;
     white-space: nowrap;
+}
+
+/* The API a script reads the information through, in the colour of scripts */
+.link-api {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    margin-top: 2px;
+    color: #4f46e5;
+}
+
+.link-api .pi {
+    font-size: 9px;
 }
 
 .chain-step {
