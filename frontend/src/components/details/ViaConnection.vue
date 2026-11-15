@@ -8,7 +8,7 @@
     import { useInformationSourceService, type CandidateConnection } from '../../services/informationSource.service';
 
     // Shows through which connection the information of a relation comes into the target:
-    // '(none)', the only connection, or a choice when there are several
+    // a warning when there is none, the only connection, or a choice when there are several
     const props = defineProps<{
         relation: ResourceFieldRelation | ResourceObjectRelation;
     }>();
@@ -45,9 +45,10 @@
     <span
         v-if="!via.candidates.length"
         class="via none"
-        title="This information does not come through any api, script, database or other connection"
+        title="It is not known yet how this information gets here: no api, script, database or other connection carries it"
     >
-        (none)
+        <i class="pi pi-exclamation-triangle" />
+        no connection
     </span>
 
     <span
@@ -91,9 +92,13 @@
     text-overflow: ellipsis;
 }
 
+/* A warning: the information is received, but nothing is known to bring it */
 .via.none {
-    color: #cbd5e1;
-    font-style: italic;
+    color: #d97706;
+}
+
+.via.none .pi {
+    font-size: 9px;
 }
 
 .via-select {

@@ -32,11 +32,20 @@
         allowNewInformation?: boolean;
         // Whether an application or external element is connected through its apis
         readsThroughApi?: boolean;
+        // With readsThroughApi: information can also go on the resource itself, without an api
+        apiOptional?: boolean;
+        // Whether a file location is connected per file, or as a whole
+        fileParts?: boolean;
+        // The resource itself, which cannot be picked
+        excludeResourceId?: string;
     }>(), {
         fieldOptionsEmpty: undefined,
         objectOptionsEmpty: undefined,
         allowNewInformation: false,
-        readsThroughApi: false
+        readsThroughApi: false,
+        apiOptional: false,
+        fileParts: true,
+        excludeResourceId: undefined
     });
 
     const emit = defineEmits<{
@@ -67,8 +76,13 @@
 
     function getPartNoun(type: ResourceType): PartNoun | undefined {
         if (type === 'database') return 'table';
-        if (type === 'fileLocation') return 'file';
+        if (type === 'fileLocation') return props.fileParts ? 'file' : undefined;
         return props.readsThroughApi && (type === 'application' || type === 'external') ? 'API' : undefined;
+    }
+
+    // The information can go on the resource itself: always without tables, files or apis, and next to optional apis
+    function hasOwnInformation(connection: Connection) {
+        return !connection.partNoun || (props.apiOptional && connection.partNoun === 'API');
     }
 
     function endKey(end: ConnectionEndTarget) {
@@ -150,6 +164,7 @@
     // <-- Connecting to a resource -->
     const resourceOptions = computed(() =>
         resourceService.getByType(['application', 'external', 'database', 'fileLocation'])
+            .filter(resource => resource.id !== props.excludeResourceId)
             .map(resource => ({ id: resource.id, label: resource.name }))
             .sort((a, b) => a.label.localeCompare(b.label))
     );
@@ -225,7 +240,7 @@
         >
             <!-- An application or external element: its information directly -->
             <InformationEditor
-                v-if="!connection.partNoun && connection.own"
+                v-if="hasOwnInformation(connection) && connection.own"
                 :information-field-ids="connection.own.end.informationFieldIds"
                 :information-object-ids="connection.own.end.informationObjectIds"
                 :field-options="getFieldOptions(connection.own.end)"
@@ -241,10 +256,10 @@
             />
 
             <!-- A database, file location or something read through an api: first a table, file or api, the information goes on that -->
-            <template v-else-if="connection.partNoun">
+            <template v-if="connection.partNoun">
                 <!-- Information that was put on the resource itself before it had to go on a table, file or api -->
                 <InformationEditor
-                    v-if="connection.own && informationCount(connection.own.end)"
+                    v-if="!hasOwnInformation(connection) && connection.own && informationCount(connection.own.end)"
                     :information-field-ids="connection.own.end.informationFieldIds"
                     :information-object-ids="connection.own.end.informationObjectIds"
                     empty-text=""
@@ -253,7 +268,7 @@
                     @remove-object="id => emit('removeObject', connection.own!.index, id)"
                 />
 
-                <div v-if="!connection.parts.length" class="detail-empty">
+                <div v-if="!connection.parts.length && !hasOwnInformation(connection)" class="detail-empty">
                     No {{ connection.partNoun }} chosen yet
                 </div>
 

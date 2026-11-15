@@ -3,6 +3,9 @@ import { ref } from "vue";
 
 import api from "../../helpers/axios";
 import type { ResourceType } from "../../types/resource.type";
+import { useApplicationService } from "../../services/resources/application.service";
+import { useExternalService } from "../../services/resources/external.service";
+import { useTableStore } from "../resources/table.store";
 
 export interface ResourceRelation {
     id: string;
@@ -30,6 +33,15 @@ export interface ResourceFieldRelation extends ResourceRelation {
 
 export interface ResourceObjectRelation extends ResourceRelation {
     informationObjectId: string;
+}
+
+// Information that one resource receives from another, added by hand
+export interface RelationToAdd {
+    kind: 'field' | 'object';
+    informationId: string;
+    sourceResourceId: string;
+    targetResourceId: string;
+    via?: ViaConnection | null;
 }
 
 interface GetInformationRelationsResponse {
@@ -65,5 +77,36 @@ export const useInformationRelationStore = defineStore('informationRelation', ()
         if(relation) Object.assign(relation, res.data);
     }
 
-    return { fieldRelations, objectRelations, fetchInformationRelations, setFieldRelationVia, setObjectRelationVia };
+    // Adding or removing a relation by hand also changes the receiver: the inputs of an application,
+    // the columns of a table, what an external element receives
+    async function refreshAfterChange() {
+        await Promise.all([
+            fetchInformationRelations(),
+            useApplicationService().fetchApplications(),
+            useTableStore().fetchTables(),
+            useExternalService().fetchExternals()
+        ]);
+    }
+
+    async function addRelation(relation: RelationToAdd) {
+        await api.post('/informationRelations', {
+            ...relation,
+            viaConnectionType: relation.via?.type ?? null,
+            viaConnectionId: relation.via?.id ?? null
+        });
+        await refreshAfterChange();
+    }
+
+    async function removeRelations(relations: { kind: 'field' | 'object', id: string }[]) {
+        try {
+            for (const relation of relations) {
+                await api.delete(`/informationRelations/${relation.kind === 'field' ? 'fields' : 'objects'}/${relation.id}`);
+            }
+        }
+        finally {
+            await refreshAfterChange();
+        }
+    }
+
+    return { fieldRelations, objectRelations, fetchInformationRelations, setFieldRelationVia, setObjectRelationVia, addRelation, removeRelations };
 });

@@ -3,8 +3,44 @@ import express, { Router, Response } from "express";
 import { AuthenticatedRequest, getUser } from "../middelware";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
+import { addInformationRelation, removeInformationRelation } from "../services/informationRelation.service";
+import { keepExternalSourceRelationsInSync } from "../services/externalSourceRelation.service";
 
 const router: Router = express.Router();
+
+function getKind(value: unknown) {
+    if(value !== 'field' && value !== 'object') throw new Error("Unknown kind of information");
+    return value;
+}
+
+// What a resource receives from or sends to another resource, added by hand. The receiver gets the information as well
+router.post('/', keepExternalSourceRelationsInSync, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const relation = await addInformationRelation(getUser(req), {
+            kind: getKind(req.body.kind),
+            informationId: req.body.informationId,
+            sourceResourceId: req.body.sourceResourceId,
+            targetResourceId: req.body.targetResourceId,
+            viaConnectionType: req.body.viaConnectionType ?? null,
+            viaConnectionId: req.body.viaConnectionId ?? null
+        });
+        res.status(201).json(relation);
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+router.delete('/:kind/:id', keepExternalSourceRelationsInSync, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const result = await removeInformationRelation(getUser(req), getKind(req.params.kind === 'fields' ? 'field' : req.params.kind === 'objects' ? 'object' : undefined), req.params.id as string);
+        if(result.status !== 200) return res.status(result.status).json({ error: result.message });
+        res.json({ message: result.message });
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
 
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);

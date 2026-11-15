@@ -1,13 +1,12 @@
 <script setup lang="ts">
     import { computed, ref } from 'vue';
     import { vCollapsible } from '../../directives/collapsible';
-    import { useApiStore } from '../../stores/api.store';
     import { useComponentStore } from '../../stores/resources/component.store';
     import { useInformationFieldStore } from '../../stores/information/informationField.store';
     import { useInformationObjectStore } from '../../stores/information/informationObject.store';
     import { useResourceService } from '../../services/resources/resource.service';
-    import { useSendableInformationService } from '../../services/sendableInformation.service';
-    import { FILE_TYPES, getComponentIcon, getInformationSlotIds, type ComponentEnd, type ComponentEndTarget, type FileType, type InformationSlot } from '../../types/component.types';
+    import { byLabel, useConnectionEndOptions } from '../../services/connectionEndOptions.service';
+    import { FILE_TYPES, getComponentIcon, getInformationSlotIds, type ComponentEnd, type FileType, type InformationSlot } from '../../types/component.types';
     import type { InformationOption } from '../../types/connectionEnd.types';
     import ConnectedResourcesSection from './ConnectedResourcesSection.vue';
     import InformationEditor from './InformationEditor.vue';
@@ -17,51 +16,16 @@
         componentId: string;
     }>();
 
-    const apiStore = useApiStore();
     const componentStore = useComponentStore();
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
     const resourceService = useResourceService();
-    const sendableInformationService = useSendableInformationService();
+    const { getEndFieldOptions, getEndObjectOptions } = useConnectionEndOptions();
 
     const component = computed(() => componentStore.getComponent(props.componentId));
     const host = computed(() => component.value ? resourceService.getResource(component.value.resourceId) : undefined);
 
     // <-- The information a script takes in: what the things it reads from can pass on -->
-    function byLabel(options: Map<string, InformationOption>) {
-        return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
-    }
-
-    // What one end can pass on: a file passes on what it contains, an api what it sends, a resource what it can send
-    function getEndFieldOptions(end: ComponentEndTarget, fields = new Map<string, InformationOption>()) {
-        if (end.componentId) {
-            componentStore.getComponent(end.componentId)?.informationFieldIds.forEach(fieldId => {
-                const field = informationFieldStore.getInformationField(fieldId);
-                if (field) fields.set(field.id, { id: field.id, label: field.fieldName });
-            });
-        } else {
-            const apiFieldIds = end.apiId ? apiStore.getApi(end.apiId)?.informationFieldIds ?? [] : undefined;
-            sendableInformationService.getSendableFields(end.resourceId)
-                .filter(field => !apiFieldIds || apiFieldIds.includes(field.id))
-                .forEach(field => fields.set(field.id, { id: field.id, label: field.label }));
-        }
-        return fields;
-    }
-
-    function getEndObjectOptions(end: ComponentEndTarget, objects = new Map<string, InformationOption>()) {
-        const apiObjectIds = end.apiId ? apiStore.getApi(end.apiId)?.informationObjectIds ?? [] : undefined;
-        const objectIds = end.componentId
-            ? componentStore.getComponent(end.componentId)?.informationObjectIds ?? []
-            : sendableInformationService.getSendableObjects(end.resourceId)
-                .map(object => object.id)
-                .filter(objectId => !apiObjectIds || apiObjectIds.includes(objectId));
-        objectIds.forEach(objectId => {
-            const informationObject = informationObjectStore.getInformationObject(objectId);
-            if (informationObject) objects.set(informationObject.id, { id: informationObject.id, label: informationObject.objectName });
-        });
-        return objects;
-    }
-
     const readableFields = computed(() => {
         const fields = new Map<string, InformationOption>();
         component.value?.inputs.forEach(input => getEndFieldOptions(input, fields));
