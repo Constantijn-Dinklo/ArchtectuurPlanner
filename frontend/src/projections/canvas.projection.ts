@@ -5,7 +5,6 @@ import { useViewStore, type ViewNode } from "../stores/canvas/view.store";
 import { useApiStore } from "../stores/api.store";
 import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
-import { useScriptStore } from "../stores/script.store";
 import type { CanvasNode } from "./types/canvasNode";
 import type { CanvasEdge } from "./types/canvasEdge";
 import { useServerStore, type Server } from "../stores/resources/server.store";
@@ -90,7 +89,6 @@ export function useCanvasProjection() {
     const apiStore = useApiStore();
     const apiConnectionStore = useApiConnectionStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
-    const scriptStore = useScriptStore();
 
     const entityIdToNodeMap = computed(() => {
         const map = new Map<string, ViewNode>();
@@ -126,9 +124,8 @@ export function useCanvasProjection() {
                 data: {
                     apiIds: [],
                     databaseConnectionIds: [],
-                    scriptIds: [],
                     otherConnectionIds: [],
-                    componentScriptIds: [],
+                    scriptIds: [],
                     otherConnectionMethods: [],
                     sourceResourceId,
                     targetResourceId,
@@ -169,7 +166,7 @@ export function useCanvasProjection() {
             connectionId: string,
             field: keyof Pick<
             CanvasEdge["data"],
-            'apiIds' | 'databaseConnectionIds' | 'scriptIds' | 'otherConnectionIds' | 'componentScriptIds'
+            'apiIds' | 'databaseConnectionIds' | 'otherConnectionIds' | 'scriptIds'
             >
         ) {
             getOrCreateEdge(sourceResourceId, targetResourceId)?.data[field].push(connectionId);
@@ -222,15 +219,8 @@ export function useCanvasProjection() {
             }
         }
 
-        for(const script of scriptStore.scripts){
-            script.inputIds.map((inputId) => {
-                script.outputIds.map((outputId) => {
-                    addConnection(inputId, outputId, script.id, 'scriptIds');
-                })
-            })
-        }
 
-        // Script components. From the database level on a component is a row inside its resource with handles of its
+        // Scripts. From the database level on a component is a row inside its resource with handles of its
         // own: a script gets an edge from everything it reads and to everything it writes (input -> script -> output).
         // At the application level the rows are hidden, so the edges go to and from the resource the script runs in:
         // the script depends on its resource (input -> resource -> output)
@@ -240,10 +230,10 @@ export function useCanvasProjection() {
 
             const scriptEndId = componentsVisible ? component.id : component.resourceId;
             for(const input of getDrawnEnds(component.inputs)) {
-                addConnection(getVisibleEndId(input), scriptEndId, component.id, 'componentScriptIds');
+                addConnection(getVisibleEndId(input), scriptEndId, component.id, 'scriptIds');
             }
             for(const output of getDrawnEnds(component.outputs)) {
-                addConnection(scriptEndId, getVisibleEndId(output), component.id, 'componentScriptIds');
+                addConnection(scriptEndId, getVisibleEndId(output), component.id, 'scriptIds');
             }
         }
 

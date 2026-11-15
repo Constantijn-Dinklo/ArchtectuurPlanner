@@ -3,7 +3,6 @@
     import { computed, ref } from 'vue';
     import { useApiConnectionStore } from '../../stores/apiConnection.store';
     import { useApiStore } from '../../stores/api.store';
-    import { useScriptStore } from '../../stores/script.store';
     import { useDatabaseConnectionStore } from '../../stores/databaseConnection.store';
     import { getOtherConnectionMethodInfo, useOtherConnectionStore } from '../../stores/otherConnection.store';
     import { useResourceService } from '../../services/resources/resource.service';
@@ -36,7 +35,6 @@
 
     const apiConnectionStore = useApiConnectionStore();
     const apiStore = useApiStore();
-    const scriptStore = useScriptStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
     const otherConnectionStore = useOtherConnectionStore();
     const resourceService = useResourceService();
@@ -80,21 +78,6 @@
             });
         }
 
-        // A script reads from its inputs and writes to its outputs
-        for (const script of scriptStore.scripts) {
-            const partnerIds = isIncoming.value
-                ? (script.outputIds.includes(props.resourceId) ? script.inputIds : [])
-                : (script.inputIds.includes(props.resourceId) ? script.outputIds : []);
-            for (const partnerId of new Set(partnerIds.filter(id => id && id !== props.resourceId))) {
-                add(partnerId, {
-                    key: `script:${script.id}:${partnerId}`,
-                    icon: 'pi pi-code',
-                    label: 'Script',
-                    detail: script.name
-                });
-            }
-        }
-
         // Data flows in the direction of the database connection: read is database -> resource, write is resource -> database
         for (const connection of databaseConnectionStore.databaseConnections) {
             if (connection.operation.includes('read')) {
@@ -119,7 +102,7 @@
             });
         }
 
-        // Script components (scripts inside an application or file location) read from their inputs and write to
+        // Scripts (inside an application or file location) read from their inputs and write to
         // their outputs. A table or file the script uses counts for its database or file location as well
         function isThisResource(resourceId: string) {
             if (resourceId === props.resourceId) return true;

@@ -84,10 +84,9 @@
                 :source-id="selectedEdgeProjection.connectionsInfo.value.sourceId"
                 :target-id="selectedEdgeProjection.connectionsInfo.value.targetId"
                 :api-connection-ids="selectedEdgeProjection.connectionsInfo.value.apiConnections.map(connection => connection.id)"
-                :script-ids="selectedEdgeProjection.connectionsInfo.value.scripts.map(script => script.id)"
                 :database-connection-ids="selectedEdgeProjection.connectionsInfo.value.databaseConnections.map(connection => connection.id)"
                 :other-connection-ids="selectedEdgeProjection.connectionsInfo.value.otherConnections.map(connection => connection.id)"
-                :component-script-ids="selectedEdgeProjection.connectionsInfo.value.componentScriptIds"
+                :script-ids="selectedEdgeProjection.connectionsInfo.value.scriptIds"
             />
         </template>
 

@@ -3,7 +3,6 @@
     import { computed } from 'vue';
     import { useApiStore, type Api } from '../stores/api.store';
     import type { Resource } from '../services/resources/resource.service';
-    import type { Script } from '../stores/script.store';
     import {
         getOtherConnectionMethodInfo,
         useOtherConnectionStore,
@@ -22,7 +21,6 @@
             target?: Resource;
             api?: Api;
         }[],
-        scripts: Script[],
         databaseConnections: {
             id: string;
             databaseId: string;
@@ -50,7 +48,6 @@
 
     const connectionCount = computed(() =>
         (props.connectionsInfo.apiConnections?.length ?? 0) +
-        (props.connectionsInfo.scripts?.length ?? 0) +
         (props.connectionsInfo.databaseConnections?.length ?? 0) +
         (props.connectionsInfo.otherConnections?.length ?? 0)
     );
@@ -138,18 +135,6 @@
                     @add-object="id => apiStore.addInformationObject(apiConnection.sourceUrlId, id)"
                     @remove-object="id => apiStore.removeInformationObject(apiConnection.sourceUrlId, id)"
                 />
-            </div>
-        </template>
-
-        <template v-if="connectionsInfo.scripts && connectionsInfo.scripts.length > 0">
-            <div class="detail-subtitle">Scripts</div>
-            <div
-                v-for="script in connectionsInfo.scripts"
-                :key="script.id"
-                class="detail-row"
-            >
-                <i class="pi pi-code detail-row-icon" />
-                <span class="detail-row-name">{{ script.name }}</span>
             </div>
         </template>
 

@@ -11,7 +11,6 @@ import External from '../models/resources/external.model';
 import Api from '../models/api.model';
 import ApiConnection from '../models/apiConnection.model';
 import DatabaseConnection from '../models/databaseConnection.model';
-import Script from '../models/script.model';
 import OtherConnection from '../models/otherConnection.model';
 import Endpoint from '../models/endpoint.model';
 import InformationField from '../models/information/informationField.model';
@@ -23,7 +22,7 @@ import ResourceObjectRelation from '../models/information/resourceObjectRelation
 const DATA_MODELS: Model<any>[] = [
     View, ViewNode,
     Application, Database, Table, FileLocation, Server, External,
-    Api, ApiConnection, DatabaseConnection, Script, OtherConnection, Endpoint,
+    Api, ApiConnection, DatabaseConnection, OtherConnection, Endpoint,
     InformationField, InformationObject, ResourceFieldRelation, ResourceObjectRelation
 ];
 

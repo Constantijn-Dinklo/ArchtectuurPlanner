@@ -8,7 +8,6 @@ import InformationObject from "../models/information/informationObject.models";
 import OtherConnection from "../models/otherConnection.model";
 import ApiConnection from "../models/apiConnection.model";
 import Api from "../models/api.model";
-import Script from "../models/script.model";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import { updateReceivedInformation } from "./externalRelation.service";
@@ -18,7 +17,7 @@ import { syncScriptRelations } from "./scriptRelation.service";
 // in sync here, so every movement of information to or from an external element is stored as a relation.
 //
 // From an external element: what it provides reaches the resources it is connected to (other connection, api
-// connection, script). Script components are kept by syncScriptRelations. Each piece of information it provides that the resource takes in gets a
+// connection). Scripts are kept by syncScriptRelations. Each piece of information it provides that the resource takes in gets a
 // relation external element -> resource, via that connection.
 // - an application takes in its input fields and input objects
 // - a table takes in its columns, also when the external element provides the field inside an object;
@@ -30,8 +29,8 @@ import { syncScriptRelations } from "./scriptRelation.service";
 //
 // A relation from an external element that was added by hand is left alone, and no second relation is added next to it.
 
-type ManagedVia = 'other' | 'api' | 'script';
-const MANAGED_VIA_TYPES: ManagedVia[] = ['other', 'api', 'script'];
+type ManagedVia = 'other' | 'api';
+const MANAGED_VIA_TYPES: ManagedVia[] = ['other', 'api'];
 
 interface DesiredRelation {
     kind: 'field' | 'object';
@@ -156,17 +155,7 @@ async function getRelationsFromExternals(environmentId: string, externals: Exter
         }
     }
 
-    const scripts = await Script.find({ environmentId, inputIds: { $in: externalIds } });
-    for(const script of scripts) {
-        const readExternalIds = script.inputIds.map((id) => id.toString()).filter((id) => externalIds.includes(id));
-        for(const externalId of readExternalIds) {
-            for(const outputId of script.outputIds) {
-                links.push({ externalId, targetId: outputId.toString(), viaType: 'script', viaId: script._id.toString() });
-            }
-        }
-    }
-
-    // (What script components read from an external element is kept by syncScriptRelations)
+    // (What scripts read from an external element is kept by syncScriptRelations)
 
     // What the connected resources take in
     const targetIds = [...new Set(links.map((link) => link.targetId))];
@@ -256,7 +245,7 @@ export function keepExternalSourceRelationsInSync(req: AuthenticatedRequest, res
     res.json = ((body: any) => {
         if(res.statusCode >= 400) return json(body);
 
-        // What script components read and write is kept in sync here as well
+        // What scripts read and write is kept in sync here as well
         syncScriptRelations(getUser(req))
             .then(() => syncExternalSourceRelations(getUser(req)))
             .catch((err) => console.error('Syncing the relations of external elements failed:', err.message))

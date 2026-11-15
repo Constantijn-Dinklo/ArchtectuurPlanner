@@ -11,7 +11,6 @@ import type { AccessibleInformationField } from "../../types/informationField.ty
 import type { AccessibleInformationObject } from "../../types/informationObject.type";
 import { useApiConnectionStore } from "../../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../../stores/databaseConnection.store";
-import { useScriptStore } from "../../stores/script.store";
 import { useOtherConnectionStore } from "../../stores/otherConnection.store";
 import { useComponentStore } from "../../stores/resources/component.store";
 import { useDatabaseService } from "./database.service";
@@ -37,7 +36,6 @@ export function useResourceService() {
 
     const apiConnectionStore = useApiConnectionStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
-    const scriptStore = useScriptStore();
     const otherConnectionStore = useOtherConnectionStore();
     const componentStore = useComponentStore();
     
@@ -112,11 +110,10 @@ export function useResourceService() {
     function getUpstreamResourceIds(resourceId: string) {
         const apiConnectedResources = apiConnectionStore.apiConnections.filter((apiConnection) => apiConnection.targetId === resourceId).map((apiConnection) => apiConnection.sourceId);
         const upstreamResourceIdsViaDatabaseConnections = getUpstreamResourceIdsViaDatabaseConnections(resourceId);
-        const scriptConnectedResources = scriptStore.scripts.filter((script) => script.outputIds.includes(resourceId)).flatMap((script) => script.inputIds);
         const otherConnectedResources = otherConnectionStore.otherConnections
             .filter((otherConnection) => otherConnection.targetId === resourceId && otherConnection.sourceId)
             .map((otherConnection) => otherConnection.sourceId as string);
-        // A script component that writes to the resource (or to one of its tables) brings in what it reads
+        // A script that writes to the resource (or to one of its tables) brings in what it reads
         const scriptTargetIds = [resourceId, ...databaseService.getDatabaseTables(resourceId).map((table) => table.id)];
         const scriptComponentResources = componentStore.components
             .filter((component) => component.kind === 'script' && component.outputs.some((end) => scriptTargetIds.includes(end.resourceId)))
@@ -126,7 +123,6 @@ export function useResourceService() {
             ...new Set([
                 ...apiConnectedResources,
                 ...upstreamResourceIdsViaDatabaseConnections,
-                ...scriptConnectedResources,
                 ...otherConnectedResources,
                 ...scriptComponentResources
             ])

@@ -15,7 +15,6 @@ import { useApplicationService } from "./resources/application.service";
 import { useExternalService } from "./resources/external.service";
 import { useResourceService } from "./resources/resource.service";
 import type { InformationKind } from "./informationChain.service";
-import { useScriptService } from "./script.service";
 import type { SourceTarget } from "../types/informationField.type";
 
 export interface SourceOption {
@@ -47,7 +46,6 @@ export function useDataCatalogueService() {
     const apiConnectionService = useApiConnectionService();
     const otherConnectionStore = useOtherConnectionStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
-    const scriptService = useScriptService();
     const resourceService = useResourceService();
 
     async function fetchDataCatalogue() {
@@ -66,8 +64,7 @@ export function useDataCatalogueService() {
             apiStore.fetchApis(),
             apiConnectionService.fetchApiConnections(),
             otherConnectionStore.fetchOtherConnections(),
-            databaseConnectionStore.fetchDatabaseConnections(),
-            scriptService.fetchScripts()
+            databaseConnectionStore.fetchDatabaseConnections()
         ]);
     }
 

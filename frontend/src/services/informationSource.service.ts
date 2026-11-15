@@ -1,6 +1,5 @@
 import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useApiStore } from "../stores/api.store";
-import { useScriptStore } from "../stores/script.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 import { useOtherConnectionStore, getOtherConnectionMethodInfo } from "../stores/otherConnection.store";
 import { useInformationObjectStore } from "../stores/information/informationObject.store";
@@ -31,12 +30,11 @@ export interface ResolvedVia {
 }
 
 // Works out through which api, script, database connection or other connection information comes from another resource.
-// Api urls and other connections list the information they carry. Scripts and database connections do not,
-// so every script or database connection between the two resources can carry anything.
+// Api urls, other connections and scripts list the information they carry. Database connections do not,
+// so every database connection between the two resources can carry anything.
 export function useInformationSourceService() {
     const apiConnectionStore = useApiConnectionStore();
     const apiStore = useApiStore();
-    const scriptStore = useScriptStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
     const otherConnectionStore = useOtherConnectionStore();
     const informationObjectStore = useInformationObjectStore();
@@ -85,15 +83,7 @@ export function useInformationSourceService() {
         const sourceIds = [sourceId, getDatabaseId(sourceId)].filter(id => id !== undefined);
         const targetIds = [targetId, getDatabaseId(targetId)].filter(id => id !== undefined);
 
-        for (const script of scriptStore.scripts) {
-            const readsSource = script.inputIds.some(inputId => sourceIds.includes(inputId));
-            const writesTarget = script.outputIds.some(outputId => targetIds.includes(outputId));
-            if (readsSource && writesTarget) {
-                candidates.push({ type: 'script', id: script.id, label: `Script ${script.name}` });
-            }
-        }
-
-        // Script components carry information like other connections: what they read from the source into their host,
+        // Scripts carry information like other connections: what they read from the source into their host,
         // write from their host to the target, or read from the source and write to the target
         for (const script of componentStore.components.filter(component => connectsScript(component, sourceIds, targetIds))) {
             if (!carries(getScriptCarriedBetween(script, sourceIds, targetIds), information)) continue;

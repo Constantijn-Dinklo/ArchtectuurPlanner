@@ -1,7 +1,6 @@
 import { computed } from "vue";
 import { useUIStore } from "../stores/canvas/ui.store";
 import { useApiConnectionStore } from "../stores/apiConnection.store";
-import { useScriptStore } from "../stores/script.store";
 import { useViewStore } from "../stores/canvas/view.store";
 import { useApiConnectionService } from "../services/apiConnection.service";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
@@ -19,7 +18,6 @@ export function useSelectedEdgeProjection() {
     const viewStore = useViewStore();
     
     const apiConnectionStore = useApiConnectionStore();
-    const scriptStore = useScriptStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
     const otherConnectionStore = useOtherConnectionStore();
     const resourceService = useResourceService();
@@ -74,17 +72,6 @@ export function useSelectedEdgeProjection() {
         return resolvedApiConnections;
     }
 
-    function getSelectedEdgeScripts(inputEntityId: string, outputEntityId: string) {
-        const scripts = scriptStore.scripts.filter((script) => {
-            return (
-                script.inputIds.includes(inputEntityId) &&
-                script.outputIds.includes(outputEntityId)
-            )
-        });
-        
-        return scripts;
-    }
-
     function getSelectedEdgeDB(inputEntityId: string, outputEntityId: string) {
         // Same direction as the canvas edges: read is database -> resource, write is resource -> database
         const databaseConnections = databaseConnectionStore.databaseConnections.filter((databaseConnection) => {
@@ -114,9 +101,9 @@ export function useSelectedEdgeProjection() {
             }));
     }
 
-    // Script components on the edge: the edge goes to or from the script row itself (from the database level on),
+    // Scripts on the edge: the edge goes to or from the script row itself (from the database level on),
     // or between what the script reads or writes and the resource the script runs in (at the application level)
-    function getSelectedEdgeComponentScripts(inputEntityId: string, outputEntityId: string) {
+    function getSelectedEdgeScripts(inputEntityId: string, outputEntityId: string) {
         const scriptOnEdge = [inputEntityId, outputEntityId]
             .map((entityId) => componentStore.getComponent(entityId))
             .find((component) => component?.kind === 'script');
@@ -147,17 +134,15 @@ export function useSelectedEdgeProjection() {
 
 
         const apiConnections = getSelectedEdgeApiConnections(inputEntityId, outputEntityId);
-        const scripts = getSelectedEdgeScripts(inputEntityId, outputEntityId);
         const databaseConnections = getSelectedEdgeDB(inputEntityId, outputEntityId);
         const otherConnections = getSelectedEdgeOtherConnections(inputEntityId, outputEntityId);
 
         return {
             apiConnections,
-            scripts,
             databaseConnections,
             otherConnections,
             warnings: informationTransferService.getConnectionWarnings(inputEntityId, outputEntityId),
-            componentScriptIds: getSelectedEdgeComponentScripts(inputEntityId, outputEntityId),
+            scriptIds: getSelectedEdgeScripts(inputEntityId, outputEntityId),
             sourceId: inputEntityId,
             targetId: outputEntityId,
             sourceName: resourceService.getResource(inputEntityId)?.name ?? componentStore.getComponent(inputEntityId)?.name,

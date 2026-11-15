@@ -3,7 +3,6 @@ import { useUIStore } from "../stores/canvas/ui.store";
 import { useViewStore } from "../stores/canvas/view.store";
 import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
-import { useScriptStore } from "../stores/script.store";
 import { useApiConnectionService } from "../services/apiConnection.service";
 import { useDatabaseConnectionService } from "../services/databaseConnection.service";
 import { useResourceService } from "../services/resources/resource.service";
@@ -20,7 +19,6 @@ export function useSelectedNodeProjection() {
     const resourceResolver = useResourceResolver();
 
     const apiConnectionStore = useApiConnectionStore();
-    const scriptStore = useScriptStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
     const otherConnectionStore = useOtherConnectionStore();
 
@@ -52,17 +50,6 @@ export function useSelectedNodeProjection() {
         );
 
         return resolvedApiConnections;
-    }
-
-    function getResourceScripts(resourceId: string) {
-        const scripts = scriptStore.scripts.filter((script) => {
-            return (
-                script.inputIds.includes(resourceId) ||
-                script.outputIds.includes(resourceId)
-            )
-        });
-        
-        return scripts;
     }
 
     function getResourceDatabaseConnections(resourceId: string) {
@@ -99,7 +86,6 @@ export function useSelectedNodeProjection() {
         const node = resourceResolver.resolveResource(resource);
         
         const apiConnections = getResourceApiConnections(selectedEntityId);
-        const scripts = getResourceScripts(selectedEntityId)
         const databaseConnections = getResourceDatabaseConnections(selectedEntityId);
         const otherConnections = getResourceOtherConnections(selectedEntityId);
 
@@ -107,7 +93,6 @@ export function useSelectedNodeProjection() {
             node,
             connections: {
                 apiConnections,
-                scripts,
                 databaseConnections,
                 otherConnections
             }

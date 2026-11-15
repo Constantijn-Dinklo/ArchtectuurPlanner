@@ -24,7 +24,7 @@ import { addTableInformation } from "./table.service";
 // - an external element receives it (its received lists follow from the relations to it)
 // (a file contains it: see addComponentEndInformation)
 //
-// This sync looks after every relation via a script component.
+// This sync looks after every relation via a script.
 // A relation between the same resources for the same information that was added another way is left alone.
 
 type Kind = 'field' | 'object';

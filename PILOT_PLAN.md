@@ -29,13 +29,14 @@ Written on 2026-11-01. Work through the steps in order and tick items off as the
 
 ## Step 2: Settle the model
 
-- [ ] Choose one kind of script: the old `script` model still exists next to the newer script components, and the canvas handles both (`scriptIds` and `componentScriptIds`)
+- [x] Choose one kind of script: the old `script` model (the Scripts tab) is removed, so scripts only exist as components inside an application or file location. Relations that went via an old script keep their information but lose that route (`migrations/removeOldScripts.ts`)
 - [ ] Show the API a script reads through in the information chain
 - [ ] Add other ways to read from an application or external: queue or event stream, scraping or RPA, email, inside the application, unknown. The list on other connections (`human`, `feature`, `file`, `email`, `unknown`) could be extended
 - [ ] Show a yellow warning when that way of reading is not filled in
 - [ ] Decide whether a script read should count as an API connection in the relations. It is still recorded as going via the script
 - [ ] Decide on the yellow warning for a connection without a table or file: writes only, or reads as well. It currently shows for both
 - [ ] Hide or disable editing in the frontend for viewers. Until then a viewer sees edit controls, and their changes fail with "A viewer cannot make changes in this environment"
+- [ ] Make tables components of their database, the way files are components of a file location. Do this together with letting relations point at a component inside a resource: relations now stop at resources, so a table that is a component would lose its relations to the database. Then files get proper relations as well, and script ends become one shape (a resource plus an optional component). Tables can keep their ids when they move into the components collection, so references stay valid. Do it before the pilot, so no live data has to be migrated
 - [ ] Remove that anyone can create an organisation: `POST /org/create` is public, and the login page still has a form for it. Close the route, remove the form, and decide how a new organisation and its first admin are made instead (for example by a script)
 
 ## Step 3: Tests and error messages

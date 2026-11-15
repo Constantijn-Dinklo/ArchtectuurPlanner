@@ -1,29 +1,23 @@
 <script setup lang="ts">
   import { onMounted, ref } from 'vue';
   import ConnectionTableApi from './ConnectionTableApi.vue';
-  import ConnectionTableScript from './ConnectionTableScript.vue';
   import { useApiConnectionService } from '../services/apiConnection.service.ts';
-  import { useScriptService } from '../services/script.service.ts';
   import ConnectionTableDatabase from './ConnectionTableDatabase.vue';
   import { useDatabaseConnectionStore } from '../stores/databaseConnection.store.ts';
   import { useApiConnectionStore } from '../stores/apiConnection.store.ts';
-  import { useScriptStore } from '../stores/script.store.ts';
   import ConnectionTableOther from './ConnectionTableOther.vue';
   import { useOtherConnectionStore } from '../stores/otherConnection.store.ts';
 
   const apiConnectionService = useApiConnectionService();
   const apiConnectionStore = useApiConnectionStore();
   const databaseConnectionStore = useDatabaseConnectionStore();
-  const scriptService = useScriptService();
-  const scriptStore = useScriptStore();
   const otherConnectionStore = useOtherConnectionStore();
 
-  const activeTable = ref<'api' | 'script' | 'database' | 'other'>('api');
+  const activeTable = ref<'api' | 'database' | 'other'>('api');
 
   onMounted(() => {
     apiConnectionService.fetchApiConnections();
     databaseConnectionStore.fetchDatabaseConnections();
-    scriptService.fetchScripts();
     otherConnectionStore.fetchOtherConnections();
   });
 
@@ -39,15 +33,6 @@
         <i class="pi pi-link" />
         Api
         <span class="toggle-count">{{ apiConnectionStore.apiConnections.length }}</span>
-      </button>
-
-      <button
-        :class="{ active: activeTable === 'script' }"
-        @click="activeTable = 'script'"
-      >
-        <i class="pi pi-code" />
-        Scripts
-        <span class="toggle-count">{{ scriptStore.scripts.length }}</span>
       </button>
 
       <button
@@ -71,8 +56,6 @@
 
     <div class="table-container">
       <ConnectionTableApi v-if="activeTable === 'api'" />
-
-      <ConnectionTableScript v-else-if="activeTable === 'script'" />
 
       <ConnectionTableDatabase v-else-if="activeTable === 'database'" />
 

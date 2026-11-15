@@ -3,7 +3,6 @@
     import { vCollapsible } from '../../directives/collapsible';
     import { useApiStore } from '../../stores/api.store';
     import { useApiConnectionStore } from '../../stores/apiConnection.store';
-    import { useScriptStore } from '../../stores/script.store';
     import { useDatabaseConnectionStore } from '../../stores/databaseConnection.store';
     import { getOtherConnectionMethodInfo, useOtherConnectionStore } from '../../stores/otherConnection.store';
     import {
@@ -26,10 +25,9 @@
         sourceId: string;
         targetId: string;
         apiConnectionIds: string[];
-        scriptIds: string[];
         databaseConnectionIds: string[];
         otherConnectionIds: string[];
-        componentScriptIds?: string[];
+        scriptIds?: string[];
     }>();
 
     interface EdgeConnection {
@@ -42,7 +40,6 @@
 
     const apiStore = useApiStore();
     const apiConnectionStore = useApiConnectionStore();
-    const scriptStore = useScriptStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
     const otherConnectionStore = useOtherConnectionStore();
     const informationRelationStore = useInformationRelationStore();
@@ -63,14 +60,7 @@
             const method = getOtherConnectionMethodInfo(connection?.method ?? 'unknown');
             return { type: 'other' as const, id, icon: method.icon, label: method.label, detail: connection?.description || undefined };
         }),
-        ...props.scriptIds.map(id => ({
-            type: 'script' as const,
-            id,
-            icon: 'pi pi-code',
-            label: 'Script',
-            detail: scriptStore.scripts.find(script => script.id === id)?.name
-        })),
-        ...(props.componentScriptIds ?? []).map(id => {
+        ...(props.scriptIds ?? []).map(id => {
             const script = componentStore.getComponent(id);
             const host = script ? resourceService.getResource(script.resourceId)?.name : undefined;
             return { type: 'component' as const, id, icon: 'pi pi-code', label: 'Script', detail: `${script?.name ?? '?'}${host ? ` (on ${host})` : ''}` };
@@ -102,7 +92,7 @@
         return otherConnectionStore.otherConnections.find(connection => connection.id === id);
     }
 
-    // <-- Scripts and database connections do not list what they pass along themselves.
+    // <-- Database connections do not list what they pass along themselves.
     // It follows from the relations between the two resources that come through the connection -->
 
     // A table is reached through its database
@@ -282,7 +272,7 @@
                     />
                 </template>
 
-                <!-- Script components carry what they read from and write to the resources of the edge; it is edited in the script's details -->
+                <!-- Scripts carry what they read from and write to the resources of the edge; it is edited in the script's details -->
                 <template v-else-if="connection.type === 'component'">
                     <div class="passed-along">
                         <span
@@ -306,7 +296,7 @@
                     </div>
                 </template>
 
-                <!-- Scripts and database connections: what the receiving resource takes in through this connection -->
+                <!-- Database connections: what the receiving resource takes in through this connection -->
                 <template v-else>
                     <div class="passed-along">
                         <span
@@ -331,7 +321,7 @@
                         </span>
                     </div>
                     <div class="passed-along-hint">
-                        A {{ connection.type === 'script' ? 'script' : 'database connection' }} does not list what it passes along.
+                        A database connection does not list what it passes along.
                         This is the information the receiving resource takes in through it.
                     </div>
                 </template>

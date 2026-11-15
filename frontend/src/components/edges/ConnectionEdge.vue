@@ -22,8 +22,8 @@
 
     const otherCount = computed(() => props.data?.otherConnectionIds.length ?? 0);
 
-    // Scripts of the Scripts tab and script components inside an application or file location
-    const scriptCount = computed(() => (props.data?.scriptIds.length ?? 0) + (props.data?.componentScriptIds.length ?? 0));
+    // Scripts inside an application or file location
+    const scriptCount = computed(() => props.data?.scriptIds.length ?? 0);
 
     const systemConnectionCount = computed(() =>
         (props.data?.apiIds.length ?? 0) +

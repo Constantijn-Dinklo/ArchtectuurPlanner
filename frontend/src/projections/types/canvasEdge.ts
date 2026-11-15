@@ -15,12 +15,11 @@ export interface CanvasEdge {
     data: {
         apiIds: string[];
         databaseConnectionIds: string[];
-        scriptIds: string[];
         // Connections that are not an api, database connection or script: by hand, a send button, a file, ...
         otherConnectionIds: string[];
         otherConnectionMethods: OtherConnectionMethod[];
-        // Script components (scripts inside an application or file location) over this edge
-        componentScriptIds: string[];
+        // Scripts (inside an application or file location) over this edge
+        scriptIds: string[];
 
         sourceResourceId: string;
         targetResourceId: string;

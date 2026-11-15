@@ -20,7 +20,6 @@ import externalRoutes from './routes/resources/externalRoutes';
 import apiRoutes from './routes/apiRoutes';
 import apiConnectionRoutes from './routes/apiConnectionRoutes';
 import databaseConnectionRoutes from './routes/databaseConnectionRoutes';
-import scriptRoutes from './routes/scriptRoutes';
 import otherConnectionRoutes from './routes/otherConnectionRoutes';
 import endpointRoutes from './routes/endpointRoutes';
 import informationFieldRoutes from './routes/informationFieldRoutes';
@@ -94,7 +93,6 @@ app.use('/endpoints', inEnvironment, endpointRoutes);
 // ** Connections ** //
 app.use('/apiConnections', inEnvironment, syncsExternalSources, apiConnectionRoutes);
 app.use('/databaseConnections', inEnvironment, databaseConnectionRoutes);
-app.use('/scripts', inEnvironment, syncsExternalSources, scriptRoutes);
 app.use('/otherConnections', inEnvironment, syncsExternalSources, otherConnectionRoutes);
 
 

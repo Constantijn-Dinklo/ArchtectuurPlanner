@@ -8,7 +8,6 @@ import { useOtherConnectionStore } from "../stores/otherConnection.store";
 import { useResourceService } from "./resources/resource.service";
 import { useComponentStore } from "../stores/resources/component.store";
 import { connectsScript, getScriptCarriedBetween } from "../types/component.types";
-import { useScriptStore } from "../stores/script.store";
 import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
 
 // A problem with the information transfer between two resources, with what to do about it.
@@ -41,14 +40,12 @@ export function useInformationTransferService() {
     const otherConnectionStore = useOtherConnectionStore();
     const resourceService = useResourceService();
     const componentStore = useComponentStore();
-    const scriptStore = useScriptStore();
     const databaseConnectionStore = useDatabaseConnectionStore();
 
     // Whether there is any kind of connection from the source to the target
     function hasAnyConnection(sourceId: string, targetId: string) {
         return apiConnectionStore.apiConnections.some(connection => connection.sourceId === sourceId && connection.targetId === targetId)
             || otherConnectionStore.otherConnections.some(connection => connection.sourceId === sourceId && connection.targetId === targetId)
-            || scriptStore.scripts.some(script => script.inputIds.includes(sourceId) && script.outputIds.includes(targetId))
             || componentStore.components.some(component => connectsScript(component, [sourceId], [targetId]))
             || databaseConnectionStore.databaseConnections.some(connection =>
                 (connection.operation.includes('read') && connection.databaseId === sourceId && connection.entityId === targetId) ||
