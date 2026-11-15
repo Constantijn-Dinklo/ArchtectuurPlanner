@@ -9,9 +9,7 @@ import type { ResourceType } from "../../types/resource.type";
 import { useTableStore, type Table } from "../../stores/resources/table.store";
 import type { AccessibleInformationField } from "../../types/informationField.type";
 import type { AccessibleInformationObject } from "../../types/informationObject.type";
-import { useApiConnectionStore } from "../../stores/apiConnection.store";
-import { useDatabaseConnectionStore } from "../../stores/databaseConnection.store";
-import { useOtherConnectionStore } from "../../stores/otherConnection.store";
+import { useConnectionStore } from "../../stores/connection.store";
 import { useComponentStore } from "../../stores/resources/component.store";
 import { useDatabaseService } from "./database.service";
 import type { Application, ResolvedApplication } from "../../types/application.types";
@@ -34,9 +32,7 @@ export function useResourceService() {
 
     const databaseService = useDatabaseService();
 
-    const apiConnectionStore = useApiConnectionStore();
-    const databaseConnectionStore = useDatabaseConnectionStore();
-    const otherConnectionStore = useOtherConnectionStore();
+    const connectionStore = useConnectionStore();
     const componentStore = useComponentStore();
     
     const resources = computed(() => {
@@ -86,33 +82,11 @@ export function useResourceService() {
         );
     }
 
-    function getUpstreamResourceIdsViaDatabaseConnections(resourceId: string) {
-        const upstreamDatabases = databaseConnectionStore.databaseConnections.flatMap(connection => {
-            if (
-                connection.operation.includes('read') &&
-                connection.entityId === resourceId
-            ) {
-                return [connection.databaseId];
-            }
-
-            if (
-                connection.operation.includes('write') &&
-                connection.databaseId === resourceId
-            ) {
-                return [connection.entityId];
-            }
-
-            return [];
-        });
-        return upstreamDatabases;
-    }
-
     function getUpstreamResourceIds(resourceId: string) {
-        const apiConnectedResources = apiConnectionStore.apiConnections.filter((apiConnection) => apiConnection.targetId === resourceId).map((apiConnection) => apiConnection.sourceId);
-        const upstreamResourceIdsViaDatabaseConnections = getUpstreamResourceIdsViaDatabaseConnections(resourceId);
-        const otherConnectedResources = otherConnectionStore.otherConnections
-            .filter((otherConnection) => otherConnection.targetId === resourceId && otherConnection.sourceId)
-            .map((otherConnection) => otherConnection.sourceId as string);
+        // The sources of the connections to the resource
+        const connectedResources = connectionStore.connections
+            .filter((connection) => connection.target.id === resourceId)
+            .map((connection) => connection.source.id);
         // A script that writes to the resource (or to one of its tables) brings in what it reads
         const scriptTargetIds = [resourceId, ...databaseService.getDatabaseTables(resourceId).map((table) => table.id)];
         const scriptComponentResources = componentStore.components
@@ -121,9 +95,7 @@ export function useResourceService() {
 
         return [
             ...new Set([
-                ...apiConnectedResources,
-                ...upstreamResourceIdsViaDatabaseConnections,
-                ...otherConnectedResources,
+                ...connectedResources,
                 ...scriptComponentResources
             ])
         ]

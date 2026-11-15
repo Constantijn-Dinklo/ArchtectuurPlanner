@@ -1,11 +1,7 @@
 import { computed } from "vue";
 import { useUIStore } from "../stores/canvas/ui.store";
-import { useApiConnectionStore } from "../stores/apiConnection.store";
+import { useConnectionStore } from "../stores/connection.store";
 import { useViewStore } from "../stores/canvas/view.store";
-import { useApiConnectionService } from "../services/apiConnection.service";
-import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
-import { useDatabaseConnectionService } from "../services/databaseConnection.service";
-import { useOtherConnectionStore } from "../stores/otherConnection.store";
 import { useResourceService } from "../services/resources/resource.service";
 import { useComponentStore } from "../stores/resources/component.store";
 import { useTableStore } from "../stores/resources/table.store";
@@ -17,16 +13,11 @@ export function useSelectedEdgeProjection() {
 
     const viewStore = useViewStore();
     
-    const apiConnectionStore = useApiConnectionStore();
-    const databaseConnectionStore = useDatabaseConnectionStore();
-    const otherConnectionStore = useOtherConnectionStore();
+    const connectionStore = useConnectionStore();
     const resourceService = useResourceService();
     const componentStore = useComponentStore();
     const tableStore = useTableStore();
     const informationTransferService = useInformationTransferService();
-    
-    const apiConnectionService = useApiConnectionService();
-    const databaseConnectionService = useDatabaseConnectionService();
 
     function isEdgeSelected() {
         return UIStore.selectedEntityType === 'edge'
@@ -57,48 +48,16 @@ export function useSelectedEdgeProjection() {
         }
     }
 
-    function getSelectedEdgeApiConnections(inputEntityId: string, outputEntityId: string) {
-        const apiConnections = apiConnectionStore.apiConnections.filter((apiConnection) => {
-            return (
-                apiConnection.sourceId === inputEntityId && 
-                apiConnection.targetId === outputEntityId
-            )
-        });
-
-        const resolvedApiConnections = apiConnections.map(
-            (apiConnection) => apiConnectionService.resolveConnection(apiConnection)
+    // The connections on the edge. A connection to a table is drawn at its database while tables are hidden
+    function getSelectedEdgeConnections(inputEntityId: string, outputEntityId: string) {
+        const isShownAt = (partId: string, entityId: string) => {
+            if (partId === entityId) return true;
+            const resource = resourceService.getResource(partId);
+            return resource?.type === 'table' && resource.databaseId === entityId;
+        };
+        return connectionStore.connections.filter((connection) =>
+            isShownAt(connection.source.id, inputEntityId) && isShownAt(connection.target.id, outputEntityId)
         );
-
-        return resolvedApiConnections;
-    }
-
-    function getSelectedEdgeDB(inputEntityId: string, outputEntityId: string) {
-        // Same direction as the canvas edges: read is database -> resource, write is resource -> database
-        const databaseConnections = databaseConnectionStore.databaseConnections.filter((databaseConnection) => {
-            const writes = databaseConnection.operation.includes('write');
-            const reads = databaseConnection.operation.includes('read') || !writes;
-
-            return (
-                (reads && databaseConnection.databaseId === inputEntityId && databaseConnection.entityId === outputEntityId) ||
-                (writes && databaseConnection.entityId === inputEntityId && databaseConnection.databaseId === outputEntityId)
-            )
-        });
-
-        const resolvedDatabaseConnections = databaseConnections.map(
-            (databaseConnection) => databaseConnectionService.resolveConnection(databaseConnection)
-        );
-
-        return resolvedDatabaseConnections;
-    }
-
-    function getSelectedEdgeOtherConnections(inputEntityId: string, outputEntityId: string) {
-        return otherConnectionStore.otherConnections
-            .filter((otherConnection) => otherConnection.sourceId === inputEntityId && otherConnection.targetId === outputEntityId)
-            .map((otherConnection) => ({
-                ...otherConnection,
-                source: resourceService.getResource(inputEntityId),
-                target: resourceService.getResource(outputEntityId)
-            }));
     }
 
     // Scripts on the edge: the edge goes to or from the script row itself (from the database level on),
@@ -133,14 +92,8 @@ export function useSelectedEdgeProjection() {
         const outputEntityId = entityIds.outputEntityId;
 
 
-        const apiConnections = getSelectedEdgeApiConnections(inputEntityId, outputEntityId);
-        const databaseConnections = getSelectedEdgeDB(inputEntityId, outputEntityId);
-        const otherConnections = getSelectedEdgeOtherConnections(inputEntityId, outputEntityId);
-
         return {
-            apiConnections,
-            databaseConnections,
-            otherConnections,
+            connections: getSelectedEdgeConnections(inputEntityId, outputEntityId),
             warnings: informationTransferService.getConnectionWarnings(inputEntityId, outputEntityId),
             scriptIds: getSelectedEdgeScripts(inputEntityId, outputEntityId),
             sourceId: inputEntityId,

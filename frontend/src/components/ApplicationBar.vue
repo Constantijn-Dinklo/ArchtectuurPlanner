@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue';
 
 import { useApiStore, type Api } from '../stores/api.store';
-import { useApiConnectionStore } from '../stores/apiConnection.store';
+import { useConnectionStore } from '../stores/connection.store';
 import { useApplicationStore } from '../stores/resources/application.store';
 import { useComponentStore } from '../stores/resources/component.store';
 import { useApplicationService } from '../services/resources/application.service';
@@ -20,7 +20,7 @@ const vFocus = { mounted: (el: HTMLElement) => el.focus() };
 
 const tempApplicationId = ref<string | null>(null);
 
-const apiConnectionStore = useApiConnectionStore();
+const connectionStore = useConnectionStore();
 const componentStore = useComponentStore();
 
 // The API urls of an application start hidden and can be shown per application
@@ -38,7 +38,7 @@ function toggleApplication(applicationId: string) {
 
 // An API url that no API connection or script uses is shown as a warning
 function isApiUsed(apiId: string) {
-    return apiConnectionStore.apiConnections.some(connection => connection.sourceUrlId === apiId)
+    return connectionStore.connections.some(connection => connection.kind === 'api' && connection.apiId === apiId)
         || componentStore.isApiRead(apiId);
 }
 

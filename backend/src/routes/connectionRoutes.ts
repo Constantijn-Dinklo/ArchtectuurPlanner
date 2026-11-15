@@ -2,6 +2,7 @@ import express, { Router, Response } from "express";
 
 import { AuthenticatedRequest, getUser } from "../middelware";
 import {
+    connectParts,
     createConnection,
     getConnections,
     parseConnectionInput,
@@ -23,6 +24,17 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     try {
         res.status(201).json(await createConnection(getUser(req), parseConnectionInput(req.body)));
+    }
+    catch(err: any) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// Connects two parts when nothing connects them yet, with the kind that fits them (a table through its database)
+router.post('/connect', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if(typeof req.body.sourceId !== 'string' || typeof req.body.targetId !== 'string') throw new Error("Choose what to connect");
+        res.status(201).json(await connectParts(getUser(req), req.body.sourceId, req.body.targetId));
     }
     catch(err: any) {
         res.status(400).json({ error: err.message });

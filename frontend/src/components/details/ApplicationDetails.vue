@@ -31,17 +31,17 @@ const informationEndpointService = useInformationEndpointService();
 const informationTransferService = useInformationTransferService();
 const informationRelationStore = useInformationRelationStore();
 
-// Returns a warning when the input comes from another application without an api url that sends it
+// Returns a warning when the input comes through an API that does not send it
 function getUnsentFieldWarning(applicationId: string, informationFieldId: string) {
     const sourceId = informationTransferService.getUnsentInputFieldSource(applicationId, informationFieldId);
     if (!sourceId) return undefined;
-    return `Sent from ${resourceService.getResource(sourceId)?.name ?? 'another application'} without an API url or other connection that carries it`;
+    return `Sent from ${resourceService.getResource(sourceId)?.name ?? 'another application'} through an API that does not send it`;
 }
 
 function getUnsentObjectWarning(applicationId: string, informationObjectId: string) {
     const sourceId = informationTransferService.getUnsentInputObjectSource(applicationId, informationObjectId);
     if (!sourceId) return undefined;
-    return `Sent from ${resourceService.getResource(sourceId)?.name ?? 'another application'} without an API url or other connection that carries it`;
+    return `Sent from ${resourceService.getResource(sourceId)?.name ?? 'another application'} through an API that does not send it`;
 }
 
 

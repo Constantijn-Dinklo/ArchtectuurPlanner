@@ -1,6 +1,4 @@
-
-
-import type { OtherConnectionMethod } from "../../stores/otherConnection.store";
+import type { ConnectionKind } from "../../types/connection.types";
 
 export interface CanvasEdge {
     id: string;
@@ -13,20 +11,18 @@ export interface CanvasEdge {
     targetHandle?: string;
 
     data: {
-        apiIds: string[];
-        databaseConnectionIds: string[];
-        // Connections that are not an api, database connection or script: by hand, a send button, a file, ...
-        otherConnectionIds: string[];
-        otherConnectionMethods: OtherConnectionMethod[];
+        // The connections over this edge, and their kinds (for the icons)
+        connectionIds: string[];
+        connectionKinds: ConnectionKind[];
         // Scripts (inside an application or file location) over this edge
         scriptIds: string[];
 
         sourceResourceId: string;
         targetResourceId: string;
 
-        // Problems with the information transfer over this edge, shown as a yellow warning
+        // Problems or gaps in the information transfer over this edge, shown as a yellow warning
         warnings: string[];
-        // Information moves over this edge without any connection, shown in red
+        // Something is wrong over this edge, shown in red
         hasError: boolean;
     };
 

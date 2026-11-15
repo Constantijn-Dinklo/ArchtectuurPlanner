@@ -79,16 +79,15 @@ export async function createRelation(user: User, relation: RelationToCreate) {
     return { relation: await Model.findOne(fields) ?? await Model.create(fields), targetType };
 }
 
-// Information one resource receives from another, added by hand. Without a chosen connection it goes through the
-// connection between the two: made when there is none, and to be chosen when there are several
+// Information one resource receives from another, added by hand. Without a chosen connection it goes through a
+// connection between the two, made when there is none. With several, it can be moved to another one afterwards
 export async function addInformationRelation(user: UserJwtPayload, relation: RelationToCreate) {
     if(relation.sourceResourceId === relation.targetResourceId) throw new Error("A resource cannot receive from itself");
 
     let connectionId = relation.connectionId ?? null;
     if(!connectionId) {
-        const connections = await getCarryingConnections(user, relation.sourceResourceId, relation.targetResourceId);
-        if(connections.length > 1) throw new Error("There are several connections between the two: choose the one the information goes through");
-        connectionId = connections[0]?.id ?? (await connectParts(user, relation.sourceResourceId, relation.targetResourceId)).id;
+        const [connection] = await getCarryingConnections(user, relation.sourceResourceId, relation.targetResourceId);
+        connectionId = connection?.id ?? (await connectParts(user, relation.sourceResourceId, relation.targetResourceId)).id;
     }
 
     const created = await createRelation(user, { ...relation, connectionId, scriptId: null });

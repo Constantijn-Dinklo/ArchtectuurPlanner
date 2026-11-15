@@ -293,7 +293,7 @@
 
         <ConnectionsDetail
             v-if="selectedNodeProjection.nodeInfo.value"
-            :connections-info="selectedNodeProjection.nodeInfo.value.connections"
+            :connections="selectedNodeProjection.nodeInfo.value.connections"
         />
     </div>
 </template>

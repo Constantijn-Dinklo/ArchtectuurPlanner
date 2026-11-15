@@ -1,12 +1,9 @@
 <script setup lang="ts">
     import { computed, ref, watch } from 'vue';
-    import { useApiConnectionStore } from '../../stores/apiConnection.store';
-    import { useApiStore } from '../../stores/api.store';
-    import { useDatabaseConnectionStore } from '../../stores/databaseConnection.store';
-    import { useOtherConnectionStore } from '../../stores/otherConnection.store';
+    import { useConnectionStore } from '../../stores/connection.store';
     import { useInformationRelationStore, type ResourceRelation } from '../../stores/information/informationRelation.store';
     import { useResourceService } from '../../services/resources/resource.service';
-    import { useResourceConnectionService } from '../../services/resourceConnection.service';
+    import { useInformationSourceService } from '../../services/informationSource.service';
     import { byLabel, useConnectionEndOptions } from '../../services/connectionEndOptions.service';
     import type { ConnectionEnd, ConnectionEndTarget, InformationFieldToAdd, InformationObjectToAdd } from '../../types/connectionEnd.types';
     import ConnectedResourcesSection from './ConnectedResourcesSection.vue';
@@ -14,9 +11,9 @@
     // What a resource receives from other resources (incoming) or sends to them (outgoing), in the same way as what a
     // script reads from and writes to. The rows are the resources it is connected to, with the information of the
     // relations between them, so the 'Sends to' of one resource and the 'Receives from' of the other always agree.
-    // How the resources are connected, and which connection carries the information, is decided by the backend.
+    // - picking a resource connects the two; how (the kind of connection) can be set on the connection afterwards
     // - a database is connected per table
-    // - relations via a script belong to the script, so they are not shown here
+    // - relations through a script belong to the script, so they are not shown here
     // - a table that is picked but has no information yet is only kept while the panel shows this resource
     const props = defineProps<{
         resourceId: string;
@@ -29,13 +26,10 @@
         objectRelationIds: Map<string, string[]>;
     }
 
-    const apiConnectionStore = useApiConnectionStore();
-    const apiStore = useApiStore();
-    const databaseConnectionStore = useDatabaseConnectionStore();
-    const otherConnectionStore = useOtherConnectionStore();
+    const connectionStore = useConnectionStore();
     const informationRelationStore = useInformationRelationStore();
     const resourceService = useResourceService();
-    const resourceConnectionService = useResourceConnectionService();
+    const informationSourceService = useInformationSourceService();
     const { getEndFieldOptions, getEndObjectOptions } = useConnectionEndOptions();
 
     const isIncoming = computed(() => props.direction === 'incoming');
@@ -45,15 +39,11 @@
         return isIncoming.value ? [otherId, props.resourceId] : [props.resourceId, otherId];
     }
 
-    // The other resource, when the connection or relation goes from source to target in this direction
-    function getOtherId(sourceId: string | null | undefined, targetId: string | null | undefined) {
-        if (!sourceId || !targetId || sourceId === targetId) return undefined;
+    // The other end, when the connection or relation goes from source to target in this direction
+    function getOtherId(sourceId: string, targetId: string) {
+        if (sourceId === targetId) return undefined;
         if (isIncoming.value) return targetId === props.resourceId ? sourceId : undefined;
         return sourceId === props.resourceId ? targetId : undefined;
-    }
-
-    function endKey(end: ConnectionEndTarget) {
-        return `${end.resourceId}:${end.componentId ?? ''}`;
     }
 
     // Tables picked without information yet
@@ -61,11 +51,10 @@
     watch(() => props.resourceId, () => { pending.value = []; });
 
     const ends = computed<RelationEnd[]>(() => {
-        const byKey = new Map<string, RelationEnd>();
+        const byId = new Map<string, RelationEnd>();
 
         function getEnd(resourceId: string) {
-            const key = endKey({ resourceId, componentId: null });
-            const end = byKey.get(key) ?? {
+            const end = byId.get(resourceId) ?? {
                 resourceId,
                 componentId: null,
                 informationFieldIds: [],
@@ -73,13 +62,13 @@
                 fieldRelationIds: new Map(),
                 objectRelationIds: new Map()
             };
-            byKey.set(key, end);
+            byId.set(resourceId, end);
             return end;
         }
 
         function addRelation(relation: ResourceRelation, kind: 'field' | 'object', informationId: string) {
             const otherId = getOtherId(relation.sourceResourceId, relation.targetResourceId);
-            if (!otherId || relation.viaConnectionType === 'component') return;
+            if (!otherId || relation.scriptId) return;
             const end = getEnd(otherId);
             const ids = kind === 'field' ? end.informationFieldIds : end.informationObjectIds;
             const relationIds = kind === 'field' ? end.fieldRelationIds : end.objectRelationIds;
@@ -91,24 +80,13 @@
         informationRelationStore.objectRelations.forEach(relation => addRelation(relation, 'object', relation.informationObjectId));
 
         // The connected resources, also when nothing goes between them yet
-        for (const connection of databaseConnectionStore.databaseConnections) {
-            const [sourceId, targetId] = connection.operation.includes(isIncoming.value ? 'read' : 'write')
-                ? (isIncoming.value ? [connection.databaseId, connection.entityId] : [connection.entityId, connection.databaseId])
-                : [undefined, undefined];
-            const otherId = getOtherId(sourceId, targetId);
-            if (otherId) getEnd(otherId);
-        }
-        for (const connection of apiConnectionStore.apiConnections) {
-            const otherId = getOtherId(connection.sourceId || apiStore.getApi(connection.sourceUrlId)?.applicationId, connection.targetId);
-            if (otherId) getEnd(otherId);
-        }
-        for (const connection of otherConnectionStore.otherConnections) {
-            const otherId = getOtherId(connection.sourceId, connection.targetId);
+        for (const connection of connectionStore.connections) {
+            const otherId = getOtherId(connection.source.id, connection.target.id);
             if (otherId) getEnd(otherId);
         }
 
         pending.value.forEach(target => getEnd(target.resourceId));
-        return [...byKey.values()];
+        return [...byId.values()];
     });
 
     // <-- What can go on an end -->
@@ -145,17 +123,20 @@
     // <-- Changes -->
 
     async function connect(target: ConnectionEndTarget) {
-        pending.value = [...pending.value, target];
-        await resourceConnectionService.connect(...getEnds(target.resourceId));
+        if (resourceService.getResource(target.resourceId)?.type === 'table') pending.value = [...pending.value, target];
+        await connectionStore.connectParts(...getEnds(target.resourceId));
     }
 
-    // connectionId: the other resource; for a database with its tables
+    // connectionId: the other resource. Its connections go, with everything that goes through them
     async function disconnect(connectionId: string) {
         pending.value = pending.value.filter(target => {
             const resource = resourceService.getResource(target.resourceId);
-            return target.resourceId !== connectionId && !(resource?.type === 'table' && resource.databaseId === connectionId);
+            return !(resource?.type === 'table' && resource.databaseId === connectionId);
         });
-        await resourceConnectionService.disconnect(...getEnds(connectionId));
+        const [sourceId, targetId] = getEnds(connectionId);
+        for (const connection of informationSourceService.getCarryingConnections(sourceId, targetId)) {
+            await connectionStore.deleteConnection(connection.id);
+        }
     }
 
     function getRelations(end: RelationEnd, kind?: 'field' | 'object', informationId?: string) {
@@ -173,7 +154,7 @@
         const end = ends.value[index];
         if (!end) return;
         pending.value = pending.value.filter(target => target.resourceId !== end.resourceId);
-        await resourceConnectionService.removeRelations(getRelations(end));
+        await informationRelationStore.removeRelations(getRelations(end));
     }
 
     // Only existing information is received or sent: new information is made in the inputs or outputs
@@ -181,7 +162,7 @@
         const end = ends.value[index];
         if (!end) return;
         const [sourceResourceId, targetResourceId] = getEnds(end.resourceId);
-        await resourceConnectionService.addRelation({ kind, informationId, sourceResourceId, targetResourceId });
+        await informationRelationStore.addRelation({ kind, informationId, sourceResourceId, targetResourceId });
     }
 
     function addField(index: number, information: InformationFieldToAdd) {
@@ -194,7 +175,7 @@
 
     function removeInformation(index: number, kind: 'field' | 'object', informationId: string) {
         const end = ends.value[index];
-        if (end) resourceConnectionService.removeRelations(getRelations(end, kind, informationId));
+        if (end) informationRelationStore.removeRelations(getRelations(end, kind, informationId));
     }
 </script>
 

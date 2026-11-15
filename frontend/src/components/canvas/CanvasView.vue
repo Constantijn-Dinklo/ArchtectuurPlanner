@@ -20,6 +20,7 @@ import FileLocationNode from "../nodes/FileLocationNode.vue";
 import { useComponentStore } from "../../stores/resources/component.store";
 import ConnectionEdge from "../edges/ConnectionEdge.vue";
 import { useInformationRelationStore } from "../../stores/information/informationRelation.store";
+import { useConnectionStore } from "../../stores/connection.store";
 import { useEndpointStore } from "../../stores/endpoint.store";
 import { useApplicationStore } from "../../stores/resources/application.store";
 import { useTableStore } from "../../stores/resources/table.store";
@@ -32,6 +33,7 @@ const viewStore = useViewStore();
 const UIStore = useUIStore();
 const architectureViewService = useArchitectureViewService();
 const informationRelationStore = useInformationRelationStore();
+const connectionStore = useConnectionStore();
 const endpointStore = useEndpointStore();
 const componentStore = useComponentStore();
 const applicationStore = useApplicationStore();
@@ -59,6 +61,7 @@ const flowEdges = useCanvasProjection().flowEdges;
 onMounted(() => {
   viewStore.fetchViews();
   informationRelationStore.fetchInformationRelations();
+  connectionStore.fetchConnections();
   endpointStore.fetchEndpoints();
   componentStore.fetchComponents();
 })
@@ -83,7 +86,7 @@ watch(
 );
 
 // The relations are changed in the backend whenever information is added to or removed from a resource,
-// and when a resource is removed (its relations are removed with it)
+// and when a resource is removed (its relations and connections are removed with it)
 watch(
   () => [
     applicationStore.applications,
@@ -93,7 +96,10 @@ watch(
     serverStore.servers.length,
     externalStore.externals.length
   ],
-  () => informationRelationStore.fetchInformationRelations(),
+  () => {
+    informationRelationStore.fetchInformationRelations();
+    connectionStore.fetchConnections();
+  },
   { deep: true }
 );
 

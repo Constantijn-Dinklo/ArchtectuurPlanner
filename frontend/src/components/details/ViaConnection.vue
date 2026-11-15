@@ -5,78 +5,62 @@
         type ResourceFieldRelation,
         type ResourceObjectRelation
     } from '../../stores/information/informationRelation.store';
-    import { useInformationSourceService, type CandidateConnection } from '../../services/informationSource.service';
+    import { useConnectionStore } from '../../stores/connection.store';
+    import { useInformationSourceService } from '../../services/informationSource.service';
 
-    // Shows through which connection the information of a relation comes into the target:
-    // a warning when there is none, the only connection, or a choice when there are several
+    // Shows through which connection the information of a relation comes into the target, with a choice when there
+    // are several connections between the two. A connection of which nobody knows how it works yet gets a warning
     const props = defineProps<{
         relation: ResourceFieldRelation | ResourceObjectRelation;
     }>();
 
     const informationRelationStore = useInformationRelationStore();
+    const connectionStore = useConnectionStore();
     const informationSourceService = useInformationSourceService();
 
-    const isObjectRelation = computed(() => 'informationObjectId' in props.relation);
+    const connection = computed(() => connectionStore.getConnection(props.relation.connectionId));
+    const isUnknown = computed(() => connection.value?.kind === 'unknown');
+    const label = computed(() => informationSourceService.describeRelationRoute(props.relation));
 
-    const via = computed(() => informationSourceService.resolveVia(
-        props.relation,
-        'informationObjectId' in props.relation
-            ? { informationObjectId: props.relation.informationObjectId }
-            : { informationFieldId: props.relation.informationFieldId }
-    ));
+    // A script decides itself what it carries, so its relations cannot move
+    const candidates = computed(() => props.relation.scriptId
+        ? []
+        : informationSourceService.getCarryingConnections(props.relation.sourceResourceId, props.relation.targetResourceId)
+    );
 
-    function candidateKey(candidate?: CandidateConnection) {
-        return candidate ? `${candidate.type}:${candidate.id}` : '';
-    }
-
-    function choose(key: string) {
-        const candidate = via.value.candidates.find(option => candidateKey(option) === key);
-        const value = candidate ? { type: candidate.type, id: candidate.id } : null;
-
-        if (isObjectRelation.value) {
-            informationRelationStore.setObjectRelationVia(props.relation.id, value);
-        } else {
-            informationRelationStore.setFieldRelationVia(props.relation.id, value);
-        }
+    function choose(connectionId: string) {
+        informationRelationStore.setRelationConnection('informationObjectId' in props.relation ? 'object' : 'field', props.relation.id, connectionId);
     }
 </script>
 
 <template>
-    <span
-        v-if="!via.candidates.length"
-        class="via none"
-        title="It is not known yet how this information gets here: no api, script, database or other connection carries it"
-    >
-        <i class="pi pi-exclamation-triangle" />
-        no connection
-    </span>
-
-    <span
-        v-else-if="via.candidates.length === 1"
-        class="via"
-        :title="`Comes through ${via.candidates[0]!.label}`"
-    >
-        via {{ via.candidates[0]!.label }}
-    </span>
-
     <select
-        v-else
+        v-if="candidates.length > 1"
         class="via-select"
-        :class="{ 'needs-choice': via.needsChoice }"
-        :value="candidateKey(via.selected)"
-        :title="via.needsChoice ? 'This information can come through several connections, select the correct one' : undefined"
+        :class="{ unknown: isUnknown }"
+        :value="relation.connectionId ?? ''"
+        title="The connection this information comes through"
         @click.stop
         @change="choose(($event.target as HTMLSelectElement).value)"
     >
-        <option value="" disabled>Select connection</option>
         <option
-            v-for="candidate in via.candidates"
-            :key="candidateKey(candidate)"
-            :value="candidateKey(candidate)"
+            v-for="candidate in candidates"
+            :key="candidate.id"
+            :value="candidate.id"
         >
-            via {{ candidate.label }}
+            via {{ informationSourceService.describeConnection(candidate) }}
         </option>
     </select>
+
+    <span
+        v-else-if="label"
+        class="via"
+        :class="{ unknown: isUnknown }"
+        :title="isUnknown ? 'It is not known yet how this information gets here' : `Comes through ${label}`"
+    >
+        <i v-if="isUnknown" class="pi pi-exclamation-triangle" />
+        via {{ label }}
+    </span>
 </template>
 
 <style scoped>
@@ -92,12 +76,12 @@
     text-overflow: ellipsis;
 }
 
-/* A warning: the information is received, but nothing is known to bring it */
-.via.none {
+/* A warning: the information gets here, but nobody knows how yet */
+.via.unknown {
     color: #d97706;
 }
 
-.via.none .pi {
+.via.unknown .pi {
     font-size: 9px;
 }
 
@@ -123,7 +107,7 @@
     border-color: #a5b4fc;
 }
 
-.via-select.needs-choice {
+.via-select.unknown {
     border-color: #fcd34d;
     background: #fffbeb;
     color: #b45309;

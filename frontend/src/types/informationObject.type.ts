@@ -9,9 +9,8 @@ export type AddInformationObjectRequest =
           informationObjectId: string;
           sourceResourceId: string;
           sourceResourceType: ResourceType;
-          // The connection the information comes through, when the user picked one
-          viaConnectionType?: 'api' | 'database' | 'other' | 'component' | null;
-          viaConnectionId?: string | null;
+          // The connection the information comes through; none inside one resource
+          connectionId?: string | null;
       };
 
 export interface InformationObject {

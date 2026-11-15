@@ -63,7 +63,7 @@
                     :resource-id="selectedNodeProjection.nodeInfo.value.node.id"
                     resource-type="fileLocation"
                 />
-                <ConnectionsDetail :connections-info="selectedNodeProjection.nodeInfo.value.connections" />
+                <ConnectionsDetail :connections="selectedNodeProjection.nodeInfo.value.connections" />
             </template>
         </template>
 
@@ -83,9 +83,7 @@
             <EdgeConnectionsDetail
                 :source-id="selectedEdgeProjection.connectionsInfo.value.sourceId"
                 :target-id="selectedEdgeProjection.connectionsInfo.value.targetId"
-                :api-connection-ids="selectedEdgeProjection.connectionsInfo.value.apiConnections.map(connection => connection.id)"
-                :database-connection-ids="selectedEdgeProjection.connectionsInfo.value.databaseConnections.map(connection => connection.id)"
-                :other-connection-ids="selectedEdgeProjection.connectionsInfo.value.otherConnections.map(connection => connection.id)"
+                :connection-ids="selectedEdgeProjection.connectionsInfo.value.connections.map(connection => connection.id)"
                 :script-ids="selectedEdgeProjection.connectionsInfo.value.scriptIds"
             />
         </template>

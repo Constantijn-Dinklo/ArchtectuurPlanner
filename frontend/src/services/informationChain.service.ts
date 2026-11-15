@@ -336,14 +336,6 @@ export function useInformationChainService() {
             );
     }
 
-    // A script only carries information from where it reads it to where it writes it
-    function passesThrough(script: Component, relation: ResourceRelation, endHas: (end: ComponentEnd) => boolean) {
-        const isEndOf = (end: ComponentEnd, resourceId: string) =>
-            end.resourceId === resourceId || end.resourceId === getDatabaseId(resourceId);
-        return script.inputs.some(end => isEndOf(end, relation.sourceResourceId) && endHas(end)) &&
-            script.outputs.some(end => isEndOf(end, relation.targetResourceId) && endHas(end));
-    }
-
     // The apis a script reads the information through from one of these resources
     function getReadApiIds(script: Component, resourceIds: string[], endHas: (end: ComponentEnd) => boolean) {
         return [...new Set(script.inputs
@@ -358,27 +350,16 @@ export function useInformationChainService() {
         return undefined;
     }
 
-    // The scripts the information goes through on its way from the source to the target of the relation: the script
-    // the relation is set to go via, or, when nothing is set, the scripts that read the information from the source
-    // and write it to the target
-    function getRelationScripts(relation: ResourceRelation, endHas: (end: ComponentEnd) => boolean): Component[] {
-        if (relation.sourceResourceId === relation.targetResourceId) return [];
-
-        if (relation.viaConnectionType === 'component' && relation.viaConnectionId) {
-            const script = componentStore.getComponent(relation.viaConnectionId);
-            return script ? [script] : [];
-        }
-        if (relation.viaConnectionType) return [];
-
-        const sourceIds = [relation.sourceResourceId, getDatabaseId(relation.sourceResourceId)].filter(id => id !== undefined);
-        const targetIds = [relation.targetResourceId, getDatabaseId(relation.targetResourceId)].filter(id => id !== undefined);
-        return componentStore.getScriptsBetween(sourceIds, targetIds).filter(script => passesThrough(script, relation, endHas));
+    // The script the information goes through on its way from the source to the target of the relation, if any
+    function getRelationScripts(relation: ResourceRelation): Component[] {
+        const script = relation.scriptId ? componentStore.getComponent(relation.scriptId) : undefined;
+        return script ? [script] : [];
     }
 
     // A relation that goes through a script gets the script as a step in between: source -> script -> target
     function relationToEdges(relation: ResourceRelation, endHas: (end: ComponentEnd) => boolean, carriedByObjectId?: string): ChainEdge[] {
         const edge = relationToEdge(relation, carriedByObjectId);
-        const scripts = getRelationScripts(relation, endHas);
+        const scripts = getRelationScripts(relation);
         if (!scripts.length) return [edge];
 
         return scripts.flatMap(script => {
@@ -752,8 +733,7 @@ export function useInformationChainService() {
                 if (!isExternal(end.resourceId) || !endHas(end)) continue;
                 // A relation through the script already shows how the information gets there
                 if (relations.some(relation =>
-                    relation.viaConnectionType === 'component' &&
-                    relation.viaConnectionId === holder.componentId &&
+                    relation.scriptId === holder.componentId &&
                     relation.targetResourceId === end.resourceId
                 )) continue;
                 edges.push({

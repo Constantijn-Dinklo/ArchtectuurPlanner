@@ -56,12 +56,13 @@ Decisions:
 
 Phase 1, connections at the level of resources:
 
-- [x] Add the `Connection` model (one collection, a schema per kind, ends as `{ id, type }`) and one connection service that is the only place that reads and writes connections: `models/connection.model.ts`, `types/connection.type.ts`, `services/connection.service.ts`, routes on `/connections`. Nothing uses it yet
-- [ ] Give relations a required `connectionId` instead of `viaConnectionType` and `viaConnectionId`. Allow the one exception: a relation inside a resource (same source and target) has no connection
-- [ ] Migrate: every `ApiConnection` and `OtherConnection` becomes one connection, every `DatabaseConnection` one or two (one per direction), the carried information of other connections is checked against the relations, and relations without a connection get an `unknown` one
-- [ ] Move the backend over: the external element sync, the received information of external elements, removing resources, and the information usage
-- [ ] Move the frontend over: the connection tables, the canvas lines, the information source and information chain services, the via choice, and the 'Receives from' and 'Sends to' sections of an application (`InformationRelationsSection.vue`, `/resourceConnections`), which then become simple: connecting two resources is creating one connection
-- [ ] Remove the old models, routes and stores of the three connection types
+- [x] Add the `Connection` model (one collection, a schema per kind, ends as `{ id, type }`) and one connection service that is the only place that reads and writes connections: `models/connection.model.ts`, `types/connection.type.ts`, `services/connection.service.ts`, routes on `/connections`
+- [x] Give relations a required `connectionId` instead of `viaConnectionType` and `viaConnectionId`. Allow the one exception: a relation inside a resource (same source and target) has no connection. Every relation is made and checked in `createRelation` (`informationRelation.service.ts`). Until phase 2, a relation through a script has a `scriptId` instead
+- [x] ~~Migrate the old connections~~: not needed, the database was emptied. The old one-time migrations were removed as well; only `organisationRoles` is left
+- [x] Move the backend over: the external element sync, the received information of external elements, removing resources, and the information usage. The external element sync now only adds relations (hand-made ones can no longer be told apart), and removes relations of information an external element no longer provides
+- [x] Move the frontend over: one connection table instead of three tabs, the canvas lines (counted per kind), the information source and information chain services, the via choice, and the 'Receives from' and 'Sends to' sections of an application, where picking a resource connects the two (`POST /connections/connect`)
+- [x] Remove the old models, routes and stores of the three connection types
+- [ ] Try phase 1 in the running app: connecting, changing the kind of a connection, receiving and sending, removing a connection with what goes through it, the warnings on the canvas, and the information chain
 
 Phase 2, components as ends:
 

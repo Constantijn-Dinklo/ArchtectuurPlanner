@@ -1,138 +1,51 @@
-import { useApiConnectionStore } from "../stores/apiConnection.store";
 import { useApiStore } from "../stores/api.store";
-import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
-import { useOtherConnectionStore, getOtherConnectionMethodInfo } from "../stores/otherConnection.store";
-import { useInformationObjectStore } from "../stores/information/informationObject.store";
-import type { ConnectionType, ResourceRelation } from "../stores/information/informationRelation.store";
-import { useResourceService } from "./resources/resource.service";
+import { useConnectionStore } from "../stores/connection.store";
+import type { ResourceRelation } from "../stores/information/informationRelation.store";
 import { useComponentStore } from "../stores/resources/component.store";
-import { connectsScript, getScriptCarriedBetween } from "../types/component.types";
+import { useResourceService } from "./resources/resource.service";
+import { getConnectionKindInfo, type Connection } from "../types/connection.types";
 
-// What travels from the source to the target
-export type CarriedInformation =
-    | { informationFieldId: string }
-    | { informationObjectId: string };
-
-// A connection the information can travel through from the source to the target
-export interface CandidateConnection {
-    type: ConnectionType;
-    id: string;
-    label: string;
-}
-
-export interface ResolvedVia {
-    candidates: CandidateConnection[];
-    // The connection the information comes through: the one chosen by the user,
-    // or the only candidate when there is just one
-    selected?: CandidateConnection;
-    // There are several candidates and the user has not chosen one yet
-    needsChoice: boolean;
-}
-
-// Works out through which api, script, database connection or other connection information comes from another resource.
-// Api urls, other connections and scripts list the information they carry. Database connections do not,
-// so every database connection between the two resources can carry anything.
+// Which connection information comes through. A relation names its connection; this works out the connections it
+// could go through instead, and how to show them
 export function useInformationSourceService() {
-    const apiConnectionStore = useApiConnectionStore();
     const apiStore = useApiStore();
-    const databaseConnectionStore = useDatabaseConnectionStore();
-    const otherConnectionStore = useOtherConnectionStore();
-    const informationObjectStore = useInformationObjectStore();
-    const resourceService = useResourceService();
+    const connectionStore = useConnectionStore();
     const componentStore = useComponentStore();
+    const resourceService = useResourceService();
 
-    function carries(carrier: { informationFieldIds?: string[], informationObjectIds?: string[] }, information: CarriedInformation) {
-        if ('informationObjectId' in information) {
-            return carrier.informationObjectIds?.includes(information.informationObjectId) ?? false;
-        }
-        if (carrier.informationFieldIds?.includes(information.informationFieldId)) return true;
-        // A field also travels inside an object that is carried
-        return (carrier.informationObjectIds ?? []).some(objectId =>
-            informationObjectStore.getInformationObject(objectId)?.informationFieldIds.includes(information.informationFieldId)
-        );
-    }
-
-    // Tables are connected through their database
-    function getDatabaseId(resourceId: string) {
+    // A part and the parts it is inside of: a table is inside its database
+    function getHolderIds(resourceId: string) {
         const resource = resourceService.getResource(resourceId);
-        if (resource?.type === 'table') return resource.databaseId;
-        if (resource?.type === 'database') return resource.id;
-        return undefined;
+        return resource?.type === 'table' ? [resourceId, resource.databaseId] : [resourceId];
     }
 
-    function getCandidateConnections(sourceId: string, targetId: string, information: CarriedInformation): CandidateConnection[] {
-        const candidates: CandidateConnection[] = [];
-
-        for (const apiConnection of apiConnectionStore.apiConnections) {
-            if (apiConnection.sourceId !== sourceId || apiConnection.targetId !== targetId) continue;
-            const url = apiStore.getApi(apiConnection.sourceUrlId);
-            if (!url || !carries(url, information)) continue;
-            candidates.push({ type: 'api', id: apiConnection.id, label: `API ${url.url}` });
-        }
-
-        for (const otherConnection of otherConnectionStore.otherConnections) {
-            if (otherConnection.sourceId !== sourceId || otherConnection.targetId !== targetId) continue;
-            if (!carries(otherConnection, information)) continue;
-            candidates.push({
-                type: 'other',
-                id: otherConnection.id,
-                label: `${getOtherConnectionMethodInfo(otherConnection.method).label}${otherConnection.description ? `: ${otherConnection.description}` : ''}`
-            });
-        }
-
-        const sourceIds = [sourceId, getDatabaseId(sourceId)].filter(id => id !== undefined);
-        const targetIds = [targetId, getDatabaseId(targetId)].filter(id => id !== undefined);
-
-        // Scripts carry information like other connections: what they read from the source into their host,
-        // write from their host to the target, or read from the source and write to the target
-        for (const script of componentStore.components.filter(component => connectsScript(component, sourceIds, targetIds))) {
-            if (!carries(getScriptCarriedBetween(script, sourceIds, targetIds), information)) continue;
-            const host = resourceService.getResource(script.resourceId)?.name;
-            candidates.push({ type: 'component', id: script.id, label: `Script ${script.name}${host ? ` (on ${host})` : ''}` });
-        }
-
-        for (const databaseConnection of databaseConnectionStore.databaseConnections) {
-            const readFromSource = databaseConnection.operation.includes('read')
-                && sourceIds.includes(databaseConnection.databaseId)
-                && databaseConnection.entityId === targetId;
-            const writtenToTarget = databaseConnection.operation.includes('write')
-                && targetIds.includes(databaseConnection.databaseId)
-                && databaseConnection.entityId === sourceId;
-            if (readFromSource || writtenToTarget) {
-                const databaseName = resourceService.getResource(databaseConnection.databaseId)?.name ?? 'database';
-                candidates.push({
-                    type: 'database',
-                    id: databaseConnection.id,
-                    label: `DB ${readFromSource ? 'read from' : 'write to'} ${databaseName}`
-                });
-            }
-        }
-
-        return candidates;
-    }
-
-    function resolveVia(relation: ResourceRelation, information: CarriedInformation): ResolvedVia {
-        const candidates = getCandidateConnections(relation.sourceResourceId, relation.targetResourceId, information);
-
-        const chosen = candidates.find(candidate =>
-            candidate.type === relation.viaConnectionType && candidate.id === relation.viaConnectionId
+    // The connections information can go through from the source to the target: their ends are those parts, or hold them
+    function getCarryingConnections(sourceId: string, targetId: string): Connection[] {
+        const sourceIds = getHolderIds(sourceId);
+        const targetIds = getHolderIds(targetId);
+        return connectionStore.connections.filter(connection =>
+            sourceIds.includes(connection.source.id) && targetIds.includes(connection.target.id)
         );
-        const selected = chosen ?? (candidates.length === 1 ? candidates[0] : undefined);
-
-        return {
-            candidates,
-            selected,
-            needsChoice: candidates.length > 1 && !chosen
-        };
     }
 
-    // Short text for a dropdown option: where the information would come from
-    function describeCandidates(sourceId: string, targetId: string, information: CarriedInformation) {
-        const candidates = getCandidateConnections(sourceId, targetId, information);
-        if (!candidates.length) return '(none)';
-        if (candidates.length === 1) return `via ${candidates[0]!.label}`;
-        return `via ${candidates.length} connections`;
+    // E.g. "API https://…/orders", "By hand: weekly export", "Unknown"
+    function describeConnection(connection: Connection) {
+        const kind = connection.kind === 'api'
+            ? `API ${apiStore.getApi(connection.apiId)?.url ?? ''}`.trim()
+            : getConnectionKindInfo(connection.kind).label;
+        return connection.description ? `${kind}: ${connection.description}` : kind;
     }
 
-    return { getCandidateConnections, resolveVia, describeCandidates };
+    // What a relation goes through, as text: its connection, or the script it goes through
+    function describeRelationRoute(relation: ResourceRelation) {
+        if (relation.scriptId) {
+            const script = componentStore.getComponent(relation.scriptId);
+            const host = script ? resourceService.getResource(script.resourceId)?.name : undefined;
+            return `Script ${script?.name ?? '?'}${host ? ` (on ${host})` : ''}`;
+        }
+        const connection = connectionStore.getConnection(relation.connectionId);
+        return connection ? describeConnection(connection) : undefined;
+    }
+
+    return { getHolderIds, getCarryingConnections, describeConnection, describeRelationRoute };
 }

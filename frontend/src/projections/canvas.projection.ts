@@ -3,8 +3,7 @@ import { MarkerType } from "@vue-flow/core";
 import { useResourceService, type ResolvedResource, type Resource } from "../services/resources/resource.service";
 import { useViewStore, type ViewNode } from "../stores/canvas/view.store";
 import { useApiStore } from "../stores/api.store";
-import { useApiConnectionStore } from "../stores/apiConnection.store";
-import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
+import { useConnectionStore } from "../stores/connection.store";
 import type { CanvasNode } from "./types/canvasNode";
 import type { CanvasEdge } from "./types/canvasEdge";
 import { useServerStore, type Server } from "../stores/resources/server.store";
@@ -17,8 +16,6 @@ import { useInformationFieldStore } from "../stores/information/informationField
 import { useInformationObjectStore } from "../stores/information/informationObject.store";
 import { useDatabaseStore, type Database } from "../stores/resources/database.store";
 import { useTableStore, type Table } from "../stores/resources/table.store";
-import { useApplicationStore } from "../stores/resources/application.store";
-import { useOtherConnectionStore } from "../stores/otherConnection.store";
 import { useInformationTransferService } from "../services/informationTransfer.service";
 import type { ResolvedInformationFieldReference } from "../types/informationField.type";
 import type { ResolvedInformationObjectReference } from "../types/informationObject.type";
@@ -77,18 +74,15 @@ export function useCanvasProjection() {
     const serverStore = useServerStore();
     const databaseStore = useDatabaseStore();
     const tableStore = useTableStore();
-    const applicationStore = useApplicationStore();
     const componentStore = useComponentStore();
     const endpointStore = useEndpointStore();
     const endpointInformationService = useEndpointInformationService();
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
-    const otherConnectionStore = useOtherConnectionStore();
     const informationTransferService = useInformationTransferService();
 
     const apiStore = useApiStore();
-    const apiConnectionStore = useApiConnectionStore();
-    const databaseConnectionStore = useDatabaseConnectionStore();
+    const connectionStore = useConnectionStore();
 
     const entityIdToNodeMap = computed(() => {
         const map = new Map<string, ViewNode>();
@@ -122,11 +116,9 @@ export function useCanvasProjection() {
                 sourceHandle: source.handleId,
                 targetHandle: target.handleId,
                 data: {
-                    apiIds: [],
-                    databaseConnectionIds: [],
-                    otherConnectionIds: [],
+                    connectionIds: [],
+                    connectionKinds: [],
                     scriptIds: [],
-                    otherConnectionMethods: [],
                     sourceResourceId,
                     targetResourceId,
                     warnings: [],
@@ -160,63 +152,15 @@ export function useCanvasProjection() {
             return edge;
         }
 
-        function addConnection(
-            sourceResourceId: string,
-            targetResourceId: string,
-            connectionId: string,
-            field: keyof Pick<
-            CanvasEdge["data"],
-            'apiIds' | 'databaseConnectionIds' | 'otherConnectionIds' | 'scriptIds'
-            >
-        ) {
-            getOrCreateEdge(sourceResourceId, targetResourceId)?.data[field].push(connectionId);
-        }
-
-        for(const apiConnection of apiConnectionStore.apiConnections){
-            addConnection(
-                apiConnection.sourceId,
-                apiConnection.targetId,
-                apiConnection.id,
-                'apiIds'
+        // Every connection is an edge in the direction the information flows. All connections between the same two
+        // shown ends share one edge. An end is drawn at the closest level that is visible (a table at its database)
+        for(const connection of connectionStore.connections){
+            const edge = getOrCreateEdge(
+                getVisibleEndId({ resourceId: connection.source.id, componentId: null }),
+                getVisibleEndId({ resourceId: connection.target.id, componentId: null })
             );
-
-        }
-
-        for(const otherConnection of otherConnectionStore.otherConnections){
-            if(!otherConnection.sourceId || !otherConnection.targetId) continue;
-            addConnection(
-                otherConnection.sourceId,
-                otherConnection.targetId,
-                otherConnection.id,
-                'otherConnectionIds'
-            );
-            getOrCreateEdge(otherConnection.sourceId, otherConnection.targetId)?.data.otherConnectionMethods.push(otherConnection.method);
-        }
-
-        // Information that goes from one application to another without an api url that sends it.
-        // When there is no connection between the applications at all, the edge only shows the warning
-        const applicationIds = new Set(applicationStore.applications.map((application) => application.id));
-        for(const sourceId of applicationIds) {
-            for(const targetId of applicationIds) {
-                if(sourceId === targetId) continue;
-                if(informationTransferService.getTransferWarnings(sourceId, targetId)) {
-                    getOrCreateEdge(sourceId, targetId);
-                }
-            }
-        }
-
-        // The edge points in the direction the data flows: reading goes from the database to the resource,
-        // writing goes from the resource to the database. A connection that does both gets an edge in each direction
-        for(const dbConnection of databaseConnectionStore.databaseConnections){
-            const writes = dbConnection.operation.includes('write');
-            const reads = dbConnection.operation.includes('read') || !writes;
-
-            if(reads) {
-                addConnection(dbConnection.databaseId, dbConnection.entityId, dbConnection.id, 'databaseConnectionIds');
-            }
-            if(writes) {
-                addConnection(dbConnection.entityId, dbConnection.databaseId, dbConnection.id, 'databaseConnectionIds');
-            }
+            edge?.data.connectionIds.push(connection.id);
+            edge?.data.connectionKinds.push(connection.kind);
         }
 
 
@@ -230,10 +174,10 @@ export function useCanvasProjection() {
 
             const scriptEndId = componentsVisible ? component.id : component.resourceId;
             for(const input of getDrawnEnds(component.inputs)) {
-                addConnection(getVisibleEndId(input), scriptEndId, component.id, 'scriptIds');
+                getOrCreateEdge(getVisibleEndId(input), scriptEndId)?.data.scriptIds.push(component.id);
             }
             for(const output of getDrawnEnds(component.outputs)) {
-                addConnection(scriptEndId, getVisibleEndId(output), component.id, 'scriptIds');
+                getOrCreateEdge(scriptEndId, getVisibleEndId(output))?.data.scriptIds.push(component.id);
             }
         }
 
@@ -287,9 +231,9 @@ export function useCanvasProjection() {
         });
     }
 
-    // Where an end of a script is shown on the canvas: a file in a file location when components are visible,
+    // Where an end of a script or connection is shown on the canvas: a file in a file location when components are visible,
     // otherwise its file location. A table when tables are visible, otherwise its database
-    function getVisibleEndId(end: ComponentEnd): string {
+    function getVisibleEndId(end: Pick<ComponentEnd, 'resourceId' | 'componentId'>): string {
         if(end.componentId && isResourceTypeVisible(UIStore.levelOfDetail, 'component')) {
             return end.componentId;
         }

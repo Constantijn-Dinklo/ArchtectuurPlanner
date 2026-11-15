@@ -2,7 +2,7 @@
     import { computed } from 'vue';
     import { BaseEdge, getBezierPath, type EdgeProps } from '@vue-flow/core';
     import type { CanvasEdge } from '../../projections/types/canvasEdge';
-    import { getOtherConnectionMethodInfo } from '../../stores/otherConnection.store';
+    import { getConnectionKindInfo } from '../../types/connection.types';
 
     const props = defineProps<EdgeProps<CanvasEdge['data']>>();
 
@@ -17,49 +17,34 @@
     }));
 
     const warningCount = computed(() => props.data?.warnings.length ?? 0);
-    // Information is moved without any connection: an error instead of a warning
+    // Something is wrong over this edge: an error instead of a warning
     const hasError = computed(() => props.data?.hasError ?? false);
-
-    const otherCount = computed(() => props.data?.otherConnectionIds.length ?? 0);
 
     // Scripts inside an application or file location
     const scriptCount = computed(() => props.data?.scriptIds.length ?? 0);
+    const kinds = computed(() => props.data?.connectionKinds ?? []);
 
-    const systemConnectionCount = computed(() =>
-        (props.data?.apiIds.length ?? 0) +
-        (props.data?.databaseConnectionIds.length ?? 0) +
-        scriptCount.value
+    const hasConnections = computed(() => kinds.value.length + scriptCount.value > 0);
+
+    // Only connections that are not a system link (an API, a database connection or a script), such as by hand,
+    // a file or unknown: shown with a dashed line
+    const isLooseOnly = computed(() =>
+        hasConnections.value && scriptCount.value === 0 && kinds.value.every(kind => kind !== 'api' && kind !== 'database')
     );
-
-    // An edge without any connection only exists to show that information is sent without a connection
-    const hasConnections = computed(() => systemConnectionCount.value + otherCount.value > 0);
-
-    // Only other connections (by hand, a send button, a file, ...): shown with a dashed line
-    const isOtherOnly = computed(() => otherCount.value > 0 && systemConnectionCount.value === 0);
 
     function plural(count: number, single: string, multiple: string) {
         return `${count} ${count === 1 ? single : multiple}`;
     }
 
+    // Counted per kind, e.g. "1 API · 1 DB · 2 by hand · 1 script"
     const label = computed(() => {
-        const parts: string[] = [];
-
-        const apiCount = props.data?.apiIds.length ?? 0;
-        const databaseCount = props.data?.databaseConnectionIds.length ?? 0;
-
-        if (apiCount) parts.push(plural(apiCount, 'API', "API's"));
-        if (databaseCount) parts.push(plural(databaseCount, 'DB', "DB's"));
+        const counts = new Map<string, number>();
+        for (const kind of kinds.value) {
+            const kindLabel = kind === 'api' ? 'API' : kind === 'database' ? 'DB' : getConnectionKindInfo(kind).label.toLowerCase();
+            counts.set(kindLabel, (counts.get(kindLabel) ?? 0) + 1);
+        }
+        const parts = [...counts].map(([kindLabel, count]) => `${count} ${kindLabel}`);
         if (scriptCount.value) parts.push(plural(scriptCount.value, 'script', 'scripts'));
-        // Other connections are counted per method, e.g. "1 by hand · 2 send function"
-        const methodCounts = new Map<string, number>();
-        for (const method of props.data?.otherConnectionMethods ?? []) {
-            const methodLabel = getOtherConnectionMethodInfo(method).label.toLowerCase();
-            methodCounts.set(methodLabel, (methodCounts.get(methodLabel) ?? 0) + 1);
-        }
-        for (const [methodLabel, count] of methodCounts) {
-            parts.push(`${count} ${methodLabel}`);
-        }
-        if (!hasConnections.value) parts.push('No connection');
 
         const text = parts.join(' · ');
         if (hasError.value) return `✕ ${text} · error`;
@@ -69,9 +54,8 @@
     const edgeStyle = computed(() => ({
         stroke: hasError.value ? '#ef4444' : warningCount.value ? '#f59e0b' : props.selected ? '#6366f1' : '#94a3b8',
         strokeWidth: props.selected ? 2 : 1.5,
-        // Dashed: other connections (by hand, a send button, ...). Dotted: information flows without any connection
-        strokeDasharray: isOtherOnly.value ? '6 4' : hasConnections.value ? undefined : '1.5 4',
-        strokeLinecap: hasConnections.value ? undefined : 'round' as const
+        // Dashed: only connections that are not a system link (by hand, a file, unknown, ...)
+        strokeDasharray: isLooseOnly.value ? '6 4' : undefined
     }));
 
     const labelStyle = computed(() => ({

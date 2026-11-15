@@ -1,18 +1,14 @@
 import { computed } from "vue";
-import { useInformationRelationStore } from "../stores/information/informationRelation.store";
+import { useInformationRelationStore, type ResourceRelation } from "../stores/information/informationRelation.store";
 import { useInformationObjectStore } from "../stores/information/informationObject.store";
 import { useInformationFieldStore } from "../stores/information/informationField.store";
-import { useApiConnectionStore } from "../stores/apiConnection.store";
-import { useApiStore, type Api } from "../stores/api.store";
-import { useOtherConnectionStore } from "../stores/otherConnection.store";
+import { useApiStore } from "../stores/api.store";
+import { useConnectionStore } from "../stores/connection.store";
 import { useResourceService } from "./resources/resource.service";
 import { useComponentStore } from "../stores/resources/component.store";
-import { connectsScript, getScriptCarriedBetween } from "../types/component.types";
-import { useDatabaseConnectionStore } from "../stores/databaseConnection.store";
+import { useInformationSourceService } from "./informationSource.service";
 
-// A problem with the information transfer between two resources, with what to do about it.
-// error: information moves between the resources without any connection at all
-// warning: there is a connection, but something about it is incomplete
+// A problem with the information transfer between two resources, with what to do about it
 export interface ConnectionWarning {
     severity: 'error' | 'warning';
     title: string;
@@ -21,86 +17,41 @@ export interface ConnectionWarning {
     hint: string;
 }
 
-export interface TransferWarnings {
-    // Names of the information that goes from the source to the target application without an api url or other connection carrying it
-    fieldNames: string[];
-    objectNames: string[];
-}
-
-// Information that is sent from one application to another has to be sent through an api url
-// (an api connection from the source to the target, whose url sends the field or object),
-// or carried over by an other connection (by hand, a send button, a file, ...) from the source to the target.
-// A field also counts as sent when an object the field is part of is sent.
+// Every relation goes through a connection. What can still be wrong or unclear about it:
+// - it goes through an api that does not send it (a field also counts as sent when an object it is part of is sent)
+// - it goes through a connection of which nobody knows yet how it works
 export function useInformationTransferService() {
     const informationRelationStore = useInformationRelationStore();
     const informationObjectStore = useInformationObjectStore();
     const informationFieldStore = useInformationFieldStore();
-    const apiConnectionStore = useApiConnectionStore();
     const apiStore = useApiStore();
-    const otherConnectionStore = useOtherConnectionStore();
+    const connectionStore = useConnectionStore();
     const resourceService = useResourceService();
     const componentStore = useComponentStore();
-    const databaseConnectionStore = useDatabaseConnectionStore();
+    const informationSourceService = useInformationSourceService();
 
-    // Whether there is any kind of connection from the source to the target
-    function hasAnyConnection(sourceId: string, targetId: string) {
-        return apiConnectionStore.apiConnections.some(connection => connection.sourceId === sourceId && connection.targetId === targetId)
-            || otherConnectionStore.otherConnections.some(connection => connection.sourceId === sourceId && connection.targetId === targetId)
-            || componentStore.components.some(component => connectsScript(component, [sourceId], [targetId]))
-            || databaseConnectionStore.databaseConnections.some(connection =>
-                (connection.operation.includes('read') && connection.databaseId === sourceId && connection.entityId === targetId) ||
-                (connection.operation.includes('write') && connection.entityId === sourceId && connection.databaseId === targetId)
-            );
-    }
-
-    function getUrlsBetween(sourceId: string, targetId: string): Api[] {
-        return apiConnectionStore.apiConnections
-            .filter(connection => connection.sourceId === sourceId && connection.targetId === targetId)
-            .map(connection => apiStore.getApi(connection.sourceUrlId))
-            .filter(url => url !== undefined);
-    }
-
-    // Api urls and other connections both carry a list of fields and objects
-    function getCarriersBetween(sourceId: string, targetId: string): Pick<Api, 'informationFieldIds' | 'informationObjectIds'>[] {
-        const otherConnections = otherConnectionStore.otherConnections
-            .filter(connection => connection.sourceId === sourceId && connection.targetId === targetId);
-        // A script carries what it reads from the source into its host, writes from its host to the target,
-        // or reads from the source and writes to the target
-        const scripts = componentStore.components
-            .filter(component => connectsScript(component, [sourceId], [targetId]))
-            .map(script => getScriptCarriedBetween(script, [sourceId], [targetId]));
-        return [...getUrlsBetween(sourceId, targetId), ...otherConnections, ...scripts];
-    }
-
-    function carriesField(carrier: Pick<Api, 'informationFieldIds' | 'informationObjectIds'>, informationFieldId: string) {
-        if (carrier.informationFieldIds?.includes(informationFieldId)) return true;
-
-        return (carrier.informationObjectIds ?? []).some(objectId =>
-            informationObjectStore.getInformationObject(objectId)?.informationFieldIds.includes(informationFieldId)
+    // Whether the api of the relation's connection sends the information; true when it does not go through an api
+    function isSentByApi(relation: ResourceRelation, information: { informationFieldId: string } | { informationObjectId: string }) {
+        const connection = connectionStore.getConnection(relation.connectionId);
+        if (connection?.kind !== 'api') return true;
+        const api = apiStore.getApi(connection.apiId);
+        if (!api) return false;
+        if ('informationObjectId' in information) return api.informationObjectIds.includes(information.informationObjectId);
+        if (api.informationFieldIds.includes(information.informationFieldId)) return true;
+        return api.informationObjectIds.some(objectId =>
+            informationObjectStore.getInformationObject(objectId)?.informationFieldIds.includes(information.informationFieldId)
         );
     }
 
-    function isBetweenApplications(relation: { sourceResourceId: string, sourceResourceType: string, targetResourceId: string, targetResourceType: string }) {
-        return relation.sourceResourceType === 'application'
-            && relation.targetResourceType === 'application'
-            && relation.sourceResourceId !== relation.targetResourceId;
-    }
-
     const unsentFieldRelations = computed(() =>
-        informationRelationStore.fieldRelations
-            .filter(isBetweenApplications)
-            .filter(relation => !getCarriersBetween(relation.sourceResourceId, relation.targetResourceId)
-                .some(carrier => carriesField(carrier, relation.informationFieldId)))
+        informationRelationStore.fieldRelations.filter(relation => !isSentByApi(relation, relation))
     );
 
     const unsentObjectRelations = computed(() =>
-        informationRelationStore.objectRelations
-            .filter(isBetweenApplications)
-            .filter(relation => !getCarriersBetween(relation.sourceResourceId, relation.targetResourceId)
-                .some(carrier => carrier.informationObjectIds?.includes(relation.informationObjectId)))
+        informationRelationStore.objectRelations.filter(relation => !isSentByApi(relation, relation))
     );
 
-    // Keyed by `${targetApplicationId}:${informationId}`, the value is the id of the application it comes from
+    // Keyed by `${targetResourceId}:${informationId}`, the value is the id of the resource it comes from
     const unsentInputFields = computed(() => new Map(
         unsentFieldRelations.value.map(relation => [`${relation.targetResourceId}:${relation.informationFieldId}`, relation.sourceResourceId])
     ));
@@ -109,32 +60,7 @@ export function useInformationTransferService() {
         unsentObjectRelations.value.map(relation => [`${relation.targetResourceId}:${relation.informationObjectId}`, relation.sourceResourceId])
     ));
 
-    // Keyed by `${sourceApplicationId}->${targetApplicationId}`
-    const transferWarnings = computed(() => {
-        const warnings = new Map<string, TransferWarnings>();
-
-        function getWarnings(sourceId: string, targetId: string) {
-            const key = `${sourceId}->${targetId}`;
-            const existing = warnings.get(key) ?? { fieldNames: [], objectNames: [] };
-            warnings.set(key, existing);
-            return existing;
-        }
-
-        for (const relation of unsentFieldRelations.value) {
-            getWarnings(relation.sourceResourceId, relation.targetResourceId).fieldNames.push(
-                informationFieldStore.getInformationField(relation.informationFieldId)?.fieldName ?? 'Unknown field'
-            );
-        }
-        for (const relation of unsentObjectRelations.value) {
-            getWarnings(relation.sourceResourceId, relation.targetResourceId).objectNames.push(
-                informationObjectStore.getInformationObject(relation.informationObjectId)?.objectName ?? 'Unknown object'
-            );
-        }
-
-        return warnings;
-    });
-
-    // Returns the id of the application the input field comes from without being sent through an api url
+    // Returns the id of the resource the input field comes from through an api that does not send it
     function getUnsentInputFieldSource(applicationId: string, informationFieldId: string) {
         return unsentInputFields.value.get(`${applicationId}:${informationFieldId}`);
     }
@@ -143,8 +69,12 @@ export function useInformationTransferService() {
         return unsentInputObjects.value.get(`${applicationId}:${informationObjectId}`);
     }
 
-    function getTransferWarnings(sourceId: string, targetId: string): TransferWarnings | undefined {
-        return transferWarnings.value.get(`${sourceId}->${targetId}`);
+    // The names of the information of these relations, objects first
+    function getNames(fieldRelations: { informationFieldId: string }[], objectRelations: { informationObjectId: string }[]) {
+        return [
+            ...new Set(objectRelations.map(relation => `▱ ${informationObjectStore.getInformationObject(relation.informationObjectId)?.objectName ?? 'Unknown object'}`)),
+            ...new Set(fieldRelations.map(relation => informationFieldStore.getInformationField(relation.informationFieldId)?.fieldName ?? 'Unknown field'))
+        ];
     }
 
     // A script is connected to a database or file location without a table or file being chosen. An edge only goes to
@@ -168,66 +98,45 @@ export function useInformationTransferService() {
         };
     }
 
-    // All warnings for the connection from the source to the target, used by the canvas edge and the connection details
+    // All warnings for what goes from the source to the target, used by the canvas edge and the connection details.
+    // A table counts for its database
     function getConnectionWarnings(sourceId: string, targetId: string): ConnectionWarning[] {
         const warnings: ConnectionWarning[] = [];
         const sourceName = resourceService.getResource(sourceId)?.name ?? 'the source';
-        const targetName = resourceService.getResource(targetId)?.name ?? 'the target';
 
         const missingPartWarning = getMissingPartWarning(sourceId, targetId);
         if (missingPartWarning) warnings.push(missingPartWarning);
 
-        const connectionsWithoutUrl = apiConnectionStore.apiConnections.filter(connection =>
-            connection.sourceId === sourceId && connection.targetId === targetId && !connection.sourceUrlId
+        const isBetween = (relation: ResourceRelation) =>
+            informationSourceService.getHolderIds(relation.sourceResourceId).includes(sourceId) &&
+            informationSourceService.getHolderIds(relation.targetResourceId).includes(targetId);
+
+        const unsentNames = getNames(unsentFieldRelations.value.filter(isBetween), unsentObjectRelations.value.filter(isBetween));
+        if (unsentNames.length) {
+            warnings.push({
+                severity: 'warning',
+                title: 'Sent through an API that does not send it',
+                items: unsentNames,
+                hint: `Add them to the API of ${sourceName}, or move them to another connection.`
+            });
+        }
+
+        const throughUnknown = (relation: ResourceRelation) => isBetween(relation) && connectionStore.getConnection(relation.connectionId)?.kind === 'unknown';
+        const unknownNames = getNames(
+            informationRelationStore.fieldRelations.filter(throughUnknown),
+            informationRelationStore.objectRelations.filter(throughUnknown)
         );
-        if (connectionsWithoutUrl.length) {
+        if (unknownNames.length) {
             warnings.push({
                 severity: 'warning',
-                title: connectionsWithoutUrl.length === 1
-                    ? 'An API connection has no url'
-                    : `${connectionsWithoutUrl.length} API connections have no url`,
-                items: connectionsWithoutUrl.map(connection => `API connection …${connection.id.slice(-6)}`),
-                hint: `Select the url of ${sourceName} in the Api tab of the connections table, otherwise no information can be transferred.`
-            });
-        }
-
-        const transferWarnings = getTransferWarnings(sourceId, targetId);
-
-        // Information moves while there is no connection at all: that is an error, not just something incomplete
-        if (transferWarnings && !hasAnyConnection(sourceId, targetId)) {
-            warnings.push({
-                severity: 'error',
-                title: 'Information is moved without any connection',
-                items: [
-                    ...transferWarnings.objectNames.map(objectName => `▱ ${objectName}`),
-                    ...transferWarnings.fieldNames
-                ],
-                hint: `Add a connection from ${sourceName} to ${targetName} (an API, script, database or other connection) that carries this information.`
-            });
-            return warnings;
-        }
-
-        const fixHint = `Add them to an API url of ${sourceName} that is connected to ${targetName}, or to an other connection (Other tab) from ${sourceName} to ${targetName}.`;
-
-        if (transferWarnings?.objectNames.length) {
-            warnings.push({
-                severity: 'warning',
-                title: 'Objects sent without an API url or other connection',
-                items: transferWarnings.objectNames,
-                hint: fixHint
-            });
-        }
-        if (transferWarnings?.fieldNames.length) {
-            warnings.push({
-                severity: 'warning',
-                title: 'Fields sent without an API url or other connection',
-                items: transferWarnings.fieldNames,
-                hint: fixHint
+                title: 'Not known yet how this gets there',
+                items: unknownNames,
+                hint: 'Find out how the information is transferred, and set the kind of the connection.'
             });
         }
 
         return warnings;
     }
 
-    return { getUnsentInputFieldSource, getUnsentInputObjectSource, getTransferWarnings, getConnectionWarnings };
+    return { getUnsentInputFieldSource, getUnsentInputObjectSource, getConnectionWarnings };
 }
