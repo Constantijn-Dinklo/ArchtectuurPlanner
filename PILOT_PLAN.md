@@ -56,7 +56,7 @@ Decisions:
 
 Phase 1, connections at the level of resources:
 
-- [ ] Add the `Connection` model (one collection, a schema per kind, ends as `{ id, type }`) and one connection service that is the only place that reads and writes connections
+- [x] Add the `Connection` model (one collection, a schema per kind, ends as `{ id, type }`) and one connection service that is the only place that reads and writes connections: `models/connection.model.ts`, `types/connection.type.ts`, `services/connection.service.ts`, routes on `/connections`. Nothing uses it yet
 - [ ] Give relations a required `connectionId` instead of `viaConnectionType` and `viaConnectionId`. Allow the one exception: a relation inside a resource (same source and target) has no connection
 - [ ] Migrate: every `ApiConnection` and `OtherConnection` becomes one connection, every `DatabaseConnection` one or two (one per direction), the carried information of other connections is checked against the relations, and relations without a connection get an `unknown` one
 - [ ] Move the backend over: the external element sync, the received information of external elements, removing resources, and the information usage
