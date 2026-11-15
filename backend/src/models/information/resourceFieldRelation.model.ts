@@ -9,10 +9,11 @@ export interface IResourceFieldRelation {
     targetResourceId: Types.ObjectId;
     targetResourceType: string;
 
-    // The connection the information travels through from the source to the target, chosen by the user
-    // when there is more than one (api connection, script, database connection or other connection)
-    viaConnectionType: 'api' | 'database' | 'other' | 'component' | null;
-    viaConnectionId: Types.ObjectId | null;
+    // The connection the information travels through from the source to the target.
+    // Only a relation inside one resource (from its input to its output) has none
+    connectionId: Types.ObjectId | null;
+    // Until scripts are connection ends themselves: the script the information goes through instead of a connection
+    scriptId: Types.ObjectId | null;
 }
 
 export const ResourceFieldRelationSchema = new Schema<IResourceFieldRelation>(
@@ -44,13 +45,15 @@ export const ResourceFieldRelationSchema = new Schema<IResourceFieldRelation>(
             type: Schema.Types.String,
             required: true
         },
-        viaConnectionType: {
-            type: Schema.Types.String,
-            enum: ['api', 'database', 'other', 'component', null],
-            default: null
-        },
-        viaConnectionId: {
+        connectionId: {
             type: Schema.Types.ObjectId,
+            ref: 'Connection',
+            default: null,
+            index: true
+        },
+        scriptId: {
+            type: Schema.Types.ObjectId,
+            ref: 'Component',
             default: null
         },
     },

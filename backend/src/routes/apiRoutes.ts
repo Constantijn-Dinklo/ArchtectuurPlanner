@@ -1,7 +1,7 @@
 import express, { Router, Response } from "express";
 import Api from "../models/api.model";
 import { AuthenticatedRequest, getUser } from "../middelware";
-import ApiConnection from "../models/apiConnection.model";
+import { getApiConnections } from "../services/connection.service";
 import { addApiInformationField, addApiInformationObject, removeApiInformationField, removeApiInformationObject } from "../services/api.service";
 import { keepConnectionsWithoutPart } from "../services/component.service";
 import { pickFields } from "./pickFields";
@@ -115,19 +115,13 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const user = getUser(req);
 
     try {
-        const apiConnections = await ApiConnection.find({
-            environmentId: user.environmentId,
-            sourceUrlId: req.params.id,
-        });
-        
+        const apiConnections = await getApiConnections(user, req.params.id as string);
         if(apiConnections.length > 0){
             res.status(409).json({
                 success: false,
-                message: "Cannot delete API because it is still being used",
+                message: "Cannot delete API because a connection still goes through it",
                 dependencies: {
-                    apiConnections: apiConnections.map(connection => {
-                        id: connection._id
-                    })
+                    connections: apiConnections.map(connection => ({ id: connection.id }))
                 }
             });
             return;

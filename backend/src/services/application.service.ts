@@ -1,5 +1,6 @@
 import { UserJwtPayload } from "../middelware";
-import ApiConnection from "../models/apiConnection.model";
+import { getPartConnections } from "./connection.service";
+import { createRelation } from "./informationRelation.service";
 import ViewNode from "../models/canvas/viewNode.model";
 import { createInformationField, ResourceFieldInformation } from "./resourceField.service";
 import Application from "../models/resources/application.model";
@@ -144,17 +145,14 @@ export async function addApplicationInputInformationField(user: UserJwtPayload, 
         informationFieldId = informationField._id;
     }
     else {
-        const newResourceFieldRelation = await new ResourceFieldRelation({
-            environmentId: user.environmentId,
-            informationFieldId: resourceFieldInformation.informationFieldId,
+        // source -> application (input)
+        await createRelation(user, {
+            kind: 'field',
+            informationId: resourceFieldInformation.informationFieldId,
             sourceResourceId: resourceFieldInformation.sourceResourceId,
-            sourceResourceType: resourceFieldInformation.sourceResourceType,
             targetResourceId: applicationId,
-            targetResourceType: 'application',
-            viaConnectionType: resourceFieldInformation.viaConnectionType ?? null,
-            viaConnectionId: resourceFieldInformation.viaConnectionType ? resourceFieldInformation.viaConnectionId ?? null : null
+            connectionId: resourceFieldInformation.connectionId
         });
-        newResourceFieldRelation.save();
 
         informationFieldId = resourceFieldInformation.informationFieldId;
         informationField = await InformationField.findOne({
@@ -240,18 +238,14 @@ export async function addApplicationOutputInformationField(user: UserJwtPayload,
         informationFieldId = informationField._id;
     }
     else {
-        // Add a new ResourceFieldRelation
-        const newResourceFieldRelation = await new ResourceFieldRelation({
-            environmentId: user.environmentId,
-            informationFieldId: resourceFieldInformation.informationFieldId,
+        // application (input) -> application (output) when the field is forwarded
+        await createRelation(user, {
+            kind: 'field',
+            informationId: resourceFieldInformation.informationFieldId,
             sourceResourceId: resourceFieldInformation.sourceResourceId,
-            sourceResourceType: resourceFieldInformation.sourceResourceType,
             targetResourceId: applicationId,
-            targetResourceType: 'application',
-            viaConnectionType: resourceFieldInformation.viaConnectionType ?? null,
-            viaConnectionId: resourceFieldInformation.viaConnectionType ? resourceFieldInformation.viaConnectionId ?? null : null
+            connectionId: resourceFieldInformation.connectionId
         });
-        newResourceFieldRelation.save();
 
         informationFieldId = resourceFieldInformation.informationFieldId;
         informationField = await InformationField.findOne({
@@ -412,17 +406,13 @@ export async function addApplicationInputInformationObject(user: UserJwtPayload,
     }
     else {
         // source -> application (input)
-        const newResourceObjectRelation = new ResourceObjectRelation({
-            environmentId: user.environmentId,
-            informationObjectId: resourceObjectInformation.informationObjectId,
+        await createRelation(user, {
+            kind: 'object',
+            informationId: resourceObjectInformation.informationObjectId,
             sourceResourceId: resourceObjectInformation.sourceResourceId,
-            sourceResourceType: resourceObjectInformation.sourceResourceType,
             targetResourceId: applicationId,
-            targetResourceType: 'application',
-            viaConnectionType: resourceObjectInformation.viaConnectionType ?? null,
-            viaConnectionId: resourceObjectInformation.viaConnectionType ? resourceObjectInformation.viaConnectionId ?? null : null
+            connectionId: resourceObjectInformation.connectionId
         });
-        await newResourceObjectRelation.save();
 
         informationObjectId = resourceObjectInformation.informationObjectId;
         informationObject = await InformationObject.findOne({
@@ -510,17 +500,13 @@ export async function addApplicationOutputInformationObject(user: UserJwtPayload
     }
     else {
         // application (input) -> application (output) when the object is forwarded
-        const newResourceObjectRelation = new ResourceObjectRelation({
-            environmentId: user.environmentId,
-            informationObjectId: resourceObjectInformation.informationObjectId,
+        await createRelation(user, {
+            kind: 'object',
+            informationId: resourceObjectInformation.informationObjectId,
             sourceResourceId: resourceObjectInformation.sourceResourceId,
-            sourceResourceType: resourceObjectInformation.sourceResourceType,
             targetResourceId: applicationId,
-            targetResourceType: 'application',
-            viaConnectionType: resourceObjectInformation.viaConnectionType ?? null,
-            viaConnectionId: resourceObjectInformation.viaConnectionType ? resourceObjectInformation.viaConnectionId ?? null : null
+            connectionId: resourceObjectInformation.connectionId
         });
-        await newResourceObjectRelation.save();
 
         informationObjectId = resourceObjectInformation.informationObjectId;
         informationObject = await InformationObject.findOne({
@@ -599,22 +585,14 @@ export async function deleteApplicationOutputInformationObject(user: UserJwtPayl
 }
 
 async function canApplicationBeRemoved(user: UserJwtPayload, resourceId: string) {
-    const apiConnections = await ApiConnection.find({
-        environmentId: user.environmentId,
-        $or: [ 
-            { sourceId: resourceId },
-            { targetId: resourceId }
-        ]
-    });
-    if(apiConnections.length > 0){
+    const connections = await getPartConnections(user, resourceId);
+    if(connections.length > 0){
         return {
             status: 409,
             success: false,
-            message: "Cannot delete Application because it is still being used",
+            message: "Cannot delete Application because it is still connected",
             dependencies: {
-                apiConnections: apiConnections.map(connection => {
-                    id: connection._id
-                })
+                connections: connections.map(connection => ({ id: connection.id }))
             }
         }
     }

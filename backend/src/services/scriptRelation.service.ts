@@ -140,7 +140,7 @@ export async function syncScriptRelations(user: { environmentId: string }) {
         }
     }
 
-    const managedScope = { environmentId, viaConnectionType: 'component' as const };
+    const managedScope = { environmentId, scriptId: { $ne: null } };
     const existing = [
         ...(await ResourceFieldRelation.find(managedScope)).map((relation) => ({ relation, kind: 'field' as const, informationId: relation.informationFieldId.toString() })),
         ...(await ResourceObjectRelation.find(managedScope)).map((relation) => ({ relation, kind: 'object' as const, informationId: relation.informationObjectId.toString() }))
@@ -150,7 +150,7 @@ export async function syncScriptRelations(user: { environmentId: string }) {
         targetId: relation.targetResourceId.toString(),
         targetType: relation.targetResourceType,
         key: relationKey({ kind, informationId, sourceId: relation.sourceResourceId.toString(), targetId: relation.targetResourceId.toString() }),
-        viaId: relation.viaConnectionId?.toString()
+        viaId: relation.scriptId?.toString()
     }));
 
     // Relations through a script that no longer reads or writes the information there
@@ -177,8 +177,8 @@ export async function syncScriptRelations(user: { environmentId: string }) {
             sourceResourceType: relation.sourceType,
             targetResourceId: relation.targetId,
             targetResourceType: relation.targetType,
-            viaConnectionType: 'component' as const,
-            viaConnectionId: relation.viaId
+            connectionId: null,
+            scriptId: relation.viaId
         };
         if(relation.kind === 'field') {
             await ResourceFieldRelation.create({ ...fields, informationFieldId: relation.informationId });

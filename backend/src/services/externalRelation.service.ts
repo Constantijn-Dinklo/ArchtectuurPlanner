@@ -1,5 +1,6 @@
 import { removeComponentEndReferences, removeResourceComponents } from "./component.service";
 import Endpoint from "../models/endpoint.model";
+import { deletePartConnections } from "./connection.service";
 import { UserJwtPayload } from "../middelware";
 import External from "../models/resources/external.model";
 import Application from "../models/resources/application.model";
@@ -7,15 +8,13 @@ import Database from "../models/resources/database.model";
 import Table from "../models/resources/table.model";
 import FileLocation from "../models/resources/fileLocation.model";
 import Server from "../models/resources/server.model";
-import OtherConnection from "../models/otherConnection.model";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import InformationField from "../models/information/informationField.model";
 import InformationObject from "../models/information/informationObject.models";
 
-// An external element is a black box without its own inputs. What it receives is decided by the connections
-// to it: every field or object a connection carries to an external element gets a relation from the source
-// to the external element, and the external element's received lists follow those relations.
+// An external element is a black box without its own inputs. What it receives follows from the relations to it:
+// its received lists are rebuilt from those relations.
 
 export async function getResourceType(user: UserJwtPayload, resourceId: string): Promise<string | undefined> {
     const filter = { _id: resourceId, environmentId: user.environmentId };
@@ -56,87 +55,6 @@ export async function updateReceivedInformation(user: Pick<UserJwtPayload, 'envi
     );
 }
 
-// Makes the relations of an other connection match what it carries to an external element.
-// previousTargetId: the target before the connection was changed, so that external element is updated as well
-export async function syncOtherConnectionRelations(user: UserJwtPayload, connectionId: string, previousTargetId?: string | null) {
-    const connection = await OtherConnection.findOne({ _id: connectionId, environmentId: user.environmentId });
-
-    // Only the relations to external elements: relations from an external element through this connection are
-    // kept in sync by syncExternalSourceRelations
-    const viaThisConnection = {
-        environmentId: user.environmentId,
-        viaConnectionType: 'other' as const,
-        viaConnectionId: connectionId,
-        targetResourceType: 'external'
-    };
-
-    const targetId = connection?.targetId?.toString();
-    const sourceId = connection?.sourceId?.toString();
-    const targetIsExternal = !!targetId && (await getResourceType(user, targetId)) === 'external';
-    const sourceType = sourceId ? await getResourceType(user, sourceId) : undefined;
-
-    if(!connection || !targetIsExternal || !sourceId || !sourceType) {
-        // Nothing (or no longer anything) is carried to an external element through this connection
-        await ResourceFieldRelation.deleteMany(viaThisConnection);
-        await ResourceObjectRelation.deleteMany(viaThisConnection);
-        if(targetId && targetIsExternal) {
-            await updateReceivedInformation(user, targetId);
-        }
-    }
-    else {
-        const fieldIds = connection.informationFieldIds.map((id) => id.toString());
-        const objectIds = connection.informationObjectIds.map((id) => id.toString());
-
-        // Relations of information that is no longer carried, or that belonged to a different source or target
-        await ResourceFieldRelation.deleteMany({
-            ...viaThisConnection,
-            $or: [
-                { informationFieldId: { $nin: fieldIds } },
-                { sourceResourceId: { $ne: sourceId } },
-                { targetResourceId: { $ne: targetId } }
-            ]
-        });
-        await ResourceObjectRelation.deleteMany({
-            ...viaThisConnection,
-            $or: [
-                { informationObjectId: { $nin: objectIds } },
-                { sourceResourceId: { $ne: sourceId } },
-                { targetResourceId: { $ne: targetId } }
-            ]
-        });
-
-        const relation = {
-            environmentId: user.environmentId,
-            sourceResourceId: sourceId,
-            sourceResourceType: sourceType,
-            targetResourceId: targetId,
-            targetResourceType: 'external',
-            viaConnectionType: 'other' as const,
-            viaConnectionId: connectionId
-        };
-        for(const informationFieldId of fieldIds) {
-            await ResourceFieldRelation.updateOne(
-                { ...viaThisConnection, informationFieldId },
-                { $setOnInsert: { ...relation, informationFieldId } },
-                { upsert: true }
-            );
-        }
-        for(const informationObjectId of objectIds) {
-            await ResourceObjectRelation.updateOne(
-                { ...viaThisConnection, informationObjectId },
-                { $setOnInsert: { ...relation, informationObjectId } },
-                { upsert: true }
-            );
-        }
-
-        await updateReceivedInformation(user, targetId);
-    }
-
-    if(previousTargetId && previousTargetId !== targetId && (await getResourceType(user, previousTargetId)) === 'external') {
-        await updateReceivedInformation(user, previousTargetId);
-    }
-}
-
 // A resource was removed: removes its components and endpoints, and the relations of all its fields and objects,
 // whether the resource was the source or the target. External elements that received information from the resource
 // get their received lists updated.
@@ -149,6 +67,9 @@ export async function removeResourceRelations(user: UserJwtPayload, resourceIds:
 
     // An endpoint is part of its resource and goes with it
     await Endpoint.deleteMany({ environmentId: user.environmentId, resourceId: { $in: resourceIds } });
+
+    // So are its connections
+    await deletePartConnections(user, resourceIds);
 
     const touchingResources = {
         environmentId: user.environmentId,

@@ -3,11 +3,11 @@ import express, { Router, Response } from "express";
 import { AuthenticatedRequest, getUser } from "../middelware";
 import {
     createConnection,
-    deleteConnection,
     getConnections,
     parseConnectionInput,
     updateConnection
 } from "../services/connection.service";
+import { deleteConnectionWithRelations } from "../services/informationRelation.service";
 
 const router: Router = express.Router();
 
@@ -45,9 +45,10 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
     }
 });
 
+// Everything that goes through the connection goes with it
 router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const deleted = await deleteConnection(getUser(req), req.params.id as string);
+        const deleted = await deleteConnectionWithRelations(getUser(req), req.params.id as string);
         if(!deleted) return res.status(404).json({ error: "Connection not found" });
         res.json(deleted);
     }

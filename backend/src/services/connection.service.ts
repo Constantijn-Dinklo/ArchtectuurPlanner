@@ -2,6 +2,7 @@ import { UserJwtPayload } from "../middelware";
 import Api from "../models/api.model";
 import Component from "../models/component.model";
 import Connection, { CONNECTION_MODELS, IConnection } from "../models/connection.model";
+import Table from "../models/resources/table.model";
 import { getResourceType } from "./externalRelation.service";
 import {
     CONNECTION_KINDS,
@@ -59,6 +60,23 @@ export async function getPartConnections(user: User, partId: string) {
     const documents = await Connection.find({
         environmentId: user.environmentId,
         $or: [{ 'source.id': partId }, { 'target.id': partId }]
+    });
+    return documents.map(toConnection);
+}
+
+// A part and the parts it is inside of: a table is inside its database. A connection end holds a relation end when
+// it is one of these
+export async function getHolderIds(user: User, partId: string) {
+    const table = await Table.findOne({ _id: partId, environmentId: user.environmentId });
+    return table ? [partId, table.databaseId.toString()] : [partId];
+}
+
+// The connections that can carry information from the source to the target: their ends are those parts, or hold them
+export async function getCarryingConnections(user: User, sourceId: string, targetId: string) {
+    const documents = await Connection.find({
+        environmentId: user.environmentId,
+        'source.id': { $in: await getHolderIds(user, sourceId) },
+        'target.id': { $in: await getHolderIds(user, targetId) }
     });
     return documents.map(toConnection);
 }
@@ -154,6 +172,43 @@ export async function updateConnection(user: User, connectionId: string, body: a
     return getConnection(user, connectionId);
 }
 
+// Connects the source to the target when nothing connects them yet, and returns the connection. A table is
+// connected through its database. The kind is what fits the two: a database connection when a database is involved,
+// a file for a file location, otherwise unknown until someone finds out how it goes
+export async function connectParts(user: User, sourceId: string, targetId: string) {
+    const toEnd = async (partId: string): Promise<PartRef> => {
+        const holderIds = await getHolderIds(user, partId);
+        const id = holderIds[holderIds.length - 1]!;
+        const type = await getPartType(user, id);
+        if(!type) throw new Error("Unknown part to connect");
+        return { id, type };
+    };
+    const source = await toEnd(sourceId);
+    const target = await toEnd(targetId);
+
+    const [existing] = await getConnectionsBetween(user, source.id, target.id);
+    if(existing) return existing;
+
+    const types = [source.type, target.type];
+    const kind: Exclude<ConnectionKind, 'api'> = types.includes('database') ? 'database' : types.includes('fileLocation') ? 'file' : 'unknown';
+    return createConnection(user, { kind, source, target });
+}
+
+// The parts were removed: so are their connections
+export async function deletePartConnections(user: User, partIds: string[]) {
+    await Connection.deleteMany({
+        environmentId: user.environmentId,
+        $or: [{ 'source.id': { $in: partIds } }, { 'target.id': { $in: partIds } }]
+    });
+}
+
+// The connections that go through this api
+export async function getApiConnections(user: User, apiId: string) {
+    const documents = await Connection.find({ environmentId: user.environmentId, kind: 'api', apiId });
+    return documents.map(toConnection);
+}
+
+// Use deleteConnectionWithRelations (informationRelation.service): the relations through a connection go with it
 export async function deleteConnection(user: User, connectionId: string) {
     const deleted = await Connection.findOneAndDelete({ _id: connectionId, environmentId: user.environmentId });
     return deleted ? toConnection(deleted) : undefined;

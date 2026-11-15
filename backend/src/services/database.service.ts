@@ -3,7 +3,7 @@ import Table from "../models/resources/table.model";
 import { UserJwtPayload } from "../middelware";
 import ViewNode from "../models/canvas/viewNode.model";
 import Database from "../models/resources/database.model";
-import DatabaseConnection from "../models/databaseConnection.model";
+import { getPartConnections } from "./connection.service";
 import Server from "../models/resources/server.model";
 
 
@@ -87,21 +87,16 @@ export async function deleteDatabase(user: UserJwtPayload, resourceId: string) {
 }
 
 async function canDatabaseBeRemoved(user: UserJwtPayload, databaseId: string) {
-    const databaseConnections = await DatabaseConnection.find({
-        environmentId: user.environmentId,
-        databaseId: databaseId
-    });
-    if(databaseConnections.length > 0){
+    const connections = await getPartConnections(user, databaseId);
+    if(connections.length > 0){
         return {
             status: 409,
             success: false,
-            message: "Cannot delete Database because it is still being used",
+            message: "Cannot delete Database because it is still connected",
             dependencies: {
-                databaseConnections: databaseConnections.map(connection => {
-                    id: connection._id
-                })
+                connections: connections.map(connection => ({ id: connection.id }))
             }
-        } 
+        }
     }
 
     const servers = await Server.find({

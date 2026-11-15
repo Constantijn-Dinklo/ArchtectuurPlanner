@@ -5,7 +5,7 @@ import InformationField from "../models/information/informationField.model";
 import InformationObject from "../models/information/informationObject.models";
 import { IResourceFieldExpanded, resolveResourceField } from "../models/information/resourceField.model";
 import Table from "../models/resources/table.model";
-import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
+import { createRelation } from "./informationRelation.service";
 
 export async function createTable(user: UserJwtPayload, name: string, databaseId: string, viewId: string) {
     try {
@@ -50,16 +50,14 @@ export async function addTableColumn(user: UserJwtPayload, tableId: string, reso
         informationFieldId = newInformationField._id;
     }
     else {
-        // Add a new ResourceFieldRelation
-        const newResourceFieldRelation = await new ResourceFieldRelation({
-            environmentId: user.environmentId,
-            informationFieldId: resourceFieldInformation.informationFieldId,
+        // source -> table
+        await createRelation(user, {
+            kind: 'field',
+            informationId: resourceFieldInformation.informationFieldId,
             sourceResourceId: resourceFieldInformation.sourceResourceId,
-            sourceResourceType: resourceFieldInformation.sourceResourceType,
             targetResourceId: tableId,
-            targetResourceType: 'table'
+            connectionId: resourceFieldInformation.connectionId
         });
-        newResourceFieldRelation.save();
 
         informationFieldId = resourceFieldInformation.informationFieldId;
         position = 1;

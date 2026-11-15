@@ -6,7 +6,7 @@ import InformationObject from "../models/information/informationObject.models";
 import { createInformationField } from "./resourceField.service";
 import { createInformationObject } from "./resourceObject.service";
 import { removeResourceRelations } from "./externalRelation.service";
-import ApiConnection from "../models/apiConnection.model";
+import { getPartConnections } from "./connection.service";
 import Api from "../models/api.model";
 
 // The information fields and objects an external element refers to, so the frontend can resolve them
@@ -110,16 +110,9 @@ export async function updateExternal(user: UserJwtPayload, externalId: string, b
 }
 
 export async function deleteExternal(user: UserJwtPayload, externalId: string) {
-    // Just like an application, an external element that is still used by an api connection cannot be removed
-    const apiConnections = await ApiConnection.find({
-        environmentId: user.environmentId,
-        $or: [
-            { sourceId: externalId },
-            { targetId: externalId }
-        ]
-    });
-    if(apiConnections.length > 0) {
-        throw new Error("Cannot delete the external element because an API connection still uses it");
+    // Just like an application, an external element that is still connected cannot be removed
+    if((await getPartConnections(user, externalId)).length > 0) {
+        throw new Error("Cannot delete the external element because it is still connected");
     }
 
     const deletedNode = await ViewNode.findOneAndDelete({

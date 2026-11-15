@@ -3,8 +3,6 @@ import Api from "../models/api.model";
 import Application, { IApplication } from "../models/resources/application.model";
 import External from "../models/resources/external.model";
 import InformationObject from "../models/information/informationObject.models";
-import OtherConnection from "../models/otherConnection.model";
-import { syncOtherConnectionRelations } from "./externalRelation.service";
 
 // An api belongs to an application or to an external element (its applicationId is the id of the owner).
 // Only what the owner passes on can be sent through the api:
@@ -67,7 +65,7 @@ export async function getSendableFieldIds(user: UserJwtPayload, application: IAp
     ]);
 }
 
-// Removes everything from the apis and other connections of the application that the application can no longer send
+// Removes everything from the apis of the application that the application can no longer send
 export async function cleanupApplicationApis(user: UserJwtPayload, applicationId: string) {
     const application = await Application.findOne({
         _id: applicationId,
@@ -92,25 +90,6 @@ export async function cleanupApplicationApis(user: UserJwtPayload, applicationId
                 }
             }
         );
-    }
-
-    // Other connections from the application can only carry what the application outputs as well
-    const otherConnections = await OtherConnection.find({
-        environmentId: user.environmentId,
-        sourceId: applicationId
-    });
-    for(const otherConnection of otherConnections) {
-        await OtherConnection.updateOne(
-            { _id: otherConnection._id },
-            {
-                $pull: {
-                    informationFieldIds: { $in: otherConnection.informationFieldIds.filter((fieldId) => !sendableFieldIds.has(fieldId.toString())) },
-                    informationObjectIds: { $in: otherConnection.informationObjectIds.filter((objectId) => !outputObjectIds.includes(objectId.toString())) }
-                }
-            }
-        );
-        // An external element no longer receives what the connection stopped carrying
-        await syncOtherConnectionRelations(user, otherConnection._id.toString());
     }
 }
 

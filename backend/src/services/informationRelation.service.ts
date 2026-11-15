@@ -5,38 +5,34 @@ import ResourceObjectRelation from "../models/information/resourceObjectRelation
 import { getResourceType, updateReceivedInformation } from "./externalRelation.service";
 import { addTableInformation } from "./table.service";
 import { deleteApplicationInputInformationField, deleteApplicationInputInformationObject } from "./application.service";
-import { connectResources, getOtherConnection } from "./resourceConnection.service";
-import {
-    addOtherConnectionInformationField,
-    addOtherConnectionInformationObject,
-    removeOtherConnectionInformationField,
-    removeOtherConnectionInformationObject
-} from "./otherConnection.service";
+import { connectParts, deleteConnection, getCarryingConnections, getConnection, getHolderIds } from "./connection.service";
 
-// Relations added and removed by hand, from what a resource receives from or sends to another resource.
-// The receiver always has what it receives:
+// Every relation is one piece of information moving from a source to a target, through a connection whose ends hold
+// the ends of the relation: the same part, or the database of a table. Two exceptions:
+// - inside one resource (from its input to its output) there is no connection
+// - through a script, until scripts are connection ends themselves: the relation names the script instead
+//
+// Relations added by hand, from what a resource receives from or sends to another resource, also give the receiver
+// what it receives:
 // - an application takes it in as an input
 // - a table gets a column for it; a table only has fields, so an object gives a column for each of its fields
 // - an external element receives it (its received lists follow from the relations to it)
-// - a file location gets nothing: its information is in its files, and relations do not reach files
+// - a file location gets nothing: its information is in its files, and relations do not reach files yet
 // When the last relation that brings information into an application is removed, the input goes as well.
 // Columns of a table stay: a table keeps what was stored in it.
-//
-// Relations via a script are kept by syncScriptRelations, so they cannot be added or removed here.
 
 type Kind = 'field' | 'object';
-type ViaType = 'api' | 'database' | 'other';
+type User = Pick<UserJwtPayload, 'environmentId'>;
 
-const VIA_TYPES: ViaType[] = ['api', 'database', 'other'];
 const END_TYPES = ['application', 'table', 'external', 'fileLocation'];
 
-export interface RelationToAdd {
+export interface RelationToCreate {
     kind: Kind;
     informationId: string;
     sourceResourceId: string;
     targetResourceId: string;
-    viaConnectionType?: ViaType | null;
-    viaConnectionId?: string | null;
+    connectionId?: string | null;
+    scriptId?: string | null;
 }
 
 function getModel(kind: Kind) {
@@ -47,38 +43,27 @@ function getIdKey(kind: Kind) {
     return kind === 'field' ? 'informationFieldId' : 'informationObjectId';
 }
 
-// Without a chosen connection the two are connected first. The information then goes through the other connection
-// between them, which carries it from now on. A database connection carries anything, and when the two are connected
-// through an api the connection is chosen per piece of information
-async function getCarryingConnection(user: UserJwtPayload, relation: RelationToAdd) {
-    await connectResources(user, relation.sourceResourceId, relation.targetResourceId);
-    const otherConnection = await getOtherConnection(user, relation.sourceResourceId, relation.targetResourceId);
-    if(!otherConnection) return undefined;
-
-    const id = otherConnection._id.toString();
-    if(relation.kind === 'field') await addOtherConnectionInformationField(user, id, relation.informationId);
-    else await addOtherConnectionInformationObject(user, id, relation.informationId);
-    return id;
+// The connection has to exist and its ends have to hold the ends of the relation
+export async function checkRelationConnection(user: User, sourceId: string, targetId: string, connectionId: string) {
+    const connection = await getConnection(user, connectionId);
+    if(!connection) throw new Error("The connection of the relation does not exist");
+    if(!(await getHolderIds(user, sourceId)).includes(connection.source.id) || !(await getHolderIds(user, targetId)).includes(connection.target.id)) {
+        throw new Error("The connection does not go from the source to the target of the relation");
+    }
 }
 
-export async function addInformationRelation(user: UserJwtPayload, relation: RelationToAdd) {
-    let viaConnectionType = relation.viaConnectionType ?? null;
-    if(viaConnectionType !== null && !VIA_TYPES.includes(viaConnectionType)) throw new Error("Unknown connection type");
-    if(relation.sourceResourceId === relation.targetResourceId) throw new Error("A resource cannot receive from itself");
+// Creates the relation, unless the same one already exists. Every relation is made here
+export async function createRelation(user: User, relation: RelationToCreate) {
+    const isInside = relation.sourceResourceId === relation.targetResourceId;
+    const connectionId = isInside ? null : relation.connectionId ?? null;
+    const scriptId = isInside ? null : relation.scriptId ?? null;
+    if(!isInside && !connectionId === !scriptId) throw new Error("A relation goes through one connection");
+    if(connectionId) await checkRelationConnection(user, relation.sourceResourceId, relation.targetResourceId, connectionId);
 
-    const sourceType = await getResourceType(user, relation.sourceResourceId);
-    const targetType = await getResourceType(user, relation.targetResourceId);
+    const sourceType = await getResourceType(user as UserJwtPayload, relation.sourceResourceId);
+    const targetType = await getResourceType(user as UserJwtPayload, relation.targetResourceId);
     if(!sourceType || !END_TYPES.includes(sourceType)) throw new Error("Unknown source");
     if(!targetType || !END_TYPES.includes(targetType)) throw new Error("Unknown target");
-
-    let viaConnectionId = viaConnectionType ? relation.viaConnectionId ?? null : null;
-    if(!viaConnectionType) {
-        const via = await getCarryingConnection(user, relation);
-        if(via) {
-            viaConnectionType = 'other';
-            viaConnectionId = via;
-        }
-    }
 
     const fields = {
         environmentId: user.environmentId,
@@ -87,14 +72,41 @@ export async function addInformationRelation(user: UserJwtPayload, relation: Rel
         sourceResourceType: sourceType,
         targetResourceId: relation.targetResourceId,
         targetResourceType: targetType,
-        viaConnectionType,
-        viaConnectionId
+        connectionId,
+        scriptId
     };
     const Model = getModel(relation.kind);
-    const created = await Model.findOne(fields) ?? await Model.create(fields);
+    return { relation: await Model.findOne(fields) ?? await Model.create(fields), targetType };
+}
 
-    await addToReceiver(user, relation.targetResourceId, targetType, relation.kind, relation.informationId);
-    return created;
+// Information one resource receives from another, added by hand. Without a chosen connection it goes through the
+// connection between the two: made when there is none, and to be chosen when there are several
+export async function addInformationRelation(user: UserJwtPayload, relation: RelationToCreate) {
+    if(relation.sourceResourceId === relation.targetResourceId) throw new Error("A resource cannot receive from itself");
+
+    let connectionId = relation.connectionId ?? null;
+    if(!connectionId) {
+        const connections = await getCarryingConnections(user, relation.sourceResourceId, relation.targetResourceId);
+        if(connections.length > 1) throw new Error("There are several connections between the two: choose the one the information goes through");
+        connectionId = connections[0]?.id ?? (await connectParts(user, relation.sourceResourceId, relation.targetResourceId)).id;
+    }
+
+    const created = await createRelation(user, { ...relation, connectionId, scriptId: null });
+    await addToReceiver(user, relation.targetResourceId, created.targetType, relation.kind, relation.informationId);
+    return created.relation;
+}
+
+// Moves the relation to another connection between the same two
+export async function setRelationConnection(user: User, kind: Kind, relationId: string, connectionId: string) {
+    const Model = getModel(kind);
+    const relation = await Model.findOne({ _id: relationId, environmentId: user.environmentId });
+    if(!relation) return undefined;
+    if(relation.scriptId) throw new Error("This relation comes from a script: change what the script reads or writes instead");
+
+    await checkRelationConnection(user, relation.sourceResourceId.toString(), relation.targetResourceId.toString(), connectionId);
+    relation.connectionId = connectionId as any;
+    await relation.save();
+    return relation;
 }
 
 // The receiver has what it receives. An input of an application that was made there counts as received from now on
@@ -121,17 +133,10 @@ export async function removeInformationRelation(user: UserJwtPayload, kind: Kind
     const Model = getModel(kind);
     const relation = await Model.findOne({ _id: relationId, environmentId: user.environmentId });
     if(!relation) return { status: 404, message: "Relation not found" };
-    if(relation.viaConnectionType === 'component') {
+    if(relation.scriptId) {
         return { status: 409, message: "This relation comes from a script: change what the script reads or writes instead" };
     }
     await relation.deleteOne();
-
-    // The other connection it went through no longer carries it
-    if(relation.viaConnectionType === 'other' && relation.viaConnectionId) {
-        const connectionId = relation.viaConnectionId.toString();
-        if(kind === 'field') await removeOtherConnectionInformationField(user, connectionId, (relation as any).informationFieldId.toString());
-        else await removeOtherConnectionInformationObject(user, connectionId, (relation as any).informationObjectId.toString());
-    }
 
     const targetId = relation.targetResourceId.toString();
     const informationId = (kind === 'field'
@@ -154,4 +159,13 @@ export async function removeInformationRelation(user: UserJwtPayload, kind: Kind
     if(relation.targetResourceType === 'external') await updateReceivedInformation(user, targetId);
 
     return { status: 200, message: "Relation removed" };
+}
+
+// A connection goes with everything that goes through it
+export async function deleteConnectionWithRelations(user: UserJwtPayload, connectionId: string) {
+    for(const kind of ['field', 'object'] as const) {
+        const relations = await getModel(kind).find({ environmentId: user.environmentId, connectionId });
+        for(const relation of relations) await removeInformationRelation(user, kind, relation._id.toString());
+    }
+    return deleteConnection(user, connectionId);
 }

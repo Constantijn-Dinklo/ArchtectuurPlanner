@@ -18,14 +18,10 @@ import serverRoutes from './routes/resources/serverRoutes';
 import tableRoutes from './routes/resources/tableRoutes';
 import externalRoutes from './routes/resources/externalRoutes';
 import apiRoutes from './routes/apiRoutes';
-import apiConnectionRoutes from './routes/apiConnectionRoutes';
-import databaseConnectionRoutes from './routes/databaseConnectionRoutes';
-import otherConnectionRoutes from './routes/otherConnectionRoutes';
 import endpointRoutes from './routes/endpointRoutes';
 import informationFieldRoutes from './routes/informationFieldRoutes';
 import informationObjectRoutes from './routes/informationObjectRoutes';
 import informationRelationRoutes from './routes/informationRelationRoutes';
-import resourceConnectionRoutes from './routes/resourceConnectionRoutes';
 import connectionRoutes from './routes/connectionRoutes';
 import componentRoutes from './routes/componentRoutes';
 import { keepExternalSourceRelationsInSync } from './services/externalSourceRelation.service';
@@ -93,11 +89,7 @@ app.use('/informationRelations', inEnvironment, informationRelationRoutes);
 app.use('/endpoints', inEnvironment, endpointRoutes);
 
 // ** Connections ** //
-app.use('/apiConnections', inEnvironment, syncsExternalSources, apiConnectionRoutes);
-app.use('/databaseConnections', inEnvironment, databaseConnectionRoutes);
-app.use('/otherConnections', inEnvironment, syncsExternalSources, otherConnectionRoutes);
-app.use('/resourceConnections', inEnvironment, syncsExternalSources, resourceConnectionRoutes);
-app.use('/connections', inEnvironment, connectionRoutes);
+app.use('/connections', inEnvironment, syncsExternalSources, connectionRoutes);
 
 
 app.use('/views', inEnvironment, viewRoutes);

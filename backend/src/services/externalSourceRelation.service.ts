@@ -1,109 +1,64 @@
 import { NextFunction, Response } from "express";
 
-import { AuthenticatedRequest, getUser } from "../middelware";
+import { AuthenticatedRequest, getUser, UserJwtPayload } from "../middelware";
 import External from "../models/resources/external.model";
 import Application from "../models/resources/application.model";
 import Table from "../models/resources/table.model";
 import InformationObject from "../models/information/informationObject.models";
-import OtherConnection from "../models/otherConnection.model";
-import ApiConnection from "../models/apiConnection.model";
 import Api from "../models/api.model";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import { updateReceivedInformation } from "./externalRelation.service";
 import { syncScriptRelations } from "./scriptRelation.service";
+import { getPartConnections } from "./connection.service";
+import { Connection } from "../types/connection.type";
 
-// External elements are black boxes: nobody adds their relations by hand. The relations that involve them are kept
-// in sync here, so every movement of information to or from an external element is stored as a relation.
-//
-// From an external element: what it provides reaches the resources it is connected to (other connection, api
-// connection). Scripts are kept by syncScriptRelations. Each piece of information it provides that the resource takes in gets a
-// relation external element -> resource, via that connection.
-// - an application takes in its input fields and input objects
-// - a table takes in its columns, also when the external element provides the field inside an object;
-//   a connection to a database reaches all of its tables
-//
-// To an external element through an api connection: everything the api carries gets a relation from the owner of
-// the api (an application or an external element) to the external element, via that api connection.
-// (Relations to an external element through an other connection are kept by syncOtherConnectionRelations.)
-//
-// A relation from an external element that was added by hand is left alone, and no second relation is added next to it.
+// External elements are black boxes, so what they provide and receive is filled in here as far as the connections
+// show it. Relations are only added, never taken away, except when they cannot be right:
+// - from an external element: what it provides reaches every resource it is connected to that takes it in. An
+//   application takes in its input fields and objects; a table its columns, also when the external element provides
+//   the field inside an object; a connection to a database reaches all of its tables
+// - to an external element through an api connection: everything the api carries, from the owner of the api
+// - a relation from an external element for information it no longer provides is removed
+// A relation is only added when there is none yet between the two for that information, however it was made.
 
-type ManagedVia = 'other' | 'api';
-const MANAGED_VIA_TYPES: ManagedVia[] = ['other', 'api'];
+type Kind = 'field' | 'object';
 
 interface DesiredRelation {
-    kind: 'field' | 'object';
+    kind: Kind;
     informationId: string;
     sourceId: string;
     sourceType: 'application' | 'external';
     targetId: string;
     targetType: 'application' | 'table' | 'external';
-    viaType: ManagedVia;
-    viaId: string;
+    connectionId: string;
 }
 
-type RelationEnds = Pick<DesiredRelation, 'kind' | 'informationId' | 'sourceId' | 'targetId'>;
-
-function relationKey(relation: RelationEnds) {
+function relationKey(relation: Pick<DesiredRelation, 'kind' | 'informationId' | 'sourceId' | 'targetId'>) {
     return `${relation.kind}|${relation.informationId}|${relation.sourceId}|${relation.targetId}`;
 }
 
-function managedKey(relation: RelationEnds & { viaType: string, viaId: string }) {
-    return `${relationKey(relation)}|${relation.viaType}|${relation.viaId}`;
-}
+type ExternalDocuments = Awaited<ReturnType<typeof External.find>>;
 
-export async function syncExternalSourceRelations(user: { environmentId: string }) {
+export async function syncExternalSourceRelations(user: Pick<UserJwtPayload, 'environmentId'>) {
     const environmentId = user.environmentId;
     const externals = await External.find({ environmentId });
+    if(!externals.length) return;
     const externalIds = externals.map((external) => external._id.toString());
-    if(!externalIds.length) return;
+    const changedExternalIds = new Set<string>();
 
+    await removeWhatIsNotProvided(environmentId, externals);
+
+    const connections = new Map<string, Connection>();
+    for(const externalId of externalIds) {
+        for(const connection of await getPartConnections(user, externalId)) connections.set(connection.id, connection);
+    }
     const desired = [
-        ...await getRelationsFromExternals(environmentId, externals),
-        ...await getApiRelationsToExternals(environmentId, externalIds)
+        ...await getRelationsFromExternals(environmentId, externals, [...connections.values()]),
+        ...await getApiRelationsToExternals(environmentId, externalIds, [...connections.values()])
     ];
 
-    // The relations this sync looks after: from an external element to an internal resource (not through a script
-    // component: syncScriptRelations keeps those), and to an external element through an api connection
-    const managedScope = {
-        environmentId,
-        $or: [
-            { sourceResourceId: { $in: externalIds }, targetResourceType: { $ne: 'external' }, viaConnectionType: { $ne: 'component' as const } },
-            { targetResourceType: 'external', viaConnectionType: 'api' as const }
-        ]
-    };
-    const existingFieldRelations = await ResourceFieldRelation.find(managedScope);
-    const existingObjectRelations = await ResourceObjectRelation.find(managedScope);
-    const existing = [
-        ...existingFieldRelations.map((relation) => ({ relation, kind: 'field' as const, informationId: relation.informationFieldId.toString() })),
-        ...existingObjectRelations.map((relation) => ({ relation, kind: 'object' as const, informationId: relation.informationObjectId.toString() }))
-    ].map(({ relation, kind, informationId }) => {
-        const ends = { kind, informationId, sourceId: relation.sourceResourceId.toString(), targetId: relation.targetResourceId.toString() };
-        const isManaged = MANAGED_VIA_TYPES.includes(relation.viaConnectionType as ManagedVia) && !!relation.viaConnectionId;
-        return {
-            id: relation._id.toString(),
-            kind,
-            targetId: ends.targetId,
-            key: relationKey(ends),
-            managedKey: isManaged
-                ? managedKey({ ...ends, viaType: relation.viaConnectionType!, viaId: relation.viaConnectionId!.toString() })
-                : undefined
-        };
-    });
-
-    // Relations through a connection that no longer brings the information there
-    const desiredKeys = new Set(desired.map(managedKey));
-    const stale = existing.filter((relation) => relation.managedKey && !desiredKeys.has(relation.managedKey));
-    const staleFieldIds = stale.filter((relation) => relation.kind === 'field').map((relation) => relation.id);
-    const staleObjectIds = stale.filter((relation) => relation.kind === 'object').map((relation) => relation.id);
-    if(staleFieldIds.length) await ResourceFieldRelation.deleteMany({ _id: { $in: staleFieldIds } });
-    if(staleObjectIds.length) await ResourceObjectRelation.deleteMany({ _id: { $in: staleObjectIds } });
-
-    // New relations, unless there already is a relation between the two for this information
-    const staleIds = new Set(stale.map((relation) => relation.id));
-    const present = new Set(existing.filter((relation) => !staleIds.has(relation.id)).map((relation) => relation.key));
-    const changedExternalIds = new Set(stale.map((relation) => relation.targetId).filter((id) => externalIds.includes(id)));
+    const present = await getPresentKeys(environmentId, desired);
     for(const relation of desired) {
         const key = relationKey(relation);
         if(present.has(key)) continue;
@@ -115,15 +70,11 @@ export async function syncExternalSourceRelations(user: { environmentId: string 
             sourceResourceType: relation.sourceType,
             targetResourceId: relation.targetId,
             targetResourceType: relation.targetType,
-            viaConnectionType: relation.viaType,
-            viaConnectionId: relation.viaId
+            connectionId: relation.connectionId,
+            scriptId: null
         };
-        if(relation.kind === 'field') {
-            await ResourceFieldRelation.create({ ...fields, informationFieldId: relation.informationId });
-        }
-        else {
-            await ResourceObjectRelation.create({ ...fields, informationObjectId: relation.informationId });
-        }
+        if(relation.kind === 'field') await ResourceFieldRelation.create({ ...fields, informationFieldId: relation.informationId });
+        else await ResourceObjectRelation.create({ ...fields, informationObjectId: relation.informationId });
         if(relation.targetType === 'external') changedExternalIds.add(relation.targetId);
     }
 
@@ -133,32 +84,30 @@ export async function syncExternalSourceRelations(user: { environmentId: string 
     }
 }
 
-type ExternalDocuments = Awaited<ReturnType<typeof External.find>>;
+// An external element can only pass on what it provides: a field directly or inside a provided object
+async function removeWhatIsNotProvided(environmentId: string, externals: ExternalDocuments) {
+    const providedObjects = await InformationObject.find({
+        environmentId,
+        _id: { $in: externals.flatMap((external) => external.providedInformationObjects.map((ref) => ref.informationObjectId)) }
+    });
+    for(const external of externals) {
+        const objectIds = external.providedInformationObjects.map((ref) => ref.informationObjectId.toString());
+        const fieldIds = [
+            ...external.providedInformationFields.map((ref) => ref.informationFieldId.toString()),
+            ...providedObjects.filter((object) => objectIds.includes(object._id.toString())).flatMap((object) => object.informationFieldIds.map((id) => id.toString()))
+        ];
+        const fromExternal = { environmentId, sourceResourceId: external._id };
+        await ResourceFieldRelation.deleteMany({ ...fromExternal, informationFieldId: { $nin: fieldIds } });
+        await ResourceObjectRelation.deleteMany({ ...fromExternal, informationObjectId: { $nin: objectIds } });
+    }
+}
 
-async function getRelationsFromExternals(environmentId: string, externals: ExternalDocuments): Promise<DesiredRelation[]> {
+// What the external elements provide reaches the resources they are connected to
+async function getRelationsFromExternals(environmentId: string, externals: ExternalDocuments, connections: Connection[]): Promise<DesiredRelation[]> {
     const externalIds = externals.map((external) => external._id.toString());
+    const links = connections.filter((connection) => externalIds.includes(connection.source.id) && connection.target.type !== 'external');
 
-    // The connections from an external element: [external element, connected resource, via]
-    const links: { externalId: string, targetId: string, viaType: ManagedVia, viaId: string }[] = [];
-
-    const otherConnections = await OtherConnection.find({ environmentId, sourceId: { $in: externalIds } });
-    for(const connection of otherConnections) {
-        if(connection.targetId) {
-            links.push({ externalId: connection.sourceId!.toString(), targetId: connection.targetId.toString(), viaType: 'other', viaId: connection._id.toString() });
-        }
-    }
-
-    const apiConnections = await ApiConnection.find({ environmentId, sourceId: { $in: externalIds } });
-    for(const connection of apiConnections) {
-        if(connection.targetId) {
-            links.push({ externalId: connection.sourceId!.toString(), targetId: connection.targetId.toString(), viaType: 'api', viaId: connection._id.toString() });
-        }
-    }
-
-    // (What scripts read from an external element is kept by syncScriptRelations)
-
-    // What the connected resources take in
-    const targetIds = [...new Set(links.map((link) => link.targetId))];
+    const targetIds = [...new Set(links.map((link) => link.target.id))];
     const applications = await Application.find({ environmentId, _id: { $in: targetIds } });
     const tables = await Table.find({ environmentId, $or: [{ _id: { $in: targetIds } }, { databaseId: { $in: targetIds } }] });
 
@@ -168,23 +117,23 @@ async function getRelationsFromExternals(environmentId: string, externals: Exter
 
     const desired: DesiredRelation[] = [];
     for(const link of links) {
-        const external = externals.find((external) => external._id.toString() === link.externalId)!;
+        const external = externals.find((external) => external._id.toString() === link.source.id)!;
         const providedFieldIds = external.providedInformationFields.map((ref) => ref.informationFieldId.toString());
         const providedObjectIdsOfExternal = external.providedInformationObjects.map((ref) => ref.informationObjectId.toString());
-        const via = { sourceId: link.externalId, sourceType: 'external' as const, viaType: link.viaType, viaId: link.viaId };
+        const from = { sourceId: link.source.id, sourceType: 'external' as const, connectionId: link.id };
 
-        const application = applications.find((application) => application._id.toString() === link.targetId);
+        const application = applications.find((application) => application._id.toString() === link.target.id);
         if(application) {
             for(const ref of application.inputInformationFields) {
                 const informationId = ref.informationFieldId.toString();
                 if(providedFieldIds.includes(informationId)) {
-                    desired.push({ ...via, kind: 'field', informationId, targetId: link.targetId, targetType: 'application' });
+                    desired.push({ ...from, kind: 'field', informationId, targetId: link.target.id, targetType: 'application' });
                 }
             }
             for(const ref of application.inputInformationObjects) {
                 const informationId = ref.informationObjectId.toString();
                 if(providedObjectIdsOfExternal.includes(informationId)) {
-                    desired.push({ ...via, kind: 'object', informationId, targetId: link.targetId, targetType: 'application' });
+                    desired.push({ ...from, kind: 'object', informationId, targetId: link.target.id, targetType: 'application' });
                 }
             }
             continue;
@@ -196,13 +145,13 @@ async function getRelationsFromExternals(environmentId: string, externals: Exter
             ...providedObjectIdsOfExternal.flatMap((objectId) => objectFieldIds.get(objectId) ?? [])
         ]);
         const connectedTables = tables.filter((table) =>
-            table._id.toString() === link.targetId || table.databaseId?.toString() === link.targetId
+            table._id.toString() === link.target.id || table.databaseId?.toString() === link.target.id
         );
         for(const table of connectedTables) {
             for(const column of table.columns) {
                 const informationId = column.informationFieldId.toString();
                 if(fieldIdsInReach.has(informationId)) {
-                    desired.push({ ...via, kind: 'field', informationId, targetId: table._id.toString(), targetType: 'table' });
+                    desired.push({ ...from, kind: 'field', informationId, targetId: table._id.toString(), targetType: 'table' });
                 }
             }
         }
@@ -211,23 +160,23 @@ async function getRelationsFromExternals(environmentId: string, externals: Exter
 }
 
 // An api connection to an external element carries everything its api carries
-async function getApiRelationsToExternals(environmentId: string, externalIds: string[]): Promise<DesiredRelation[]> {
-    const apiConnections = await ApiConnection.find({ environmentId, targetId: { $in: externalIds }, sourceUrlId: { $ne: null } });
-    const apis = await Api.find({ environmentId, _id: { $in: apiConnections.map((connection) => connection.sourceUrlId) } });
+async function getApiRelationsToExternals(environmentId: string, externalIds: string[], connections: Connection[]): Promise<DesiredRelation[]> {
+    const apiConnections = connections.flatMap((connection) =>
+        connection.kind === 'api' && externalIds.includes(connection.target.id) ? [connection] : []
+    );
+    const apis = await Api.find({ environmentId, _id: { $in: apiConnections.map((connection) => connection.apiId) } });
 
     const desired: DesiredRelation[] = [];
     for(const connection of apiConnections) {
-        const api = apis.find((api) => api._id.toString() === connection.sourceUrlId!.toString());
-        const sourceId = (connection.sourceId ?? api?.applicationId)?.toString();
-        if(!api || !sourceId) continue;
+        const api = apis.find((api) => api._id.toString() === connection.apiId);
+        if(!api) continue;
 
         const ends = {
-            sourceId,
-            sourceType: externalIds.includes(sourceId) ? 'external' as const : 'application' as const,
-            targetId: connection.targetId!.toString(),
+            sourceId: connection.source.id,
+            sourceType: externalIds.includes(connection.source.id) ? 'external' as const : 'application' as const,
+            targetId: connection.target.id,
             targetType: 'external' as const,
-            viaType: 'api' as const,
-            viaId: connection._id.toString()
+            connectionId: connection.id
         };
         api.informationFieldIds.forEach((id) => desired.push({ ...ends, kind: 'field', informationId: id.toString() }));
         api.informationObjectIds.forEach((id) => desired.push({ ...ends, kind: 'object', informationId: id.toString() }));
@@ -235,9 +184,28 @@ async function getApiRelationsToExternals(environmentId: string, externalIds: st
     return desired;
 }
 
+// Relations between the same resources for the same information, however they were added
+async function getPresentKeys(environmentId: string, candidates: DesiredRelation[]) {
+    const present = new Set<string>();
+    if(!candidates.length) return present;
+
+    const ends = {
+        environmentId,
+        sourceResourceId: { $in: candidates.map((relation) => relation.sourceId) },
+        targetResourceId: { $in: candidates.map((relation) => relation.targetId) }
+    };
+    for(const relation of await ResourceFieldRelation.find(ends)) {
+        present.add(relationKey({ kind: 'field', informationId: relation.informationFieldId.toString(), sourceId: relation.sourceResourceId.toString(), targetId: relation.targetResourceId.toString() }));
+    }
+    for(const relation of await ResourceObjectRelation.find(ends)) {
+        present.add(relationKey({ kind: 'object', informationId: relation.informationObjectId.toString(), sourceId: relation.sourceResourceId.toString(), targetId: relation.targetResourceId.toString() }));
+    }
+    return present;
+}
+
 // For the routes that change what external elements provide, what resources take in or carry, or how they are
-// connected: after a successful change the relations of external elements are brought up to date, before the
-// response is sent
+// connected: after a successful change the relations of scripts and external elements are brought up to date,
+// before the response is sent
 export function keepExternalSourceRelationsInSync(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     if(req.method === 'GET') return next();
 

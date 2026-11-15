@@ -6,7 +6,6 @@ import InformationField from "../models/information/informationField.model";
 import InformationObject from "../models/information/informationObject.models";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
-import OtherConnection from "../models/otherConnection.model";
 import Application from "../models/resources/application.model";
 import External from "../models/resources/external.model";
 import Table from "../models/resources/table.model";
@@ -50,9 +49,6 @@ export async function getInformationUsage(user: UserJwtPayload, kind: Kind, info
 
     const apis = await Api.find(has(idsKey));
     usage.push(...apis.map((api) => `API ${api.url}`));
-
-    const otherConnections = await OtherConnection.find(has(idsKey));
-    usage.push(...otherConnections.map((connection) => `Connection ${connection.description || connection.method}`));
 
     if(kind === 'field') {
         const tables = await Table.find(has('columns.informationFieldId'));
