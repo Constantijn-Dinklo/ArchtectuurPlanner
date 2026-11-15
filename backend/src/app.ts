@@ -25,6 +25,7 @@ import endpointRoutes from './routes/endpointRoutes';
 import informationFieldRoutes from './routes/informationFieldRoutes';
 import informationObjectRoutes from './routes/informationObjectRoutes';
 import informationRelationRoutes from './routes/informationRelationRoutes';
+import resourceConnectionRoutes from './routes/resourceConnectionRoutes';
 import componentRoutes from './routes/componentRoutes';
 import { keepExternalSourceRelationsInSync } from './services/externalSourceRelation.service';
 
@@ -94,6 +95,7 @@ app.use('/endpoints', inEnvironment, endpointRoutes);
 app.use('/apiConnections', inEnvironment, syncsExternalSources, apiConnectionRoutes);
 app.use('/databaseConnections', inEnvironment, databaseConnectionRoutes);
 app.use('/otherConnections', inEnvironment, syncsExternalSources, otherConnectionRoutes);
+app.use('/resourceConnections', inEnvironment, syncsExternalSources, resourceConnectionRoutes);
 
 
 app.use('/views', inEnvironment, viewRoutes);

@@ -29,14 +29,56 @@ Written on 2026-11-01. Work through the steps in order and tick items off as the
 
 ## Step 2: Settle the model
 
+### Connections and relations redesign
+
+Today two resources are linked in three different ways (`ApiConnection`, `DatabaseConnection`, `OtherConnection`), scripts have their own reads and writes, and the information relations are stored separately with an optional `via`. Nothing makes these agree: information can move without a connection, and a connection can exist without anything going through it. Every feature that touches "a connection" has to handle all of the shapes.
+
+The new model has three layers:
+
+- **Parts**: everything in the landscape, each inside a parent. A server holds resources, a resource holds components (an application holds scripts, a database holds tables, a file location holds files)
+- **Connection**: a directed link from one part to another, saying *how* things can get there
+- **Relation**: one information field or object moving from one part to another, always through one connection
+
+Decisions:
+
+- **One `Connection` model** for every pair of parts. Shared fields: `source`, `target`, `kind`, `description`. One collection, with a schema per kind for the fields only that kind has (Mongoose discriminators). For now only `api` has one: `apiId`, the API of the source
+- **Kinds** form one list: `api`, `database`, `file`, `manual`, `email`, `feature`, `unknown`, extendable (queue or event stream, scraping or RPA, ...). There is no separate "other" type with methods any more
+- **`unknown` is a real kind**: it says that something gets there but nobody knows how yet. Showing these gaps is one of the aims of the program, so it gets a clear warning, not an error
+- **Direction instead of operations**: a database that is read and written gets two connections, database → application and application → database
+- **Ends are an id plus a type**, for both connections and relations, for example `{ id, type: 'table' }`. A type can be a resource or a component (`script`, `file`, `table`). Levels above a resource (server, later team) are never stored: they follow from the parents
+- **Every relation has a required `connectionId`**. What a connection carries is the relations that point at it, so connections no longer keep their own list of carried information
+- **The rule**: a relation's end is the same part as its connection's end, or a part inside it. Example: the connection goes from a database to an application (an application has one connection to a database, not one per table), the relation goes from the table to the application, so it is always known which table the information came from
+- **Inside a resource** information can go from an input to an output: this stays a relation, with the same source and target and no connection. For now only in applications, later possibly in other resources too
+- **Scripts are parts, not resources**, but they can be connection and relation ends: CRM → script (api) → table, with the relations along the same route. This reverses the earlier decision (2026-10-30) to keep components out of the relations, without adding a field per level: there is still one end id
+- **Drawing**: an end is drawn at the closest level that is visible. When the level of detail hides scripts, the arrow CRM → script is drawn as CRM → host of the script, and a table's relations are drawn at its database when tables are hidden. Nothing extra is stored for this
+- **Several connections between the same two parts** are fine, for example an API and a manual download, and every relation says which one it goes through
+- **A later switch to a typed (relational) database** stays possible: the kinds are TypeScript types that differ by `kind`, the database is only reached through the connection service, and the model maps to one table with checks (or a table per kind with a foreign key)
+
+Phase 1, connections at the level of resources:
+
+- [ ] Add the `Connection` model (one collection, a schema per kind, ends as `{ id, type }`) and one connection service that is the only place that reads and writes connections
+- [ ] Give relations a required `connectionId` instead of `viaConnectionType` and `viaConnectionId`. Allow the one exception: a relation inside a resource (same source and target) has no connection
+- [ ] Migrate: every `ApiConnection` and `OtherConnection` becomes one connection, every `DatabaseConnection` one or two (one per direction), the carried information of other connections is checked against the relations, and relations without a connection get an `unknown` one
+- [ ] Move the backend over: the external element sync, the received information of external elements, removing resources, and the information usage
+- [ ] Move the frontend over: the connection tables, the canvas lines, the information source and information chain services, the via choice, and the 'Receives from' and 'Sends to' sections of an application (`InformationRelationsSection.vue`, `/resourceConnections`), which then become simple: connecting two resources is creating one connection
+- [ ] Remove the old models, routes and stores of the three connection types
+
+Phase 2, components as ends:
+
+- [ ] Make tables components of their database, the way files are components of a file location. Tables keep their ids when they move into the components collection, so references stay valid
+- [ ] Turn the reads and writes of scripts into connections and relations (source → script, script → target), and remove the script relation sync (`scriptRelation.service.ts`) and the inputs and outputs that scripts keep themselves
+- [ ] Let files be relation ends, so it is known which file information is in
+- [ ] Draw every end at the closest visible level on the canvas
+
+Do both phases before the pilot, so no live data has to be migrated.
+
+### Other model items
+
 - [x] Choose one kind of script: the old `script` model (the Scripts tab) is removed, so scripts only exist as components inside an application or file location. Relations that went via an old script keep their information but lose that route (`migrations/removeOldScripts.ts`)
 - [x] Show the API a script reads through in the information chain: the arrow into the script shows the url of the API (`InformationChainBranch.vue`)
-- [ ] Add other ways to read from an application or external: queue or event stream, scraping or RPA, email, inside the application, unknown. The list on other connections (`human`, `feature`, `file`, `email`, `unknown`) could be extended
-- [ ] Show a yellow warning when that way of reading is not filled in
-- [ ] Decide whether a script read should count as an API connection in the relations. It is still recorded as going via the script
+- [ ] Show a yellow warning when it is not known how a script reads (the `unknown` connection kind of the redesign)
 - [ ] Decide on the yellow warning for a connection without a table or file: writes only, or reads as well. It currently shows for both
 - [ ] Hide or disable editing in the frontend for viewers. Until then a viewer sees edit controls, and their changes fail with "A viewer cannot make changes in this environment"
-- [ ] Make tables components of their database, the way files are components of a file location. Do this together with letting relations point at a component inside a resource: relations now stop at resources, so a table that is a component would lose its relations to the database. Then files get proper relations as well, and script ends become one shape (a resource plus an optional component). Tables can keep their ids when they move into the components collection, so references stay valid. Do it before the pilot, so no live data has to be migrated
 - [ ] Remove that anyone can create an organisation: `POST /org/create` is public, and the login page still has a form for it. Close the route, remove the form, and decide how a new organisation and its first admin are made instead (for example by a script)
 
 ## Step 3: Tests and error messages

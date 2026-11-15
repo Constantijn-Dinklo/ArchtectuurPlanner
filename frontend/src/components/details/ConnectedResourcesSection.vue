@@ -32,8 +32,6 @@
         allowNewInformation?: boolean;
         // Whether an application or external element is connected through its apis
         readsThroughApi?: boolean;
-        // With readsThroughApi: information can also go on the resource itself, without an api
-        apiOptional?: boolean;
         // Whether a file location is connected per file, or as a whole
         fileParts?: boolean;
         // The resource itself, which cannot be picked
@@ -43,7 +41,6 @@
         objectOptionsEmpty: undefined,
         allowNewInformation: false,
         readsThroughApi: false,
-        apiOptional: false,
         fileParts: true,
         excludeResourceId: undefined
     });
@@ -78,11 +75,6 @@
         if (type === 'database') return 'table';
         if (type === 'fileLocation') return props.fileParts ? 'file' : undefined;
         return props.readsThroughApi && (type === 'application' || type === 'external') ? 'API' : undefined;
-    }
-
-    // The information can go on the resource itself: always without tables, files or apis, and next to optional apis
-    function hasOwnInformation(connection: Connection) {
-        return !connection.partNoun || (props.apiOptional && connection.partNoun === 'API');
     }
 
     function endKey(end: ConnectionEndTarget) {
@@ -240,7 +232,7 @@
         >
             <!-- An application or external element: its information directly -->
             <InformationEditor
-                v-if="hasOwnInformation(connection) && connection.own"
+                v-if="!connection.partNoun && connection.own"
                 :information-field-ids="connection.own.end.informationFieldIds"
                 :information-object-ids="connection.own.end.informationObjectIds"
                 :field-options="getFieldOptions(connection.own.end)"
@@ -256,10 +248,10 @@
             />
 
             <!-- A database, file location or something read through an api: first a table, file or api, the information goes on that -->
-            <template v-if="connection.partNoun">
+            <template v-else-if="connection.partNoun">
                 <!-- Information that was put on the resource itself before it had to go on a table, file or api -->
                 <InformationEditor
-                    v-if="!hasOwnInformation(connection) && connection.own && informationCount(connection.own.end)"
+                    v-if="connection.own && informationCount(connection.own.end)"
                     :information-field-ids="connection.own.end.informationFieldIds"
                     :information-object-ids="connection.own.end.informationObjectIds"
                     empty-text=""
@@ -268,7 +260,7 @@
                     @remove-object="id => emit('removeObject', connection.own!.index, id)"
                 />
 
-                <div v-if="!connection.parts.length && !hasOwnInformation(connection)" class="detail-empty">
+                <div v-if="!connection.parts.length" class="detail-empty">
                     No {{ connection.partNoun }} chosen yet
                 </div>
 
