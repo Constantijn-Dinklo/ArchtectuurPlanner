@@ -7,6 +7,9 @@
     import { useTableStore } from '../../stores/resources/table.store';
     import { useResourceService } from '../../services/resources/resource.service';
     import { useTableService } from '../../services/resources/table.service';
+    import { useConnectionStore } from '../../stores/connection.store';
+    import { useInformationSourceService } from '../../services/informationSource.service';
+    import { getConnectionKindInfo } from '../../types/connection.types';
     import { FILE_TYPES, getComponentIcon, type FileType } from '../../types/component.types';
     import type { ConnectionEnd, ConnectionEndTarget, InformationFieldToAdd, InformationObjectToAdd, InformationOption } from '../../types/connectionEnd.types';
     import { RESOURCE_ICONS, type ResourceType } from '../../types/resource.type';
@@ -17,6 +20,7 @@
     // the parent gives the ends and what information can go on them, and saves what is emitted.
     // - an application or external element gets its information directly, or per api when it is read through one
     // - a database has its information per table, a file location per file. Both can also be connected without one
+    // - with connectionParts, an application or external element has its information per connection: how it gets there
     const props = withDefaults(defineProps<{
         title: string;
         addPlaceholder: string;
@@ -32,6 +36,10 @@
         allowNewInformation?: boolean;
         // Whether an application or external element is connected through its apis
         readsThroughApi?: boolean;
+        // Whether an application or external element is connected per connection: how the information gets there
+        connectionParts?: boolean;
+        // With connectionParts: whose apis an api connection goes through (the sender); otherwise the resource itself
+        apiOwnerId?: string;
         // Whether a file location is connected per file, or as a whole
         fileParts?: boolean;
         // The resource itself, which cannot be picked
@@ -41,6 +49,8 @@
         objectOptionsEmpty: undefined,
         allowNewInformation: false,
         readsThroughApi: false,
+        connectionParts: false,
+        apiOwnerId: undefined,
         fileParts: true,
         excludeResourceId: undefined
     });
@@ -62,6 +72,8 @@
     const tableStore = useTableStore();
     const tableService = useTableService();
     const resourceService = useResourceService();
+    const connectionStore = useConnectionStore();
+    const informationSourceService = useInformationSourceService();
 
     // Tables are not always loaded on the higher levels of the canvas
     onMounted(() => tableStore.fetchTables());
@@ -69,16 +81,18 @@
     const API_ICON = 'pi pi-globe';
 
     // What a resource holds its information in or passes it on through, when it is not connected directly
-    type PartNoun = 'table' | 'file' | 'API';
+    type PartNoun = 'table' | 'file' | 'API' | 'connection';
 
     function getPartNoun(type: ResourceType): PartNoun | undefined {
         if (type === 'database') return 'table';
         if (type === 'fileLocation') return props.fileParts ? 'file' : undefined;
-        return props.readsThroughApi && (type === 'application' || type === 'external') ? 'API' : undefined;
+        if (type !== 'application' && type !== 'external') return undefined;
+        if (props.connectionParts) return 'connection';
+        return props.readsThroughApi ? 'API' : undefined;
     }
 
     function endKey(end: ConnectionEndTarget) {
-        return `${end.resourceId}:${end.componentId ?? ''}:${end.apiId ?? ''}`;
+        return `${end.resourceId}:${end.componentId ?? ''}:${end.apiId ?? ''}:${end.connectionId ?? ''}`;
     }
 
     function informationCount(end: ConnectionEnd) {
@@ -128,7 +142,15 @@
 
         props.ends.forEach((end, index) => {
             const resource = resourceService.getResource(end.resourceId);
-            if (end.apiId) {
+            const between = connectionStore.getConnection(end.connectionId);
+            if (between) {
+                getConnection(result, end.resourceId).parts.push({
+                    index,
+                    end,
+                    label: informationSourceService.describeConnection(between),
+                    icon: getConnectionKindInfo(between.kind).icon
+                });
+            } else if (end.apiId) {
                 const api = apiStore.getApi(end.apiId);
                 getConnection(result, end.resourceId).parts.push({ index, end, label: api?.url ?? 'Unknown API', icon: API_ICON });
             } else if (end.componentId) {
@@ -175,9 +197,18 @@
         if (connection.partNoun === 'API') {
             return apiStore.getApplicationApis(connection.id).map(api => ({ target: { resourceId: connection.id, componentId: null, apiId: api.id }, label: api.url }));
         }
+        if (connection.partNoun === 'connection') return getHowOptions(connection.id);
         return componentStore.getResourceComponents(connection.id)
             .filter(component => component.kind === 'file')
             .map(file => ({ target: { resourceId: connection.id, componentId: file.id }, label: file.name }));
+    }
+
+    // How the information gets from the sender to the other: an api of the sender, or another kind
+    function getHowOptions(resourceId: string): Omit<PartOption, 'key'>[] {
+        return informationSourceService.getMethodOptions(props.apiOwnerId ?? resourceId).map(option => ({
+            target: { resourceId, componentId: null, connectionKind: option.kind, apiId: option.apiId },
+            label: option.label
+        }));
     }
 
     function getPartOptions(connection: Connection): PartOption[] {
@@ -187,7 +218,17 @@
     }
 
     function isPartConnected(connection: Connection, option: PartOption) {
+        if (option.target.connectionKind) {
+            return connection.parts.some(part =>
+                part.end.connectionKind === option.target.connectionKind && (part.end.apiId ?? null) === (option.target.apiId ?? null)
+            );
+        }
         return connection.parts.some(part => endKey(part.end) === option.key);
+    }
+
+    function getPartPlaceholder(connection: Connection) {
+        if (connection.partNoun === 'connection') return connection.parts.length ? '+ Add another way…' : '+ Choose how…';
+        return `+ Choose ${connection.partNoun === 'API' ? 'an' : 'a'} ${connection.partNoun}…`;
     }
 
     const newPartNames = ref<Record<string, string>>({});
@@ -261,7 +302,7 @@
                 />
 
                 <div v-if="!connection.parts.length" class="detail-empty">
-                    No {{ connection.partNoun }} chosen yet
+                    {{ connection.partNoun === 'connection' ? 'Not connected yet' : `No ${connection.partNoun} chosen yet` }}
                 </div>
 
                 <ExpandableDetailRow
@@ -270,9 +311,12 @@
                     :icon="part.icon"
                     :label="part.label"
                     :count="informationCount(part.end)"
-                    :remove-title="`Remove this ${connection.partNoun}`"
+                    :remove-title="connection.partNoun === 'connection' ? 'Remove this connection, with what goes through it' : `Remove this ${connection.partNoun}`"
                     @remove="emit('removeEnd', part.index)"
                 >
+                    <!-- E.g. how a connection works, given by the parent -->
+                    <slot name="part-settings" :end="part.end" />
+
                     <InformationEditor
                         :information-field-ids="part.end.informationFieldIds"
                         :information-object-ids="part.end.informationObjectIds"
@@ -294,7 +338,7 @@
                     :options="getPartOptions(connection)"
                     option-label="label"
                     :option-disabled="(option: PartOption) => isPartConnected(connection, option)"
-                    :placeholder="`+ Choose ${connection.partNoun === 'API' ? 'an' : 'a'} ${connection.partNoun}…`"
+                    :placeholder="getPartPlaceholder(connection)"
                     filter
                     :filter-placeholder="`Search ${connection.partNoun}`"
                     :empty-message="`No ${connection.partNoun}s yet`"
@@ -303,7 +347,7 @@
                     @change="event => event.value && emit('connect', event.value.target)"
                 />
 
-                <div class="detail-add-row">
+                <div v-if="connection.partNoun !== 'connection'" class="detail-add-row">
                     <input
                         v-model="newPartNames[connection.id]"
                         type="text"

@@ -1,3 +1,5 @@
+import type { ConnectionKind } from "./connection.types";
+
 // One place something is connected to: a resource (a table is a resource as well), a component inside a resource,
 // like a file in a file location, or an api of an application or external element. A connection to a database or file
 // location has one end per known table or file, and only an end of the resource itself while none is known.
@@ -6,6 +8,9 @@ export interface ConnectionEndTarget {
     resourceId: string;
     componentId: string | null;
     apiId?: string | null;
+    // Between two resources: the connection the information goes through, or for a new one, how it goes
+    connectionId?: string | null;
+    connectionKind?: ConnectionKind;
 }
 
 // The information is what is read from this end or written to it

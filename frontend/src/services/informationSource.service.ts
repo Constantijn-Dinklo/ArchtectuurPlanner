@@ -3,7 +3,16 @@ import { useConnectionStore } from "../stores/connection.store";
 import type { ResourceRelation } from "../stores/information/informationRelation.store";
 import { useComponentStore } from "../stores/resources/component.store";
 import { useResourceService } from "./resources/resource.service";
-import { getConnectionKindInfo, type Connection } from "../types/connection.types";
+import { CONNECTION_KINDS, getConnectionKindInfo, type Connection, type ConnectionKind } from "../types/connection.types";
+
+// One way information can go: an api of the sender, or another kind
+export interface MethodOption {
+    key: string;
+    kind: ConnectionKind;
+    apiId: string | null;
+    label: string;
+    icon: string;
+}
 
 // Which connection information comes through. A relation names its connection; this works out the connections it
 // could go through instead, and how to show them
@@ -47,5 +56,22 @@ export function useInformationSourceService() {
         return connection ? describeConnection(connection) : undefined;
     }
 
-    return { getHolderIds, getCarryingConnections, describeConnection, describeRelationRoute };
+    // How information can go from a sender to another application or external element: through one of the apis of
+    // the sender, or one of the other kinds. A database connection is only for databases
+    function getMethodOptions(senderId: string): MethodOption[] {
+        return [
+            ...apiStore.getApplicationApis(senderId).map(api => ({
+                key: `api:${api.id}`, kind: 'api' as const, apiId: api.id, label: `API ${api.url}`, icon: getConnectionKindInfo('api').icon
+            })),
+            ...CONNECTION_KINDS
+                .filter(option => option.kind !== 'api' && option.kind !== 'database')
+                .map(option => ({ key: option.kind, kind: option.kind, apiId: null, label: option.label, icon: option.icon }))
+        ];
+    }
+
+    function getMethodKey(connection: Connection) {
+        return connection.kind === 'api' ? `api:${connection.apiId}` : connection.kind;
+    }
+
+    return { getHolderIds, getCarryingConnections, describeConnection, describeRelationRoute, getMethodOptions, getMethodKey };
 }
