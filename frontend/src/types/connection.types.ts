@@ -11,7 +11,8 @@ export interface PartRef {
 }
 
 // How it gets there. 'unknown' says something gets there but nobody knows how yet
-export type ConnectionKind = 'api' | 'database' | 'file' | 'manual' | 'email' | 'feature' | 'unknown';
+// 'undecided' says the two are connected, but how has not been chosen yet: nothing can go through it until it has
+export type ConnectionKind = 'api' | 'database' | 'file' | 'manual' | 'email' | 'feature' | 'unknown' | 'undecided';
 
 interface ConnectionBase {
     id: string;
@@ -42,9 +43,10 @@ export const CONNECTION_KINDS: { kind: ConnectionKind, label: string, icon: stri
     { kind: 'manual', label: 'By hand', icon: 'pi pi-user' },
     { kind: 'email', label: 'E-mail', icon: 'pi pi-envelope' },
     { kind: 'feature', label: 'Send function', icon: 'pi pi-send' },
-    { kind: 'unknown', label: 'Unknown', icon: 'pi pi-question-circle' }
+    { kind: 'unknown', label: 'Unknown', icon: 'pi pi-question-circle' },
+    { kind: 'undecided', label: 'Not chosen yet', icon: 'pi pi-minus' }
 ];
 
 export function getConnectionKindInfo(kind: ConnectionKind) {
-    return CONNECTION_KINDS.find(option => option.kind === kind) ?? CONNECTION_KINDS[CONNECTION_KINDS.length - 1]!;
+    return CONNECTION_KINDS.find(option => option.kind === kind) ?? CONNECTION_KINDS.find(option => option.kind === 'unknown')!;
 }

@@ -5,18 +5,21 @@
     import { useResourceService } from '../../services/resources/resource.service';
     import { useInformationSourceService } from '../../services/informationSource.service';
     import { byLabel, useConnectionEndOptions } from '../../services/connectionEndOptions.service';
+    import { Select } from 'primevue';
+    import { useConnectionParts, type PartOption } from '../../services/connectionParts.service';
     import type { ConnectionEnd, ConnectionEndTarget, InformationFieldToAdd, InformationObjectToAdd } from '../../types/connectionEnd.types';
-    import type { Connection, PartType } from '../../types/connection.types';
+    import type { Connection, ConnectionInput, ConnectionKind, PartType } from '../../types/connection.types';
     import ConnectedResourcesSection from './ConnectedResourcesSection.vue';
 
     // What a resource receives from other resources (incoming) or sends to them (outgoing), in the same way as what a
     // script reads from and writes to. The rows are the resources it is connected to, with the information of the
     // relations between them, so the 'Sends to' of one resource and the 'Receives from' of the other always agree.
-    // - an application or external element is connected per connection: first how the information gets there (an api
-    //   of the sender, by hand, a file, ...), then what goes through it. Picking it makes an 'unknown' connection, shown
-    //   as a dashed line, until it is known how
+    // - an application or external element has a part per connection: how the information gets there (an api of the
+    //   sender, by hand, ...), with what goes through it. Picking the resource connects the two without a way yet (an
+    //   undecided connection, a dashed line), which is not shown as a part: like a database without a table chosen
     // - a database is connected per table, through its database connection
-    // - a file location as a whole, through a file connection
+    // - a file location per file, through a file connection. Until files can be relation ends (phase 2) the information
+    //   goes on the file location itself, so it is not shown yet
     // - relations through a script belong to the script, so they are not shown here
     // - a table that is picked but has no information yet is only kept while the panel shows this resource
     const props = defineProps<{
@@ -35,6 +38,7 @@
     const resourceService = useResourceService();
     const informationSourceService = useInformationSourceService();
     const { getEndFieldOptions, getEndObjectOptions } = useConnectionEndOptions();
+    const connectionParts = useConnectionParts();
 
     const isIncoming = computed(() => props.direction === 'incoming');
 
@@ -76,9 +80,10 @@
             return end;
         }
 
-        // The end of a connection: its own part for an application or external element, otherwise the resource
+        // The end of a connection: its own part for an application or external element, otherwise the resource. An
+        // undecided connection only shows the resource
         function getConnectionEnd(otherId: string, connection: Connection | undefined) {
-            if (!connection || !isPerConnection(otherId)) return getEnd({ resourceId: otherId, componentId: null });
+            if (!connection || connection.kind === 'undecided' || !isPerConnection(otherId)) return getEnd({ resourceId: otherId, componentId: null });
             return getEnd({
                 resourceId: otherId,
                 componentId: null,
@@ -109,6 +114,12 @@
         pending.value.forEach(getEnd);
         return [...byKey.values()];
     });
+
+    // An application or external element has the ways information goes as its parts, through an api of the sender
+    function getPartSpec(otherId: string, partEnds: ConnectionEnd[]) {
+        const senderId = isIncoming.value ? otherId : props.resourceId;
+        return connectionParts.forResource(otherId, partEnds, () => connectionParts.connectionTypes(otherId, senderId, partEnds));
+    }
 
     // <-- What can go on an end -->
 
@@ -151,8 +162,15 @@
         return { id: resourceId, type: resourceService.getResource(resourceId)?.type as PartType };
     }
 
-    // Picking a resource connects the two. Choosing how makes the connection: the empty 'unknown' connection between
-    // the two becomes it, otherwise it is added next to the others
+    // The connections between this resource and the other one, in this direction
+    function getConnectionsWith(otherId: string) {
+        const [sourceId, targetId] = getEnds(otherId);
+        return informationSourceService.getCarryingConnections(sourceId, targetId);
+    }
+
+    // Picking a resource connects the two: undecided between applications and external elements, otherwise the
+    // database or file connection. The first way chosen fills in the undecided connection, every next way is a
+    // connection of its own
     async function connect(target: ConnectionEndTarget) {
         const [sourceId, targetId] = getEnds(target.resourceId);
 
@@ -164,16 +182,13 @@
 
         const method = target.connectionKind === 'api'
             ? { kind: 'api' as const, apiId: target.apiId! }
-            : { kind: target.connectionKind };
-        const emptyUnknown = ends.value.find(end =>
-            end.resourceId === target.resourceId && end.connectionKind === 'unknown' &&
-            end.informationFieldIds.length + end.informationObjectIds.length === 0
-        );
-        if (emptyUnknown?.connectionId) {
-            await connectionStore.updateConnection(emptyUnknown.connectionId, method);
+            : { kind: target.connectionKind as Exclude<ConnectionKind, 'api'> };
+        const undecided = getConnectionsWith(target.resourceId).find(connection => connection.kind === 'undecided');
+        if (undecided) {
+            await connectionStore.updateConnection(undecided.id, method);
             return;
         }
-        await connectionStore.createConnection({ ...method, source: toPart(sourceId), target: toPart(targetId) } as Parameters<typeof connectionStore.createConnection>[0]);
+        await connectionStore.createConnection({ ...method, source: toPart(sourceId), target: toPart(targetId) } as ConnectionInput);
     }
 
     // connectionId: the other resource. Its connections go, with everything that goes through them
@@ -198,12 +213,15 @@
         return relations;
     }
 
-    // A connection, with what goes through it, or a table of a database
+    // A connection, with what goes through it, or a table of a database. Like a database without tables, the two stay
+    // connected without a way chosen when the last way goes: the resource itself is removed with its own row
     async function removeEnd(index: number) {
         const end = ends.value[index];
         if (!end) return;
         if (end.connectionId) {
+            const isLast = getConnectionsWith(end.resourceId).length === 1;
             await connectionStore.deleteConnection(end.connectionId);
+            if (isLast) await connectionStore.connectParts(...getEnds(end.resourceId));
             return;
         }
         pending.value = pending.value.filter(target => target.resourceId !== end.resourceId);
@@ -231,13 +249,25 @@
         if (end) informationRelationStore.removeRelations(getRelations(end, kind, informationId));
     }
 
-    // <-- How a connection works, changed in its part -->
-    function changeMethod(connection: Connection, key: string) {
-        const option = informationSourceService.getMethodOptions(connection.source.id).find(option => option.key === key);
-        if (!option) return;
-        connectionStore.updateConnection(connection.id, option.kind === 'api' ? { kind: 'api', apiId: option.apiId! } : { kind: option.kind as Exclude<typeof option.kind, 'api'> });
+    // <-- An unknown way, filled in once it is known: the same connection, so what goes through it stays -->
+    // The same two dropdowns as for a new way: an api of the sender, or another way that is known
+    function getUnknownPickers(end: ConnectionEnd) {
+        const partEnds = ends.value.filter(candidate => candidate.resourceId === end.resourceId && candidate.connectionId);
+        return getPartSpec(end.resourceId, partEnds).pickers.map(picker => ({
+            ...picker,
+            options: picker.options.filter(option => option.target.connectionKind !== 'unknown')
+        }));
     }
 
+    function decideUnknown(connection: Connection, option: PartOption | undefined) {
+        const kind = option?.target.connectionKind;
+        if (!kind) return;
+        connectionStore.updateConnection(connection.id, kind === 'api'
+            ? { kind: 'api', apiId: option.target.apiId! }
+            : { kind: kind as Exclude<ConnectionKind, 'api'> });
+    }
+
+    // <-- The description of a connection, changed in its part -->
     function changeDescription(connection: Connection, description: string) {
         if (description !== connection.description) connectionStore.updateConnection(connection.id, { description });
     }
@@ -254,9 +284,7 @@
         :get-object-options="getObjectOptions"
         :field-options-empty="texts.fieldOptionsEmpty"
         :object-options-empty="texts.objectOptionsEmpty"
-        connection-parts
-        :api-owner-id="isIncoming ? undefined : resourceId"
-        :file-parts="false"
+        :get-part-spec="getPartSpec"
         :exclude-resource-id="resourceId"
         @connect="connect"
         @disconnect="disconnect"
@@ -267,24 +295,29 @@
         @remove-object="(index, id) => removeInformation(index, 'object', id)"
     >
         <template #part-settings="{ end }">
+            <!-- How it goes is the part itself: another way is a connection of its own. Only an unknown way can still be
+                 filled in, once someone finds out how it goes -->
             <template v-if="connectionStore.getConnection(end.connectionId)">
-                <label class="method-setting">
+                <div v-if="end.connectionKind === 'unknown'" class="method-setting">
                     <span>How</span>
-                    <select
-                        class="detail-select"
-                        :class="{ unknown: end.connectionKind === 'unknown' }"
-                        :value="informationSourceService.getMethodKey(connectionStore.getConnection(end.connectionId)!)"
-                        @change="changeMethod(connectionStore.getConnection(end.connectionId)!, ($event.target as HTMLSelectElement).value)"
-                    >
-                        <option
-                            v-for="option in informationSourceService.getMethodOptions(connectionStore.getConnection(end.connectionId)!.source.id)"
-                            :key="option.key"
-                            :value="option.key"
-                        >
-                            {{ option.label }}
-                        </option>
-                    </select>
-                </label>
+                    <div class="unknown-pickers">
+                        <Select
+                            v-for="picker in getUnknownPickers(end)"
+                            :key="picker.placeholder"
+                            :model-value="undefined"
+                            :options="picker.options"
+                            option-label="label"
+                            option-disabled="disabled"
+                            :placeholder="picker.placeholder.replace('+ ', '')"
+                            :filter="!!picker.filterPlaceholder"
+                            :filter-placeholder="picker.filterPlaceholder"
+                            :empty-message="picker.emptyMessage"
+                            size="small"
+                            class="detail-prime-select"
+                            @change="event => decideUnknown(connectionStore.getConnection(end.connectionId)!, event.value)"
+                        />
+                    </div>
+                </div>
                 <label class="method-setting">
                     <span>Description</span>
                     <input
@@ -315,16 +348,23 @@
     flex: 0 0 70px;
 }
 
-.method-setting .detail-select,
 .method-setting .detail-input {
     flex: 1;
     min-width: 0;
 }
 
-/* Nobody knows yet how it gets there */
-.method-setting .detail-select.unknown {
+/* Nobody knows yet how it gets there: an api or another way, side by side */
+.unknown-pickers {
+    display: flex;
+    flex: 1;
+    gap: 4px;
+    min-width: 0;
+}
+
+.unknown-pickers :deep(.detail-prime-select.p-select) {
+    flex: 1;
+    min-width: 0;
     border-color: #fcd34d;
     background: #fffbeb;
-    color: #b45309;
 }
 </style>

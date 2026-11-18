@@ -57,21 +57,18 @@ export function useInformationSourceService() {
     }
 
     // How information can go from a sender to another application or external element: through one of the apis of
-    // the sender, or one of the other kinds. A database connection is only for databases
-    function getMethodOptions(senderId: string): MethodOption[] {
-        return [
-            ...apiStore.getApplicationApis(senderId).map(api => ({
-                key: `api:${api.id}`, kind: 'api' as const, apiId: api.id, label: `API ${api.url}`, icon: getConnectionKindInfo('api').icon
-            })),
-            ...CONNECTION_KINDS
-                .filter(option => option.kind !== 'api' && option.kind !== 'database')
-                .map(option => ({ key: option.kind, kind: option.kind, apiId: null, label: option.label, icon: option.icon }))
-        ];
+    // the sender, or one of the other ways. A database connection is only for databases, and 'not chosen yet' is no way
+    function getApiMethodOptions(senderId: string): MethodOption[] {
+        return apiStore.getApplicationApis(senderId).map(api => ({
+            key: `api:${api.id}`, kind: 'api' as const, apiId: api.id, label: api.url, icon: getConnectionKindInfo('api').icon
+        }));
     }
 
-    function getMethodKey(connection: Connection) {
-        return connection.kind === 'api' ? `api:${connection.apiId}` : connection.kind;
+    function getOtherMethodOptions(): MethodOption[] {
+        return CONNECTION_KINDS
+            .filter(option => !['api', 'database', 'undecided'].includes(option.kind))
+            .map(option => ({ key: option.kind, kind: option.kind, apiId: null, label: option.label, icon: option.icon }));
     }
 
-    return { getHolderIds, getCarryingConnections, describeConnection, describeRelationRoute, getMethodOptions, getMethodKey };
+    return { getHolderIds, getCarryingConnections, describeConnection, describeRelationRoute, getApiMethodOptions, getOtherMethodOptions };
 }

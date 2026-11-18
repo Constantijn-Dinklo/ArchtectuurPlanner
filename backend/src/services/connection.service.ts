@@ -3,6 +3,8 @@ import Api from "../models/api.model";
 import Component from "../models/component.model";
 import Connection, { CONNECTION_MODELS, IConnection } from "../models/connection.model";
 import Table from "../models/resources/table.model";
+import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
+import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import { getResourceType } from "./externalRelation.service";
 import {
     CONNECTION_KINDS,
@@ -132,6 +134,13 @@ async function checkConnection(user: User, input: ConnectionInput) {
     if(input.kind === 'database' && ![input.source.type, input.target.type].some((type) => type === 'database' || type === 'table')) {
         throw new Error("A database connection has a database on one of its ends");
     }
+
+    // With a database or file location the way is always known; only between applications and external elements it
+    // can still be open
+    const OPEN_TYPES: PartType[] = ['application', 'external'];
+    if(input.kind === 'undecided' && ![input.source.type, input.target.type].every((type) => OPEN_TYPES.includes(type))) {
+        throw new Error("Only a connection between applications or external elements can be left undecided");
+    }
 }
 
 // <-- Changing -->
@@ -162,6 +171,13 @@ export async function updateConnection(user: User, connectionId: string, body: a
     });
     await checkConnection(user, input);
 
+    // Without a way chosen nothing can go through it
+    if(input.kind === 'undecided' && existing.kind !== 'undecided') {
+        const hasRelations = await ResourceFieldRelation.exists({ environmentId: user.environmentId, connectionId })
+            || await ResourceObjectRelation.exists({ environmentId: user.environmentId, connectionId });
+        if(hasRelations) throw new Error("Information still goes through this connection: remove it first, or choose another way");
+    }
+
     // The new kind decides which fields the connection has: checked with its own schema, then stored in place
     const replacement = new CONNECTION_MODELS[input.kind]({ _id: document._id, environmentId: document.environmentId, ...input });
     await replacement.validate();
@@ -172,9 +188,9 @@ export async function updateConnection(user: User, connectionId: string, body: a
     return getConnection(user, connectionId);
 }
 
-// Connects the source to the target when nothing connects them yet, and returns the connection. A table is
-// connected through its database. The kind is what fits the two: a database connection when a database is involved,
-// a file for a file location, otherwise unknown until someone finds out how it goes
+// Connects the source to the target in this direction when nothing connects them yet, and returns the connection. A
+// table is connected through its database. The kind is what fits the two: a database connection when a database is
+// involved, a file for a file location, otherwise undecided: the two are connected, but how is still to be chosen
 export async function connectParts(user: User, sourceId: string, targetId: string) {
     const toEnd = async (partId: string): Promise<PartRef> => {
         const holderIds = await getHolderIds(user, partId);
@@ -190,7 +206,7 @@ export async function connectParts(user: User, sourceId: string, targetId: strin
     if(existing) return existing;
 
     const types = [source.type, target.type];
-    const kind: Exclude<ConnectionKind, 'api'> = types.includes('database') ? 'database' : types.includes('fileLocation') ? 'file' : 'unknown';
+    const kind: Exclude<ConnectionKind, 'api'> = types.includes('database') ? 'database' : types.includes('fileLocation') ? 'file' : 'undecided';
     return createConnection(user, { kind, source, target });
 }
 

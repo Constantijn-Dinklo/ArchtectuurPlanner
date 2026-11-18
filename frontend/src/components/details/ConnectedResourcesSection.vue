@@ -5,60 +5,52 @@
     import { useApiStore } from '../../stores/api.store';
     import { useComponentStore } from '../../stores/resources/component.store';
     import { useTableStore } from '../../stores/resources/table.store';
-    import { useResourceService } from '../../services/resources/resource.service';
-    import { useTableService } from '../../services/resources/table.service';
     import { useConnectionStore } from '../../stores/connection.store';
+    import { useResourceService } from '../../services/resources/resource.service';
     import { useInformationSourceService } from '../../services/informationSource.service';
+    import type { PartCreator, PartOption, PartSpec } from '../../services/connectionParts.service';
     import { getConnectionKindInfo } from '../../types/connection.types';
     import { FILE_TYPES, getComponentIcon, type FileType } from '../../types/component.types';
     import type { ConnectionEnd, ConnectionEndTarget, InformationFieldToAdd, InformationObjectToAdd, InformationOption } from '../../types/connectionEnd.types';
-    import { RESOURCE_ICONS, type ResourceType } from '../../types/resource.type';
+    import { RESOURCE_ICONS } from '../../types/resource.type';
     import ExpandableDetailRow from './ExpandableDetailRow.vue';
     import InformationEditor from './InformationEditor.vue';
 
-    // What something reads from or writes to, as a detail section. It does not know what it is used for:
-    // the parent gives the ends and what information can go on them, and saves what is emitted.
-    // - an application or external element gets its information directly, or per api when it is read through one
-    // - a database has its information per table, a file location per file. Both can also be connected without one
-    // - with connectionParts, an application or external element has its information per connection: how it gets there
+    // What something is connected to, as a detail section, in three levels:
+    // 1. a row per connected resource
+    // 2. inside it a row per part: a table of a database, a file of a file location, an api or a way information goes
+    // 3. inside a part the information that goes through it
+    // It does not know what it is used for: the parent gives the ends, what the parts of a resource are and what
+    // information can go on them, and saves what is emitted. An end of the resource itself (no part) only says the two
+    // are connected
     const props = withDefaults(defineProps<{
         title: string;
         addPlaceholder: string;
         emptyText: string;
-        // Shown on an end without information
+        // Shown on a part without information
         informationEmptyText: string;
         ends: ConnectionEnd[];
+        // What the parts of a connected resource are; ends are the parts it has
+        getPartSpec: (resourceId: string, ends: ConnectionEnd[]) => PartSpec;
         getFieldOptions: (end: ConnectionEnd) => InformationOption[];
         getObjectOptions: (end: ConnectionEnd) => InformationOption[];
         fieldOptionsEmpty?: string;
         objectOptionsEmpty?: string;
-        // Whether new information can be made on an end
+        // Whether new information can be made on a part
         allowNewInformation?: boolean;
-        // Whether an application or external element is connected through its apis
-        readsThroughApi?: boolean;
-        // Whether an application or external element is connected per connection: how the information gets there
-        connectionParts?: boolean;
-        // With connectionParts: whose apis an api connection goes through (the sender); otherwise the resource itself
-        apiOwnerId?: string;
-        // Whether a file location is connected per file, or as a whole
-        fileParts?: boolean;
         // The resource itself, which cannot be picked
         excludeResourceId?: string;
     }>(), {
         fieldOptionsEmpty: undefined,
         objectOptionsEmpty: undefined,
         allowNewInformation: false,
-        readsThroughApi: false,
-        connectionParts: false,
-        apiOwnerId: undefined,
-        fileParts: true,
         excludeResourceId: undefined
     });
 
     const emit = defineEmits<{
         connect: [target: ConnectionEndTarget];
-        // connectionId: the resource, with every table or file of it
-        disconnect: [connectionId: string];
+        // resourceId: the connected resource, with every part of it
+        disconnect: [resourceId: string];
         // index: the position of the end in ends
         removeEnd: [index: number];
         addField: [index: number, information: InformationFieldToAdd];
@@ -70,109 +62,82 @@
     const apiStore = useApiStore();
     const componentStore = useComponentStore();
     const tableStore = useTableStore();
-    const tableService = useTableService();
-    const resourceService = useResourceService();
     const connectionStore = useConnectionStore();
+    const resourceService = useResourceService();
     const informationSourceService = useInformationSourceService();
 
     // Tables are not always loaded on the higher levels of the canvas
     onMounted(() => tableStore.fetchTables());
 
-    const API_ICON = 'pi pi-globe';
-
-    // What a resource holds its information in or passes it on through, when it is not connected directly
-    type PartNoun = 'table' | 'file' | 'API' | 'connection';
-
-    function getPartNoun(type: ResourceType): PartNoun | undefined {
-        if (type === 'database') return 'table';
-        if (type === 'fileLocation') return props.fileParts ? 'file' : undefined;
-        if (type !== 'application' && type !== 'external') return undefined;
-        if (props.connectionParts) return 'connection';
-        return props.readsThroughApi ? 'API' : undefined;
+    // <-- Level 1 and 2: connected resources and their parts -->
+    interface Part {
+        // The position of the end in ends
+        index: number;
+        end: ConnectionEnd;
+        label: string;
+        icon: string;
     }
 
-    function endKey(end: ConnectionEndTarget) {
-        return `${end.resourceId}:${end.componentId ?? ''}:${end.apiId ?? ''}:${end.connectionId ?? ''}`;
+    interface ConnectedResource {
+        id: string;
+        label: string;
+        icon: string;
+        parts: Part[];
+        spec: PartSpec;
     }
+
+    // The resource a part belongs to: a table to its database
+    function getRowId(end: ConnectionEnd) {
+        const resource = resourceService.getResource(end.resourceId);
+        return resource?.type === 'table' ? resource.databaseId : end.resourceId;
+    }
+
+    // How a part is shown, or undefined for an end of the resource itself
+    function describePart(end: ConnectionEnd): Omit<Part, 'index' | 'end'> | undefined {
+        const connection = connectionStore.getConnection(end.connectionId);
+        // An api connection shows only its url: the icon already says it is an api
+        if (connection?.kind === 'api') {
+            const url = apiStore.getApi(connection.apiId)?.url ?? 'Unknown API';
+            return { label: connection.description ? `${url}: ${connection.description}` : url, icon: getConnectionKindInfo('api').icon };
+        }
+        if (connection) return { label: informationSourceService.describeConnection(connection), icon: getConnectionKindInfo(connection.kind).icon };
+        if (end.apiId) return { label: apiStore.getApi(end.apiId)?.url ?? 'Unknown API', icon: 'pi pi-globe' };
+        if (end.componentId) {
+            const file = componentStore.getComponent(end.componentId);
+            return { label: file?.name ?? 'Unknown file', icon: file ? getComponentIcon(file) : 'pi pi-file' };
+        }
+        const resource = resourceService.getResource(end.resourceId);
+        if (resource?.type === 'table') return { label: resource.name, icon: RESOURCE_ICONS.table };
+        return undefined;
+    }
+
+    const connectedResources = computed<ConnectedResource[]>(() => {
+        const partsById = new Map<string, Part[]>();
+        props.ends.forEach((end, index) => {
+            const parts = partsById.get(getRowId(end)) ?? [];
+            const part = describePart(end);
+            if (part) parts.push({ index, end, ...part });
+            partsById.set(getRowId(end), parts);
+        });
+
+        return [...partsById].map(([id, parts]) => {
+            const resource = resourceService.getResource(id);
+            return {
+                id,
+                label: resource?.name ?? 'Unknown resource',
+                icon: resource ? RESOURCE_ICONS[resource.type] : 'pi pi-box',
+                parts,
+                spec: props.getPartSpec(id, parts.map(part => part.end))
+            };
+        });
+    });
 
     function informationCount(end: ConnectionEnd) {
         return end.informationFieldIds.length + end.informationObjectIds.length;
     }
 
-    interface PositionedEnd {
-        index: number;
-        end: ConnectionEnd;
-    }
-
-    // A known table, file or api of a connection
-    interface ConnectionPart extends PositionedEnd {
-        label: string;
-        icon: string;
-    }
-
-    // Everything that goes to one resource
-    interface Connection {
-        id: string;
-        label: string;
-        icon: string;
-        partNoun?: PartNoun;
-        parts: ConnectionPart[];
-        // The end of the resource itself
-        own?: PositionedEnd;
-    }
-
-    function getConnection(connections: Map<string, Connection>, id: string) {
-        const existing = connections.get(id);
-        if (existing) return existing;
-
-        const resource = resourceService.getResource(id);
-        const connection: Connection = {
-            id,
-            label: resource?.name ?? 'Unknown resource',
-            icon: resource ? RESOURCE_ICONS[resource.type] : 'pi pi-box',
-            partNoun: resource ? getPartNoun(resource.type) : undefined,
-            parts: []
-        };
-        connections.set(id, connection);
-        return connection;
-    }
-
-    const connections = computed(() => {
-        const result = new Map<string, Connection>();
-
-        props.ends.forEach((end, index) => {
-            const resource = resourceService.getResource(end.resourceId);
-            const between = connectionStore.getConnection(end.connectionId);
-            if (between) {
-                getConnection(result, end.resourceId).parts.push({
-                    index,
-                    end,
-                    label: informationSourceService.describeConnection(between),
-                    icon: getConnectionKindInfo(between.kind).icon
-                });
-            } else if (end.apiId) {
-                const api = apiStore.getApi(end.apiId);
-                getConnection(result, end.resourceId).parts.push({ index, end, label: api?.url ?? 'Unknown API', icon: API_ICON });
-            } else if (end.componentId) {
-                const file = componentStore.getComponent(end.componentId);
-                getConnection(result, end.resourceId).parts.push({
-                    index,
-                    end,
-                    label: file?.name ?? 'Unknown file',
-                    icon: file ? getComponentIcon(file) : 'pi pi-file'
-                });
-            } else if (resource?.type === 'table') {
-                getConnection(result, resource.databaseId).parts.push({ index, end, label: resource.name, icon: RESOURCE_ICONS.table });
-            } else {
-                getConnection(result, end.resourceId).own = { index, end };
-            }
-        });
-
-        return [...result.values()];
-    });
-
-    function connectionCount(connection: Connection) {
-        return connection.parts.reduce((count, part) => count + informationCount(part.end), connection.own ? informationCount(connection.own.end) : 0);
+    function resourceCount(connected: ConnectedResource) {
+        return connected.parts.reduce((count, part) => count + informationCount(part.end), 0);
     }
 
     // <-- Connecting to a resource -->
@@ -183,73 +148,16 @@
             .sort((a, b) => a.label.localeCompare(b.label))
     );
 
-    // <-- The tables, files and apis of a connection -->
-    interface PartOption {
-        key: string;
-        target: ConnectionEndTarget;
-        label: string;
-    }
-
-    function getPartTargets(connection: Connection): Omit<PartOption, 'key'>[] {
-        if (connection.partNoun === 'table') {
-            return tableStore.getTables(connection.id).map(table => ({ target: { resourceId: table.id, componentId: null }, label: table.name }));
-        }
-        if (connection.partNoun === 'API') {
-            return apiStore.getApplicationApis(connection.id).map(api => ({ target: { resourceId: connection.id, componentId: null, apiId: api.id }, label: api.url }));
-        }
-        if (connection.partNoun === 'connection') return getHowOptions(connection.id);
-        return componentStore.getResourceComponents(connection.id)
-            .filter(component => component.kind === 'file')
-            .map(file => ({ target: { resourceId: connection.id, componentId: file.id }, label: file.name }));
-    }
-
-    // How the information gets from the sender to the other: an api of the sender, or another kind
-    function getHowOptions(resourceId: string): Omit<PartOption, 'key'>[] {
-        return informationSourceService.getMethodOptions(props.apiOwnerId ?? resourceId).map(option => ({
-            target: { resourceId, componentId: null, connectionKind: option.kind, apiId: option.apiId },
-            label: option.label
-        }));
-    }
-
-    function getPartOptions(connection: Connection): PartOption[] {
-        return getPartTargets(connection)
-            .map(option => ({ ...option, key: endKey(option.target) }))
-            .sort((a, b) => a.label.localeCompare(b.label));
-    }
-
-    function isPartConnected(connection: Connection, option: PartOption) {
-        if (option.target.connectionKind) {
-            return connection.parts.some(part =>
-                part.end.connectionKind === option.target.connectionKind && (part.end.apiId ?? null) === (option.target.apiId ?? null)
-            );
-        }
-        return connection.parts.some(part => endKey(part.end) === option.key);
-    }
-
-    function getPartPlaceholder(connection: Connection) {
-        if (connection.partNoun === 'connection') return connection.parts.length ? '+ Add another way…' : '+ Choose how…';
-        return `+ Choose ${connection.partNoun === 'API' ? 'an' : 'a'} ${connection.partNoun}…`;
-    }
-
+    // <-- A new part -->
     const newPartNames = ref<Record<string, string>>({});
     const newFileType = ref<FileType>('excel');
 
-    async function addNewPart(connection: Connection) {
-        const name = newPartNames.value[connection.id]?.trim();
+    async function createPart(resourceId: string, creator: PartCreator) {
+        const name = newPartNames.value[resourceId]?.trim();
         if (!name) return;
-        newPartNames.value[connection.id] = '';
-
-        if (connection.partNoun === 'table') {
-            emit('connect', { resourceId: await tableService.createTable(name, connection.id), componentId: null });
-            return;
-        }
-        if (connection.partNoun === 'API') {
-            const api = await apiStore.commitApi(connection.id, name);
-            if (api) emit('connect', { resourceId: connection.id, componentId: null, apiId: api.id });
-            return;
-        }
-        const file = await componentStore.createComponent(connection.id, 'file', name, newFileType.value);
-        if (file) emit('connect', { resourceId: connection.id, componentId: file.id });
+        newPartNames.value[resourceId] = '';
+        const target = await creator.create(name, newFileType.value);
+        if (target) emit('connect', target);
     }
 </script>
 
@@ -257,132 +165,108 @@
     <section v-collapsible class="detail-section">
         <div class="detail-section-title">
             <span>{{ title }}</span>
-            <span class="detail-count">{{ connections.length }}</span>
+            <span class="detail-count">{{ connectedResources.length }}</span>
         </div>
 
-        <div v-if="!connections.length" class="detail-empty">{{ emptyText }}</div>
+        <div v-if="!connectedResources.length" class="detail-empty">{{ emptyText }}</div>
 
+        <!-- 1. A connected resource -->
         <ExpandableDetailRow
-            v-for="connection in connections"
-            :key="connection.id"
-            :icon="connection.icon"
-            :label="connection.label"
-            :count="connectionCount(connection)"
+            v-for="connected in connectedResources"
+            :key="connected.id"
+            :icon="connected.icon"
+            :label="connected.label"
+            :count="resourceCount(connected)"
             remove-title="Remove this connection"
-            @remove="emit('disconnect', connection.id)"
+            @remove="emit('disconnect', connected.id)"
         >
-            <!-- An application or external element: its information directly -->
-            <InformationEditor
-                v-if="!connection.partNoun && connection.own"
-                :information-field-ids="connection.own.end.informationFieldIds"
-                :information-object-ids="connection.own.end.informationObjectIds"
-                :field-options="getFieldOptions(connection.own.end)"
-                :object-options="getObjectOptions(connection.own.end)"
-                :empty-text="informationEmptyText"
-                :field-options-empty="fieldOptionsEmpty"
-                :object-options-empty="objectOptionsEmpty"
-                :allow-new="allowNewInformation"
-                @add-field="information => emit('addField', connection.own!.index, information)"
-                @remove-field="id => emit('removeField', connection.own!.index, id)"
-                @add-object="information => emit('addObject', connection.own!.index, information)"
-                @remove-object="id => emit('removeObject', connection.own!.index, id)"
-            />
+            <div v-if="!connected.parts.length" class="detail-empty">{{ connected.spec.emptyText }}</div>
 
-            <!-- A database, file location or something read through an api: first a table, file or api, the information goes on that -->
-            <template v-else-if="connection.partNoun">
-                <!-- Information that was put on the resource itself before it had to go on a table, file or api -->
+            <!-- 2. A part of it -->
+            <ExpandableDetailRow
+                v-for="part in connected.parts"
+                :key="part.index"
+                :icon="part.icon"
+                :label="part.label"
+                :count="informationCount(part.end)"
+                :remove-title="connected.spec.removeTitle"
+                @remove="emit('removeEnd', part.index)"
+            >
+                <!-- E.g. how a connection works, given by the parent -->
+                <slot name="part-settings" :end="part.end" />
+
+                <!-- 3. What goes through it -->
                 <InformationEditor
-                    v-if="connection.own && informationCount(connection.own.end)"
-                    :information-field-ids="connection.own.end.informationFieldIds"
-                    :information-object-ids="connection.own.end.informationObjectIds"
-                    empty-text=""
-                    chips-only
-                    @remove-field="id => emit('removeField', connection.own!.index, id)"
-                    @remove-object="id => emit('removeObject', connection.own!.index, id)"
+                    :information-field-ids="part.end.informationFieldIds"
+                    :information-object-ids="part.end.informationObjectIds"
+                    :field-options="getFieldOptions(part.end)"
+                    :object-options="getObjectOptions(part.end)"
+                    :empty-text="informationEmptyText"
+                    :field-options-empty="fieldOptionsEmpty"
+                    :object-options-empty="objectOptionsEmpty"
+                    :allow-new="allowNewInformation"
+                    @add-field="information => emit('addField', part.index, information)"
+                    @remove-field="id => emit('removeField', part.index, id)"
+                    @add-object="information => emit('addObject', part.index, information)"
+                    @remove-object="id => emit('removeObject', part.index, id)"
                 />
+            </ExpandableDetailRow>
 
-                <div v-if="!connection.parts.length" class="detail-empty">
-                    {{ connection.partNoun === 'connection' ? 'Not connected yet' : `No ${connection.partNoun} chosen yet` }}
-                </div>
-
-                <ExpandableDetailRow
-                    v-for="part in connection.parts"
-                    :key="endKey(part.end)"
-                    :icon="part.icon"
-                    :label="part.label"
-                    :count="informationCount(part.end)"
-                    :remove-title="connection.partNoun === 'connection' ? 'Remove this connection, with what goes through it' : `Remove this ${connection.partNoun}`"
-                    @remove="emit('removeEnd', part.index)"
-                >
-                    <!-- E.g. how a connection works, given by the parent -->
-                    <slot name="part-settings" :end="part.end" />
-
-                    <InformationEditor
-                        :information-field-ids="part.end.informationFieldIds"
-                        :information-object-ids="part.end.informationObjectIds"
-                        :field-options="getFieldOptions(part.end)"
-                        :object-options="getObjectOptions(part.end)"
-                        :empty-text="informationEmptyText"
-                        :field-options-empty="fieldOptionsEmpty"
-                        :object-options-empty="objectOptionsEmpty"
-                        :allow-new="allowNewInformation"
-                        @add-field="information => emit('addField', part.index, information)"
-                        @remove-field="id => emit('removeField', part.index, id)"
-                        @add-object="information => emit('addObject', part.index, information)"
-                        @remove-object="id => emit('removeObject', part.index, id)"
-                    />
-                </ExpandableDetailRow>
-
+            <!-- Picking another part, with one or more dropdowns side by side -->
+            <div class="part-pickers">
                 <Select
+                    v-for="picker in connected.spec.pickers"
+                    :key="picker.placeholder"
                     :model-value="undefined"
-                    :options="getPartOptions(connection)"
+                    :options="picker.options"
                     option-label="label"
-                    :option-disabled="(option: PartOption) => isPartConnected(connection, option)"
-                    :placeholder="getPartPlaceholder(connection)"
-                    filter
-                    :filter-placeholder="`Search ${connection.partNoun}`"
-                    :empty-message="`No ${connection.partNoun}s yet`"
+                    option-disabled="disabled"
+                    :placeholder="picker.placeholder"
+                    :filter="!!picker.filterPlaceholder"
+                    :filter-placeholder="picker.filterPlaceholder"
+                    :empty-message="picker.emptyMessage"
                     size="small"
                     class="detail-prime-select"
-                    @change="event => event.value && emit('connect', event.value.target)"
+                    @change="event => event.value && emit('connect', (event.value as PartOption).target)"
                 />
+            </div>
 
-                <div v-if="connection.partNoun !== 'connection'" class="detail-add-row">
-                    <input
-                        v-model="newPartNames[connection.id]"
-                        type="text"
-                        class="detail-input"
-                        :placeholder="`+ New ${connection.partNoun}`"
-                        @keyup.enter="addNewPart(connection)"
-                    />
-                    <select
-                        v-if="connection.partNoun === 'file'"
-                        v-model="newFileType"
-                        class="detail-select file-type-select"
-                        title="File type"
-                    >
-                        <option v-for="option in FILE_TYPES" :key="option.fileType" :value="option.fileType">
-                            {{ option.label }}
-                        </option>
-                    </select>
-                    <button
-                        type="button"
-                        class="detail-add-button"
-                        :title="`Add ${connection.partNoun}`"
-                        :disabled="!newPartNames[connection.id]?.trim()"
-                        @click="addNewPart(connection)"
-                    >
-                        <i class="pi pi-plus" />
-                    </button>
-                </div>
-            </template>
+            <!-- Making a new part -->
+            <div v-if="connected.spec.creator" class="detail-add-row">
+                <input
+                    v-model="newPartNames[connected.id]"
+                    type="text"
+                    class="detail-input"
+                    :placeholder="connected.spec.creator.placeholder"
+                    @keyup.enter="createPart(connected.id, connected.spec.creator)"
+                />
+                <select
+                    v-if="connected.spec.creator.withFileType"
+                    v-model="newFileType"
+                    class="detail-select file-type-select"
+                    title="File type"
+                >
+                    <option v-for="option in FILE_TYPES" :key="option.fileType" :value="option.fileType">
+                        {{ option.label }}
+                    </option>
+                </select>
+                <button
+                    type="button"
+                    class="detail-add-button"
+                    :title="connected.spec.creator.title"
+                    :disabled="!newPartNames[connected.id]?.trim()"
+                    @click="createPart(connected.id, connected.spec.creator)"
+                >
+                    <i class="pi pi-plus" />
+                </button>
+            </div>
         </ExpandableDetailRow>
 
         <Select
             :model-value="undefined"
             :options="resourceOptions"
             option-label="label"
-            :option-disabled="(option: InformationOption) => connections.some(connection => connection.id === option.id)"
+            :option-disabled="(option: InformationOption) => connectedResources.some(connected => connected.id === option.id)"
             :placeholder="addPlaceholder"
             filter
             filter-placeholder="Search resource"
@@ -397,5 +281,16 @@
 .file-type-select {
     flex: 0 0 auto;
     width: auto;
+}
+
+/* Side by side, like the object and field pickers */
+.part-pickers {
+    display: flex;
+    gap: 4px;
+}
+
+.part-pickers :deep(.detail-prime-select.p-select) {
+    flex: 1;
+    min-width: 0;
 }
 </style>

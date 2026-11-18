@@ -6,6 +6,8 @@
     import { useInformationObjectStore } from '../../stores/information/informationObject.store';
     import { useResourceService } from '../../services/resources/resource.service';
     import { byLabel, useConnectionEndOptions } from '../../services/connectionEndOptions.service';
+    import { useConnectionParts } from '../../services/connectionParts.service';
+    import type { ConnectionEnd } from '../../types/connectionEnd.types';
     import { FILE_TYPES, getComponentIcon, getInformationSlotIds, type ComponentEnd, type FileType, type InformationSlot } from '../../types/component.types';
     import type { InformationOption } from '../../types/connectionEnd.types';
     import ConnectedResourcesSection from './ConnectedResourcesSection.vue';
@@ -21,6 +23,12 @@
     const informationObjectStore = useInformationObjectStore();
     const resourceService = useResourceService();
     const { getEndFieldOptions, getEndObjectOptions } = useConnectionEndOptions();
+    const connectionParts = useConnectionParts();
+
+    // A script reads from and writes to a table, a file, or an api of an application or external element
+    function getPartSpec(resourceId: string, ends: ConnectionEnd[]) {
+        return connectionParts.forResource(resourceId, ends, () => connectionParts.apis(resourceId, ends));
+    }
 
     const component = computed(() => componentStore.getComponent(props.componentId));
     const host = computed(() => component.value ? resourceService.getResource(component.value.resourceId) : undefined);
@@ -86,8 +94,7 @@
             getObjectOptions: (end: ComponentEnd) => byLabel(getEndObjectOptions(end)),
             fieldOptionsEmpty: 'This has no fields to read',
             objectOptionsEmpty: 'This has no objects to read',
-            allowNewInformation: false,
-            readsThroughApi: true
+            allowNewInformation: false
         },
         {
             side: 'outputs' as const,
@@ -99,8 +106,7 @@
             getObjectOptions: () => producible.value.objects,
             fieldOptionsEmpty: 'The script takes in no fields yet',
             objectOptionsEmpty: 'The script takes in no objects yet',
-            allowNewInformation: true,
-            readsThroughApi: false
+            allowNewInformation: true
         }
     ]);
 
@@ -268,7 +274,7 @@
                 :field-options-empty="section.fieldOptionsEmpty"
                 :object-options-empty="section.objectOptionsEmpty"
                 :allow-new-information="section.allowNewInformation"
-                :reads-through-api="section.readsThroughApi"
+                :get-part-spec="getPartSpec"
                 @connect="target => componentStore.addEnd(component!.id, section.side, target)"
                 @disconnect="connectionId => componentStore.removeConnection(component!.id, section.side, connectionId)"
                 @remove-end="index => componentStore.removeEnd(component!.id, section.side, index)"

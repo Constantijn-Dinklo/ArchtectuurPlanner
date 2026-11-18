@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { computed, onMounted, ref } from 'vue';
+  import { computed, onMounted, ref, watch } from 'vue';
   import DataTable from 'primevue/datatable';
   import Column from 'primevue/column';
   import { Select, Menu, Button, InputText } from 'primevue';
@@ -37,8 +37,15 @@
   // <-- A new connection -->
   const newSourceId = ref<string>();
   const newTargetId = ref<string>();
-  const newKind = ref<ConnectionKind>('unknown');
+  const newKind = ref<ConnectionKind>('undecided');
   const newApiId = ref<string>();
+
+  // The kind starts as what fits the two ends: with a database or file location the way is known, between applications
+  // and external elements it can stay undecided
+  watch([newSourceId, newTargetId], ([sourceId, targetId]) => {
+    const types = [sourceId, targetId].map(id => id ? resourceService.getResource(id)?.type : undefined);
+    newKind.value = types.includes('database') ? 'database' : types.includes('fileLocation') ? 'file' : 'undecided';
+  });
 
   const newSourceApis = computed(() => newSourceId.value ? apiStore.getApplicationApis(newSourceId.value) : []);
   const canAdd = computed(() =>
@@ -60,7 +67,7 @@
     if (created) {
       newSourceId.value = undefined;
       newTargetId.value = undefined;
-      newKind.value = 'unknown';
+      newKind.value = 'undecided';
       newApiId.value = undefined;
     }
   }

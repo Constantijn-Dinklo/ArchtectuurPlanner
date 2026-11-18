@@ -4,6 +4,15 @@ Goal: test ArchitectuurPlanner in a real environment with a small pilot: one org
 
 Written on 2026-11-01. Work through the steps in order and tick items off as they are done. Marked *(unchecked)* means the point is a judgement or was not confirmed in the code, so check it first.
 
+The model: three layers
+
+Layer	      What it is	  Examples
+Parts       Everything in the landscape, each inside a parent	
+                          Server → application → script. Database → table. File location → file
+Connection	A directed link between two parts: how things can get from A to B	
+                          Webshop → CRM through API /orders. Database → Webshop, database kind. Webshop → Finance, manual kind
+Relation	  One field or object moving from part A to part B, always through one connection	              customerId: table Customers → Webshop, through that database connection
+
 ## Step 1: Permissions and safe updates (done)
 
 - [x] Replace `$set: req.body` with a list of allowed fields, using `pickFields` in `backend/src/routes/pickFields.ts`. A request could overwrite any field, including `environmentId`. Routes:
@@ -42,16 +51,18 @@ The new model has three layers:
 Decisions:
 
 - **One `Connection` model** for every pair of parts. Shared fields: `source`, `target`, `kind`, `description`. One collection, with a schema per kind for the fields only that kind has (Mongoose discriminators). For now only `api` has one: `apiId`, the API of the source
-- **Kinds** form one list: `api`, `database`, `file`, `manual`, `email`, `feature`, `unknown`, extendable (queue or event stream, scraping or RPA, ...). There is no separate "other" type with methods any more
+- **Kinds** form one list: `api`, `database`, `file`, `manual`, `email`, `feature`, `unknown`, `undecided`, extendable (queue or event stream, scraping or RPA, ...). There is no separate "other" type with methods any more
 - **`unknown` is a real kind**: it says that something gets there but nobody knows how yet. Showing these gaps is one of the aims of the program, so it gets a clear warning, not an error
-- **Direction instead of operations**: a database that is read and written gets two connections, database → application and application → database
+- **One connection per way and direction**: two applications linked by three APIs have three connections, and an API and a manual download are two. A script that writes to a file location is a connection of its own, because the script is its end (phase 2)
+- **Direction instead of operations**: a database that is read and written gets two connections, database → application and application → database, so the rule "a relation goes the same way as its connection" has no exceptions. A file location works the same way
+- **`undecided`** says two applications or external elements are connected, but how is not chosen yet (a dashed line). Nothing can go through it until it is, and choosing fills in that same connection. Only these pairs can be undecided: with a database or file location the way is always known
+- **The backend stores, the frontend groups**: connections are sent as they are. The frontend shows them per resource (Receives from: "Webshop", with its connections as parts), and a read and a write of the same database as one row ("reads & writes") in the connections list. The canvas keeps two arrows: an arrow always leaves its source at the bottom and enters its target at the top
 - **Ends are an id plus a type**, for both connections and relations, for example `{ id, type: 'table' }`. A type can be a resource or a component (`script`, `file`, `table`). Levels above a resource (server, later team) are never stored: they follow from the parents
 - **Every relation has a required `connectionId`**. What a connection carries is the relations that point at it, so connections no longer keep their own list of carried information
 - **The rule**: a relation's end is the same part as its connection's end, or a part inside it. Example: the connection goes from a database to an application (an application has one connection to a database, not one per table), the relation goes from the table to the application, so it is always known which table the information came from
 - **Inside a resource** information can go from an input to an output: this stays a relation, with the same source and target and no connection. For now only in applications, later possibly in other resources too
 - **Scripts are parts, not resources**, but they can be connection and relation ends: CRM → script (api) → table, with the relations along the same route. This reverses the earlier decision (2026-10-30) to keep components out of the relations, without adding a field per level: there is still one end id
 - **Drawing**: an end is drawn at the closest level that is visible. When the level of detail hides scripts, the arrow CRM → script is drawn as CRM → host of the script, and a table's relations are drawn at its database when tables are hidden. Nothing extra is stored for this
-- **Several connections between the same two parts** are fine, for example an API and a manual download, and every relation says which one it goes through
 - **A later switch to a typed (relational) database** stays possible: the kinds are TypeScript types that differ by `kind`, the database is only reached through the connection service, and the model maps to one table with checks (or a table per kind with a foreign key)
 
 Phase 1, connections at the level of resources:
@@ -62,13 +73,15 @@ Phase 1, connections at the level of resources:
 - [x] Move the backend over: the external element sync, the received information of external elements, removing resources, and the information usage. The external element sync now only adds relations (hand-made ones can no longer be told apart), and removes relations of information an external element no longer provides
 - [x] Move the frontend over: one connection table instead of three tabs, the canvas lines (counted per kind), the information source and information chain services, the via choice, and the 'Receives from' and 'Sends to' sections of an application, where picking a resource connects the two (`POST /connections/connect`)
 - [x] Remove the old models, routes and stores of the three connection types
+- [x] Undecided connections: picking an application or external element in Receives from / Sends to connects the two without a way (not shown as a part: "No connection types yet"). The API picker and the "other way" picker add ways: the first fills in the undecided connection, every next one is a connection of its own. Removing the last way keeps the two connected, like a database without tables
+- [x] Make the connected resources section (`ConnectedResourcesSection.vue`) generic, in three levels: a row per connected resource, a row per part (table, file, API or way), and the information of a part. The parent says what the parts of a resource are (`services/connectionParts.service.ts`), so a script's Reads from and an application's Receives from work the same. Known gaps until phase 2: information received from or sent to a file location is not shown (it cannot be put on a file yet), and a script writes to an application through an API of that application
 - [ ] Try phase 1 in the running app: connecting, changing the kind of a connection, receiving and sending, removing a connection with what goes through it, the warnings on the canvas, and the information chain
 
 Phase 2, components as ends:
 
 - [ ] Make tables components of their database, the way files are components of a file location. Tables keep their ids when they move into the components collection, so references stay valid
 - [ ] Turn the reads and writes of scripts into connections and relations (source → script, script → target), and remove the script relation sync (`scriptRelation.service.ts`) and the inputs and outputs that scripts keep themselves
-- [ ] Let files be relation ends, so it is known which file information is in
+- [ ] Let files be relation ends, so it is known which file information is in. This also makes Receives from / Sends to a file location work again
 - [ ] Draw every end at the closest visible level on the canvas
 
 Do both phases before the pilot, so no live data has to be migrated.

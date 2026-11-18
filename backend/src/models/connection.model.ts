@@ -98,7 +98,8 @@ const KIND_SCHEMAS: Record<ConnectionKind, Schema> = {
     manual: new Schema({}),
     email: new Schema({}),
     feature: new Schema({}),
-    unknown: new Schema({})
+    unknown: new Schema({}),
+    undecided: new Schema({})
 };
 
 export const CONNECTION_MODELS = Object.fromEntries(

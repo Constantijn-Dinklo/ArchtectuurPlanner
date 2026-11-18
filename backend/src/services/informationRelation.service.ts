@@ -47,6 +47,7 @@ function getIdKey(kind: Kind) {
 export async function checkRelationConnection(user: User, sourceId: string, targetId: string, connectionId: string) {
     const connection = await getConnection(user, connectionId);
     if(!connection) throw new Error("The connection of the relation does not exist");
+    if(connection.kind === 'undecided') throw new Error("Choose how the information goes first");
     if(!(await getHolderIds(user, sourceId)).includes(connection.source.id) || !(await getHolderIds(user, targetId)).includes(connection.target.id)) {
         throw new Error("The connection does not go from the source to the target of the relation");
     }
@@ -86,7 +87,8 @@ export async function addInformationRelation(user: UserJwtPayload, relation: Rel
 
     let connectionId = relation.connectionId ?? null;
     if(!connectionId) {
-        const [connection] = await getCarryingConnections(user, relation.sourceResourceId, relation.targetResourceId);
+        const connection = (await getCarryingConnections(user, relation.sourceResourceId, relation.targetResourceId))
+            .find((candidate) => candidate.kind !== 'undecided');
         connectionId = connection?.id ?? (await connectParts(user, relation.sourceResourceId, relation.targetResourceId)).id;
     }
 

@@ -36,10 +36,11 @@
         return `${count} ${count === 1 ? single : multiple}`;
     }
 
-    // Counted per kind, e.g. "1 API · 1 DB · 2 by hand · 1 script"
+    // Counted per kind, e.g. "1 API · 1 DB · 2 by hand · 1 script". A connection of which it is not chosen yet how it
+    // goes only shows as the dashed line
     const label = computed(() => {
         const counts = new Map<string, number>();
-        for (const kind of kinds.value) {
+        for (const kind of kinds.value.filter(kind => kind !== 'undecided')) {
             const kindLabel = kind === 'api' ? 'API' : kind === 'database' ? 'DB' : getConnectionKindInfo(kind).label.toLowerCase();
             counts.set(kindLabel, (counts.get(kindLabel) ?? 0) + 1);
         }

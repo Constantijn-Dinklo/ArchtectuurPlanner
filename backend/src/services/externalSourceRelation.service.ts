@@ -105,7 +105,10 @@ async function removeWhatIsNotProvided(environmentId: string, externals: Externa
 // What the external elements provide reaches the resources they are connected to
 async function getRelationsFromExternals(environmentId: string, externals: ExternalDocuments, connections: Connection[]): Promise<DesiredRelation[]> {
     const externalIds = externals.map((external) => external._id.toString());
-    const links = connections.filter((connection) => externalIds.includes(connection.source.id) && connection.target.type !== 'external');
+    // A connection of which it is not chosen yet how it goes carries nothing
+    const links = connections.filter((connection) =>
+        externalIds.includes(connection.source.id) && connection.target.type !== 'external' && connection.kind !== 'undecided'
+    );
 
     const targetIds = [...new Set(links.map((link) => link.target.id))];
     const applications = await Application.find({ environmentId, _id: { $in: targetIds } });

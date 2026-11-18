@@ -1,4 +1,5 @@
 <script setup lang="ts">
+    import { computed } from 'vue';
     import { vCollapsible } from '../directives/collapsible';
     import { useResourceService } from '../services/resources/resource.service';
     import { useInformationSourceService } from '../services/informationSource.service';
@@ -6,7 +7,7 @@
 
     // The connections of a resource, in either direction. What goes through a connection, and how it works,
     // is shown and changed by selecting its edge on the canvas
-    defineProps<{
+    const props = defineProps<{
         connections: Connection[];
     }>();
 
@@ -16,13 +17,70 @@
     function getName(partId: string) {
         return resourceService.getResource(partId)?.name ?? '?';
     }
+
+    // A database or file location is read and written through a connection per direction. Both are shown as one row:
+    // "Webshop ⇄ Orders db, reads & writes"
+    interface ConnectionRow {
+        key: string;
+        connections: Connection[];
+        route: string;
+        description: string;
+        icon: string;
+        unknown: boolean;
+    }
+
+    const STORE_TYPES = ['database', 'table', 'fileLocation', 'file'];
+
+    function isStore(connection: Connection, end: 'source' | 'target') {
+        return STORE_TYPES.includes(connection[end].type);
+    }
+
+    const rows = computed<ConnectionRow[]>(() => {
+        const result = new Map<string, ConnectionRow>();
+        for (const connection of props.connections) {
+            const storeEnd = isStore(connection, 'source') ? 'source' : isStore(connection, 'target') ? 'target' : undefined;
+            if (!storeEnd || (connection.kind !== 'database' && connection.kind !== 'file')) {
+                result.set(connection.id, {
+                    key: connection.id,
+                    connections: [connection],
+                    route: `${getName(connection.source.id)} → ${getName(connection.target.id)}`,
+                    description: informationSourceService.describeConnection(connection),
+                    icon: getConnectionKindInfo(connection.kind).icon,
+                    unknown: connection.kind === 'unknown'
+                });
+                continue;
+            }
+
+            const storeId = connection[storeEnd].id;
+            const otherId = connection[storeEnd === 'source' ? 'target' : 'source'].id;
+            const key = `${connection.kind}:${otherId}:${storeId}`;
+            const row = result.get(key) ?? {
+                key,
+                connections: [],
+                route: '',
+                description: '',
+                icon: getConnectionKindInfo(connection.kind).icon,
+                unknown: false
+            };
+            row.connections.push(connection);
+            // Read: from the database or file location to the other one
+            const reads = row.connections.some(item => isStore(item, 'source'));
+            const writes = row.connections.some(item => isStore(item, 'target'));
+            row.route = reads && writes
+                ? `${getName(otherId)} ⇄ ${getName(storeId)}`
+                : reads ? `${getName(storeId)} → ${getName(otherId)}` : `${getName(otherId)} → ${getName(storeId)}`;
+            row.description = `${getConnectionKindInfo(connection.kind).label}, ${reads && writes ? 'reads & writes' : reads ? 'reads' : 'writes'}`;
+            result.set(key, row);
+        }
+        return [...result.values()];
+    });
 </script>
 
 <template>
     <section v-collapsible class="detail-section">
         <div class="detail-section-title">
             <span>Connections</span>
-            <span class="detail-count">{{ connections.length }}</span>
+            <span class="detail-count">{{ rows.length }}</span>
         </div>
 
         <div
@@ -33,20 +91,16 @@
         </div>
 
         <div
-            v-for="connection in connections"
-            :key="connection.id"
+            v-for="row in rows"
+            :key="row.key"
             class="detail-row"
-            :class="{ unknown: connection.kind === 'unknown' }"
-            :title="informationSourceService.describeConnection(connection)"
+            :class="{ unknown: row.unknown }"
+            :title="row.description"
         >
-            <i :class="getConnectionKindInfo(connection.kind).icon" class="detail-row-icon" />
+            <i :class="row.icon" class="detail-row-icon" />
             <span class="detail-row-name connection-name">
-                <span class="connection-route">
-                    {{ getName(connection.source.id) }} → {{ getName(connection.target.id) }}
-                </span>
-                <span class="connection-kind">
-                    {{ informationSourceService.describeConnection(connection) }}
-                </span>
+                <span class="connection-route">{{ row.route }}</span>
+                <span class="connection-kind">{{ row.description }}</span>
             </span>
         </div>
     </section>

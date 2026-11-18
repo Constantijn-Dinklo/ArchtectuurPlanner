@@ -11,8 +11,12 @@ export interface PartRef {
     type: PartType;
 }
 
-// How it gets there. 'unknown' says something gets there but nobody knows how yet
-export const CONNECTION_KINDS = ['api', 'database', 'file', 'manual', 'email', 'feature', 'unknown'] as const;
+// How it gets there. There is one connection per way and direction: two applications linked by three apis have three
+// connections, and an application that reads and writes a database has two (database -> application, application ->
+// database). Grouping them is up to the frontend.
+// 'unknown' says something gets there but nobody knows how yet. 'undecided' says two applications or external elements
+// are connected, but how has not been chosen yet: nothing can go through it until it has
+export const CONNECTION_KINDS = ['api', 'database', 'file', 'manual', 'email', 'feature', 'unknown', 'undecided'] as const;
 export type ConnectionKind = typeof CONNECTION_KINDS[number];
 
 interface ConnectionBase {
