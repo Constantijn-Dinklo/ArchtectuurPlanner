@@ -74,8 +74,8 @@ Phase 1, connections at the level of resources:
 - [x] Move the frontend over: one connection table instead of three tabs, the canvas lines (counted per kind), the information source and information chain services, the via choice, and the 'Receives from' and 'Sends to' sections of an application, where picking a resource connects the two (`POST /connections/connect`)
 - [x] Remove the old models, routes and stores of the three connection types
 - [x] Undecided connections: picking an application or external element in Receives from / Sends to connects the two without a way (not shown as a part: "No connection types yet"). The API picker and the "other way" picker add ways: the first fills in the undecided connection, every next one is a connection of its own. Removing the last way keeps the two connected, like a database without tables
-- [x] Make the connected resources section (`ConnectedResourcesSection.vue`) generic, in three levels: a row per connected resource, a row per part (table, file, API or way), and the information of a part. The parent says what the parts of a resource are (`services/connectionParts.service.ts`), so a script's Reads from and an application's Receives from work the same. Known gaps until phase 2: information received from or sent to a file location is not shown (it cannot be put on a file yet), and a script writes to an application through an API of that application
-- [ ] Try phase 1 in the running app: connecting, changing the kind of a connection, receiving and sending, removing a connection with what goes through it, the warnings on the canvas, and the information chain
+- [x] Make the connected resources section (`ConnectedResourcesSection.vue`) generic, in three levels: a row per connected resource, a row per part (table, file, API or way), and the information of a part. The parent says what the parts of a resource are (`services/connectionParts.service.ts`), so a script's Reads from and an application's Receives from work the same
+- [x] Try phase 1 in the running app: connecting, changing the kind of a connection, receiving and sending, removing a connection with what goes through it, the warnings on the canvas, and the information chain
 
 Phase 2, components as ends:
 
@@ -83,6 +83,8 @@ Phase 2, components as ends:
 - [ ] Turn the reads and writes of scripts into connections and relations (source → script, script → target), and remove the script relation sync (`scriptRelation.service.ts`) and the inputs and outputs that scripts keep themselves
 - [ ] Let files be relation ends, so it is known which file information is in. This also makes Receives from / Sends to a file location work again
 - [ ] Draw every end at the closest visible level on the canvas
+- [ ] Known gap: information an application receives from or sends to a file location is not shown. The section offers files as parts, but a relation cannot end at a file yet, so the information goes on the file location itself and is not shown. Solved by letting files be relation ends
+- [ ] Known gap: a script that writes to an application or external element writes through an API of that application (the target), while an API connection otherwise always belongs to its source. Before, the information sat directly on the application. Solved by turning the reads and writes of scripts into connections
 
 Do both phases before the pilot, so no live data has to be migrated.
 
