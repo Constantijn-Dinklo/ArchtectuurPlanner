@@ -15,27 +15,36 @@
     import { computed } from 'vue';
     import { useUIStore } from '../../stores/canvas/ui.store';
     import { useViewStore } from '../../stores/canvas/view.store';
+    import { useComponentStore } from '../../stores/resources/component.store';
 
     const selectedNodeProjection = useSelectedNodeProjection();
     const selectedEdgeProjection = useSelectedEdgeProjection();
 
     const UIStore = useUIStore();
     const viewStore = useViewStore();
+    const componentStore = useComponentStore();
 
-    // A selected node can also be a component (a script or a file) instead of a resource
-    const selectedComponentId = computed(() => {
+    // A selected node can also be a component (a script, a file or a table) instead of a resource
+    const selectedComponent = computed(() => {
         if (UIStore.selectedEntityType !== 'node') return undefined;
         const viewNode = viewStore.viewNodes.find(node => node.id === UIStore.selectedEntityId);
-        return viewNode?.entityType === 'component' ? viewNode.entityId : undefined;
+        return viewNode?.entityType === 'component' ? componentStore.getComponent(viewNode.entityId) : undefined;
     });
 </script>
 
 <template>
     <div class="detail-panel">
+        <!-- A table has its own details: its columns -->
+        <TableDetails
+            v-if="selectedComponent?.kind === 'table'"
+            :key="selectedComponent.id"
+            :table-id="selectedComponent.id"
+        />
+
         <ComponentDetails
-            v-if="selectedComponentId"
-            :key="selectedComponentId"
-            :component-id="selectedComponentId"
+            v-else-if="selectedComponent"
+            :key="selectedComponent.id"
+            :component-id="selectedComponent.id"
         />
 
         <template v-else-if="selectedNodeProjection.isNodeSelected() && selectedNodeProjection.nodeInfo.value">
@@ -44,8 +53,6 @@
             <DatabaseDetails v-else-if="selectedNodeProjection.nodeInfo.value.node.type === 'database'" />
 
             <ServerDetails v-else-if="selectedNodeProjection.nodeInfo.value.node.type === 'server'" />
-
-            <TableDetails v-else-if="selectedNodeProjection.nodeInfo.value.node.type === 'table'" />
 
             <ExternalDetails v-else-if="selectedNodeProjection.nodeInfo.value.node.type === 'external'" />
 
@@ -89,7 +96,7 @@
         </template>
 
         <div
-            v-if="!selectedComponentId
+            v-if="!selectedComponent
                 && !(selectedNodeProjection.isNodeSelected() && selectedNodeProjection.nodeInfo.value)
                 && !(selectedEdgeProjection.isEdgeSelected() && selectedEdgeProjection.connectionsInfo.value)"
             class="detail-placeholder"

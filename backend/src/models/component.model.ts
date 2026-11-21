@@ -2,18 +2,23 @@ import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
 // Levels of the architecture: a host (server) holds resources, a resource holds components.
 // A component is a part of a resource: a script that runs in an application or file location,
-// or a file in a file location. Components never contain other components.
-export const COMPONENT_KINDS = ['script', 'file'] as const;
+// a file in a file location, or a table in a database. Components never contain other components.
+export const COMPONENT_KINDS = ['script', 'file', 'table'] as const;
 export type ComponentKind = typeof COMPONENT_KINDS[number];
 
 export const FILE_TYPES = ['excel', 'csv', 'word', 'pdf', 'other'] as const;
 
-// Where information sits in a component: a script takes it in (input) and produces it (output), a file contains it
+// Where information sits in a component: a script takes it in (input) and produces it (output), a file or table
+// contains it (a table only fields: its columns)
 export const INFORMATION_SLOTS = ['input', 'output', 'contains'] as const;
 export type InformationSlot = typeof INFORMATION_SLOTS[number];
 export type FileType = typeof FILE_TYPES[number];
 
-// One side of what a script reads from or writes to: a resource (a table is a resource as well),
+// What a component can be part of
+export const COMPONENT_RESOURCE_TYPES = ['application', 'fileLocation', 'database'] as const;
+export type ComponentResourceType = typeof COMPONENT_RESOURCE_TYPES[number];
+
+// One side of what a script reads from or writes to: a resource or a table (the id of the table itself),
 // a component inside a resource, like a file in a file location, or an api of an application or external element.
 // The information is what the script reads from this end or writes to it; it is always part of the inputs or outputs of the script as well
 export interface IComponentEnd {
@@ -60,9 +65,9 @@ export interface IComponent extends Document {
     name: string;
     description: string;
 
-    // The resource the component is part of: the host of a script, the file location of a file
+    // The resource the component is part of: the host of a script, the file location of a file, the database of a table
     resourceId: Types.ObjectId;
-    resourceType: 'application' | 'fileLocation';
+    resourceType: ComponentResourceType;
 
     // Script: what it reads from and writes to
     inputs: IComponentEnd[];
@@ -75,7 +80,7 @@ export interface IComponent extends Document {
     outputInformationFieldIds: Types.ObjectId[];
     outputInformationObjectIds: Types.ObjectId[];
 
-    // File: the information the file contains
+    // File: the information the file contains. Table: its columns, only fields
     informationFieldIds: Types.ObjectId[];
     informationObjectIds: Types.ObjectId[];
 
@@ -110,7 +115,7 @@ const ComponentSchema = new Schema<IComponent>({
     },
     resourceType: {
         type: Schema.Types.String,
-        enum: ['application', 'fileLocation'],
+        enum: COMPONENT_RESOURCE_TYPES,
         required: true
     },
     inputs: {

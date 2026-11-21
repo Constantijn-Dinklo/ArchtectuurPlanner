@@ -2,12 +2,11 @@ import { Types } from "mongoose";
 import { UserJwtPayload } from "../middelware";
 import Component from "../models/component.model";
 import Application from "../models/resources/application.model";
-import Table from "../models/resources/table.model";
 import InformationObject from "../models/information/informationObject.models";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import { getResourceType, updateReceivedInformation } from "./externalRelation.service";
-import { addTableInformation } from "./table.service";
+import { addTableInformation, findTables } from "./table.service";
 
 // Relations go between resources. When information goes into or out of a component (a script, a file), the
 // resource the component is part of gets the relation:
@@ -73,7 +72,7 @@ export async function syncScriptRelations(user: { environmentId: string }) {
     const scripts = await Component.find({ environmentId, kind: 'script' });
     const writtenIds = [...new Set(scripts.flatMap((script) => script.outputs.map((end) => end.resourceId.toString())))];
     const applications = await Application.find({ environmentId, _id: { $in: writtenIds } });
-    const tables = await Table.find({ environmentId, _id: { $in: writtenIds } });
+    const tables = await findTables(environmentId, { ids: writtenIds });
 
     // A table only has fields: a written object reaches it through its fields
     const writtenObjectIds = scripts.flatMap((script) => script.outputs.flatMap((end) => end.informationObjectIds));
@@ -115,7 +114,7 @@ export async function syncScriptRelations(user: { environmentId: string }) {
             if(targetType === 'table' && !output.componentId) {
                 // A table gets the fields, also those inside a written object, as long as it still has the column
                 const table = tables.find((table) => table._id.toString() === targetId);
-                const columnIds = table?.columns.map((column) => column.informationFieldId.toString()) ?? [];
+                const columnIds = table?.informationFieldIds.map((id) => id.toString()) ?? [];
                 const fieldIds = new Set([
                     ...getEndIds(output, 'field'),
                     ...getEndIds(output, 'object').flatMap((objectId) => objectFieldIds.get(objectId) ?? [])

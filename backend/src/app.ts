@@ -15,7 +15,6 @@ import applicationRoutes from './routes/resources/applicationRoutes';
 import databaseRoutes from './routes/resources/databaseRoutes';
 import fileLocationsRoutes from './routes/resources/fileLocationRoutes';
 import serverRoutes from './routes/resources/serverRoutes';
-import tableRoutes from './routes/resources/tableRoutes';
 import externalRoutes from './routes/resources/externalRoutes';
 import apiRoutes from './routes/apiRoutes';
 import endpointRoutes from './routes/endpointRoutes';
@@ -74,7 +73,6 @@ app.use('/applications', inEnvironment, syncsExternalSources, applicationRoutes)
 app.use('/databases', inEnvironment, syncsExternalSources, databaseRoutes);
 app.use('/fileLocations', inEnvironment, fileLocationsRoutes);
 app.use('/servers', inEnvironment, serverRoutes);
-app.use('/tables', inEnvironment, syncsExternalSources, tableRoutes);
 app.use('/externals', inEnvironment, syncsExternalSources, externalRoutes);
 
 // ** Components: the parts of a resource (scripts, files) ** //

@@ -10,7 +10,6 @@ import { useInformationObjectStore } from "../information/informationObject.stor
 import { useViewStore } from "../canvas/view.store";
 import { refreshReceivedInformation } from "../../services/receivedInformation";
 import { useApplicationService } from "../../services/resources/application.service";
-import { useTableStore } from "./table.store";
 
 interface ComponentWithInformationResponse {
     component: Component;
@@ -24,7 +23,8 @@ interface GetComponentsResponse {
     informationObjects: InformationObject[];
 }
 
-// The components of the resources: scripts in applications and file locations, files in file locations
+// The components of the resources: scripts in applications and file locations, files in file locations, tables in
+// databases
 export const useComponentStore = defineStore('component', () => {
     const components = ref<Component[]>([]);
 
@@ -147,11 +147,10 @@ export const useComponentStore = defineStore('component', () => {
     async function applyAndRefresh(request: Promise<{ data: ComponentWithInformationResponse }>) {
         await apply(request);
         await Promise.all([
-            // A file the script writes to contains what is written
+            // A file or table the script writes to contains what is written
             fetchComponents(),
             refreshReceivedInformation(),
-            useApplicationService().fetchApplications(),
-            useTableStore().fetchTables()
+            useApplicationService().fetchApplications()
         ]);
     }
 

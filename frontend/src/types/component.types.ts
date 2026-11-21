@@ -2,8 +2,23 @@ import type { ConnectionEnd, ConnectionEndTarget } from "./connectionEnd.types";
 
 // Levels of the architecture: a host (server) holds resources, a resource holds components.
 // A component is a part of a resource: a script that runs in an application or file location,
-// or a file in a file location. Components never contain other components.
-export type ComponentKind = 'script' | 'file';
+// a file in a file location, or a table in a database. Components never contain other components.
+export type ComponentKind = 'script' | 'file' | 'table';
+
+// How a kind of component is drawn on the canvas, set per kind below so it can change later:
+// - 'row': a row inside the node of its resource, with handles of its own, so edges go to the row
+// - 'table': a table card laid out inside its database. It has no edges of its own: they go to the database
+export type ComponentDisplay = 'row' | 'table';
+
+export const COMPONENT_DISPLAYS: Record<ComponentKind, ComponentDisplay> = {
+    script: 'row',
+    file: 'row',
+    table: 'table'
+};
+
+export function getComponentDisplay(component: Pick<Component, 'kind'>) {
+    return COMPONENT_DISPLAYS[component.kind];
+}
 
 export type FileType = 'excel' | 'csv' | 'word' | 'pdf' | 'other';
 
@@ -20,7 +35,9 @@ export function getFileTypeInfo(fileType: FileType) {
 }
 
 export function getComponentIcon(component: Pick<Component, 'kind' | 'fileType'>) {
-    return component.kind === 'script' ? 'pi pi-code' : getFileTypeInfo(component.fileType).icon;
+    if (component.kind === 'script') return 'pi pi-code';
+    if (component.kind === 'table') return 'pi pi-table';
+    return getFileTypeInfo(component.fileType).icon;
 }
 
 // One side of what a script reads from or writes to.
@@ -30,7 +47,8 @@ export type ComponentEnd = ConnectionEnd;
 // Where a script reads from or writes to, before it has any information
 export type ComponentEndTarget = ConnectionEndTarget;
 
-// Where information sits in a component: a script takes it in (input) and produces it (output), a file contains it
+// Where information sits in a component: a script takes it in (input) and produces it (output), a file or table
+// contains it (a table only fields: its columns)
 export type InformationSlot = 'input' | 'output' | 'contains';
 
 export function getInformationSlotIds(component: Component, slot: InformationSlot) {
@@ -120,9 +138,9 @@ export interface Component {
     name: string;
     description: string;
 
-    // The resource the component is part of: the host of a script, the file location of a file
+    // The resource the component is part of: the host of a script, the file location of a file, the database of a table
     resourceId: string;
-    resourceType: 'application' | 'fileLocation';
+    resourceType: 'application' | 'fileLocation' | 'database';
 
     // Script: what it reads from and writes to
     inputs: ComponentEnd[];
@@ -135,7 +153,7 @@ export interface Component {
     outputInformationFieldIds: string[];
     outputInformationObjectIds: string[];
 
-    // File: the information the file contains
+    // File: the information the file contains. Table: its columns, only fields
     informationFieldIds: string[];
     informationObjectIds: string[];
 

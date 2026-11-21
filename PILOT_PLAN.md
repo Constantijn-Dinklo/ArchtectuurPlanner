@@ -26,7 +26,7 @@ Relation	  One field or object moving from part A to part B, always through one 
   - [x] `backend/src/routes/scriptRoutes.ts`
 - [x] User management and roles, as one piece of work. Admin, editor and viewer are stored per environment (`environmentMember.model.ts`), and can be managed in the management area (`ManagementView.vue`)
   - [x] Show an overview of the users of the organisation and their role per environment (`GET /org/users`, `ManagementView.vue`)
-  - [x] Add an organisation role (`admin` or `member`) on `User`. An organisation admin is admin in every environment of the organisation, and the last admin cannot become a member. Existing users become admin through a migration (`migrations/organisationRoles.ts`)
+  - [x] Add an organisation role (`admin` or `member`) on `User`. An organisation admin is admin in every environment of the organisation, and the last admin cannot become a member. Existing users became admin through a one-time migration, removed since
   - [x] Let an organisation admin change the organisation role of a user (`PATCH /org/users/:id/role`, checked by `requireOrganisationAdmin`)
   - [x] Let an organisation admin change the role of a member in an environment (`PATCH /org/users/:id/environments/:environmentId/role`)
   - [x] Let an organisation admin remove a user: the user becomes inactive (`status` on `User`), cannot log in, and can be brought back. Deleting an inactive user marks it `deleted`, which hides it for everyone. Nobody can remove itself, and the last active admin cannot be removed
@@ -69,7 +69,7 @@ Phase 1, connections at the level of resources:
 
 - [x] Add the `Connection` model (one collection, a schema per kind, ends as `{ id, type }`) and one connection service that is the only place that reads and writes connections: `models/connection.model.ts`, `types/connection.type.ts`, `services/connection.service.ts`, routes on `/connections`
 - [x] Give relations a required `connectionId` instead of `viaConnectionType` and `viaConnectionId`. Allow the one exception: a relation inside a resource (same source and target) has no connection. Every relation is made and checked in `createRelation` (`informationRelation.service.ts`). Until phase 2, a relation through a script has a `scriptId` instead
-- [x] ~~Migrate the old connections~~: not needed, the database was emptied. The old one-time migrations were removed as well; only `organisationRoles` is left
+- [x] ~~Migrate the old connections~~: not needed, the database was emptied. The old one-time migrations were removed as well, later also `organisationRoles`, so there are none left
 - [x] Move the backend over: the external element sync, the received information of external elements, removing resources, and the information usage. The external element sync now only adds relations (hand-made ones can no longer be told apart), and removes relations of information an external element no longer provides
 - [x] Move the frontend over: one connection table instead of three tabs, the canvas lines (counted per kind), the information source and information chain services, the via choice, and the 'Receives from' and 'Sends to' sections of an application, where picking a resource connects the two (`POST /connections/connect`)
 - [x] Remove the old models, routes and stores of the three connection types
@@ -79,7 +79,7 @@ Phase 1, connections at the level of resources:
 
 Phase 2, components as ends:
 
-- [ ] Make tables components of their database, the way files are components of a file location. Tables keep their ids when they move into the components collection, so references stay valid
+- [x] Make tables components of their database (kind `table`), the way files are components of a file location. A table is always part of a database, holds only fields (its columns, in "contains"), and the separate table model, routes and the `table` level of detail are gone. No migration: the database was emptied. How each kind of component is drawn is set per kind (`COMPONENT_DISPLAYS` in `component.types.ts`): scripts and files are rows, a table is a card inside its database, and a table never has arrows of its own: they always go to its database. The frontend `table.store.ts` only shows the table components as tables
 - [ ] Turn the reads and writes of scripts into connections and relations (source → script, script → target), and remove the script relation sync (`scriptRelation.service.ts`) and the inputs and outputs that scripts keep themselves
 - [ ] Let files be relation ends, so it is known which file information is in. This also makes Receives from / Sends to a file location work again
 - [ ] Draw every end at the closest visible level on the canvas

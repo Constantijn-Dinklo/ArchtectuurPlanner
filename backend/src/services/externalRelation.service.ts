@@ -1,11 +1,11 @@
 import { removeComponentEndReferences, removeResourceComponents } from "./component.service";
 import Endpoint from "../models/endpoint.model";
 import { deletePartConnections } from "./connection.service";
+import { getTableDatabaseId } from "./table.service";
 import { UserJwtPayload } from "../middelware";
 import External from "../models/resources/external.model";
 import Application from "../models/resources/application.model";
 import Database from "../models/resources/database.model";
-import Table from "../models/resources/table.model";
 import FileLocation from "../models/resources/fileLocation.model";
 import Server from "../models/resources/server.model";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
@@ -21,7 +21,6 @@ export async function getResourceType(user: UserJwtPayload, resourceId: string):
     const models = [
         ['application', Application],
         ['database', Database],
-        ['table', Table],
         ['fileLocation', FileLocation],
         ['server', Server],
         ['external', External]
@@ -30,6 +29,8 @@ export async function getResourceType(user: UserJwtPayload, resourceId: string):
     for(const [type, model] of models) {
         if(await (model as any).exists(filter)) return type;
     }
+    // A table is a component of its database, but information can be stored in it like in a resource
+    if(await getTableDatabaseId(user, resourceId)) return 'table';
     return undefined;
 }
 

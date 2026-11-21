@@ -24,7 +24,7 @@ import { getWebsiteHref, type ResolvedApplication } from "../types/application.t
 import { RESOURCE_ICONS } from "../types/resource.type";
 import type { ResolvedExternal } from "../types/external.types";
 import { useComponentStore } from "../stores/resources/component.store";
-import { getComponentHandleId, getComponentIcon, getInformationSlotIds, type CanvasComponentInformation, type CanvasComponentLink, type CanvasComponentRow, type Component, type ComponentEnd, type InformationSlot } from "../types/component.types";
+import { getComponentDisplay, getComponentHandleId, getComponentIcon, getInformationSlotIds, type CanvasComponentInformation, type CanvasComponentLink, type CanvasComponentRow, type Component, type ComponentEnd, type InformationSlot } from "../types/component.types";
 
 
 
@@ -206,11 +206,14 @@ export function useCanvasProjection() {
 
     function getVisibleNodes(levelOfDetail: LevelOfDetail, viewNodes: ViewNode[]): ViewNode[]{
         const visibleResourceTypes = getVisibleResourceTypes(levelOfDetail);
-        // Components are rows inside the node of their resource, not nodes of their own
-        const visibleNodes = viewNodes.filter((viewNode) =>
-            viewNode.entityType !== 'component' && visibleResourceTypes.includes(viewNode.entityType)
-        );
-        return visibleNodes;
+        // A component drawn as a row is inside the node of its resource, not a node of its own. A table is a card
+        // inside its database: a node of its own
+        return viewNodes.filter((viewNode) => {
+            if(!visibleResourceTypes.includes(viewNode.entityType)) return false;
+            if(viewNode.entityType !== 'component') return true;
+            const component = componentStore.getComponent(viewNode.entityId);
+            return !!component && getComponentDisplay(component) !== 'row';
+        });
     }
 
     // The ends of a script that get an edge. A database or file location only gets its own edge while no table or file
@@ -231,14 +234,20 @@ export function useCanvasProjection() {
         });
     }
 
-    // Where an end of a script or connection is shown on the canvas: a file in a file location when components are visible,
-    // otherwise its file location. A table when tables are visible, otherwise its database
+    // Whether edges can go to the component itself: only when it is drawn as a row with handles of its own
+    function hasOwnEdges(componentId: string) {
+        const component = componentStore.getComponent(componentId);
+        return !!component && getComponentDisplay(component) === 'row' && isResourceTypeVisible(UIStore.levelOfDetail, 'component');
+    }
+
+    // Where an end of a script or connection is shown on the canvas: a file in a file location when components are
+    // visible, otherwise its file location. A table never has edges of its own: they always go to its database
     function getVisibleEndId(end: Pick<ComponentEnd, 'resourceId' | 'componentId'>): string {
-        if(end.componentId && isResourceTypeVisible(UIStore.levelOfDetail, 'component')) {
+        if(end.componentId && hasOwnEdges(end.componentId)) {
             return end.componentId;
         }
         const resource = resourceService.getResource(end.resourceId);
-        if(resource?.type === 'table' && !isResourceTypeVisible(UIStore.levelOfDetail, 'table')) {
+        if(resource?.type === 'table') {
             return resource.databaseId;
         }
         return end.resourceId;
@@ -248,7 +257,7 @@ export function useCanvasProjection() {
     // resource, with the handle on the side the edge comes in or goes out
     function getAnchor(entityId: string, side: 'in' | 'out'): CanvasAnchor | undefined {
         const component = componentStore.getComponent(entityId);
-        if(component) {
+        if(component && getComponentDisplay(component) === 'row') {
             const hostViewNodeId = entityIdToNodeMap.value.get(component.resourceId)?.id;
             return hostViewNodeId ? { nodeId: hostViewNodeId, handleId: getComponentHandleId(component.id, side) } : undefined;
         }
@@ -311,12 +320,13 @@ export function useCanvasProjection() {
         };
     }
 
-    // The components of a resource as rows inside its node; only from the level of detail where components are shown
+    // The components of a resource that are drawn as rows inside its node; only from the level of detail where
+    // components are shown
     function projectComponentRows(resourceId: string): CanvasComponentRow[] | undefined {
         if(!isResourceTypeVisible(UIStore.levelOfDetail, 'component')) return;
 
         return componentStore.getResourceComponents(resourceId)
-            .slice()
+            .filter((component) => getComponentDisplay(component) === 'row')
             .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name))
             .map((component) => {
                 // A file is written by the scripts that have it as output, and read by the scripts that have it as input
@@ -637,7 +647,8 @@ export function useCanvasProjection() {
 
     function resolveDatabaseNode(database: Database) {
         const tableCount = tableStore.tables.filter((table) => table.databaseId === database.id).length;
-        const showTables = isResourceTypeVisible(UIStore.levelOfDetail, 'table');
+        // Tables are components of the database
+        const showTables = isResourceTypeVisible(UIStore.levelOfDetail, 'component');
         const layout = databaseLayouts.value.get(database.id);
 
         return {

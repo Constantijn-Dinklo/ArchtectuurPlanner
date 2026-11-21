@@ -85,7 +85,10 @@ export function useConnectionParts() {
                 placeholder: '+ New table',
                 title: 'Add table',
                 withFileType: false,
-                create: async (name) => ({ resourceId: await tableService.createTable(name, databaseId), componentId: null })
+                create: async (name) => {
+                    const tableId = await tableService.createTable(name, databaseId);
+                    return tableId ? { resourceId: tableId, componentId: null } : undefined;
+                }
             }
         };
     }

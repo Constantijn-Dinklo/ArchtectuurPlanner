@@ -1,9 +1,13 @@
 import { defineStore } from "pinia";
+import { computed } from "vue";
 import type { BaseResource } from "../../types/resource.type";
-import { ref } from "vue";
-import api from "../../helpers/axios";
 import type { AddInformationFieldRequest, InformationField } from "../../types/informationField.type";
+import { useComponentStore } from "./component.store";
+import { useInformationFieldStore } from "../information/informationField.store";
+import { useInformationRelationStore } from "../information/informationRelation.store";
 
+// A table is a component of its database (kind 'table'): it is stored and changed with the other components. This
+// store shows the table components the way the rest of the app uses a table: with its database and its columns
 export interface Table extends BaseResource {
     type: 'table',
     databaseId: string;
@@ -11,69 +15,52 @@ export interface Table extends BaseResource {
 }
 
 export const useTableStore = defineStore('table', () => {
-    const tables = ref<Table[]>([]);
+    const componentStore = useComponentStore();
+    const informationFieldStore = useInformationFieldStore();
 
-    async function fetchTables() {
-        const res = await api.get('/tables');
-        const data = res.data as Table[];
+    const tables = computed<Table[]>(() => componentStore.components
+        .filter(component => component.kind === 'table')
+        .map(component => ({
+            id: component.id,
+            type: 'table' as const,
+            name: component.name,
+            databaseId: component.resourceId,
+            columns: component.informationFieldIds
+                .map(id => informationFieldStore.getInformationField(id))
+                .filter(field => field !== undefined)
+        }))
+    );
 
-        tables.value = data.map((t) => ({
-            ...t,
-            type: 'table'
-        }));
+    // The tables come with the components
+    function fetchTables() {
+        return componentStore.fetchComponents();
     }
 
-    async function createTable(name: string, databaseId: string, viewId: string) {
-        const res = await api.post('/tables', {
-            name: name,
-            databaseId: databaseId,
-            viewId: viewId
-        });
-        const newTable: Table = {
-            id: res.data.table.id,
-            databaseId: res.data.table.databaseId,
-            name: res.data.table.name,
-            type: 'table',
-            columns: res.data.table.columns
-        }
-        tables.value.push(newTable);
-        return res.data;
+    // Returns the id of the new table
+    async function createTable(name: string, databaseId: string) {
+        return (await componentStore.createComponent(databaseId, 'table', name))?.id;
     }
 
-    async function renameTable(tableId: string, name: string) {
-        const table = tables.value.find(t => t.id === tableId);
-        if(!table) return;
-        await api.patch(`/tables/${tableId}`, { name });
-        table.name = name;
+    function renameTable(tableId: string, name: string) {
+        return componentStore.updateComponent(tableId, { name });
     }
 
-    async function deleteTable(tableId: string) {
-        const res = await api.delete(`/tables/${tableId}`);
-        tables.value = tables.value.filter((table) => table.id !== res.data.resourceId);
-        return res.data;
+    function deleteTable(tableId: string) {
+        return componentStore.deleteComponent(tableId);
     }
 
     function getTables(databaseId: string) {
-        return tables.value.filter((table) => table.databaseId === databaseId)
+        return tables.value.filter((table) => table.databaseId === databaseId);
     }
 
+    // A column filled from another resource also gets the relation from there to the table
     async function createColumn(tableId: string, informationField: AddInformationFieldRequest) {
-        const table = tables.value.find(t => t.id === tableId);
-        if(!table) return;
-        const res = await api.post(`/tables/${tableId}/columns`, {
-            tableId,
-            informationField
-        });
-        Object.assign(table, res.data);
+        await componentStore.addInformationField(tableId, 'contains', informationField);
+        if ('sourceResourceId' in informationField) await useInformationRelationStore().fetchInformationRelations();
     }
 
-    async function deleteColumn(tableId: string, informationFieldId: string) {
-        const table = tables.value.find(t => t.id === tableId);
-        if(!table) return;
-        const res = await api.patch(`/tables/${tableId}/columns`, {
-            informationFieldId
-        });
-        Object.assign(table, res.data);
+    function deleteColumn(tableId: string, informationFieldId: string) {
+        return componentStore.removeInformationField(tableId, 'contains', informationFieldId);
     }
 
     return { tables, fetchTables, createTable, renameTable, deleteTable, getTables, createColumn, deleteColumn }

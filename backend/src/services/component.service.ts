@@ -1,23 +1,42 @@
 import { Types } from "mongoose";
 import { UserJwtPayload } from "../middelware";
 import Api from "../models/api.model";
-import Component, { COMPONENT_KINDS, ComponentKind, FILE_TYPES, IComponent, IComponentEnd, INFORMATION_SLOTS, InformationSlot } from "../models/component.model";
+import Component, { COMPONENT_KINDS, ComponentKind, ComponentResourceType, FILE_TYPES, IComponent, IComponentEnd, INFORMATION_SLOTS, InformationSlot } from "../models/component.model";
 import ViewNode from "../models/canvas/viewNode.model";
 import Application from "../models/resources/application.model";
 import FileLocation from "../models/resources/fileLocation.model";
-import Table from "../models/resources/table.model";
+import Database from "../models/resources/database.model";
 import InformationField from "../models/information/informationField.model";
 import InformationObject from "../models/information/informationObject.models";
 import { createInformationField } from "./resourceField.service";
 import { createInformationObject } from "./resourceObject.service";
 import { addScriptWrittenInput } from "./scriptRelation.service";
+import { createRelation } from "./informationRelation.service";
+import { removeResourceRelations } from "./externalRelation.service";
+import { findTables } from "./table.service";
 
-// Which kinds of component a resource can have: scripts run in applications and file locations,
-// files are stored in file locations
-const ALLOWED_KINDS: Record<'application' | 'fileLocation', ComponentKind[]> = {
+// Which kinds of component a resource can have: scripts run in applications and file locations, files are stored in
+// file locations, tables are always part of a database
+const ALLOWED_KINDS: Record<ComponentResourceType, ComponentKind[]> = {
     application: ['script'],
-    fileLocation: ['script', 'file']
+    fileLocation: ['script', 'file'],
+    database: ['table']
 };
+
+const RESOURCE_NAMES: Record<ComponentResourceType, string> = {
+    application: 'An application',
+    fileLocation: 'A file location',
+    database: 'A database'
+};
+
+// What the component will be part of
+async function getComponentResourceType(user: UserJwtPayload, resourceId: string): Promise<ComponentResourceType | undefined> {
+    const filter = { _id: resourceId, environmentId: user.environmentId };
+    if(await Application.exists(filter)) return 'application';
+    if(await FileLocation.exists(filter)) return 'fileLocation';
+    if(await Database.exists(filter)) return 'database';
+    return undefined;
+}
 
 // The information fields and objects components refer to, so the frontend can resolve them
 async function getReferencedInformation(user: UserJwtPayload, components: IComponent[]) {
@@ -75,12 +94,10 @@ export async function createComponent(user: UserJwtPayload, body: any) {
     if(!COMPONENT_KINDS.includes(kind)) throw new Error("Unknown kind of component");
     if(!body.name?.trim()) throw new Error("A component needs a name");
 
-    const application = await Application.findOne({ _id: body.resourceId, environmentId: user.environmentId });
-    const fileLocation = application ? null : await FileLocation.findOne({ _id: body.resourceId, environmentId: user.environmentId });
-    const resourceType = application ? 'application' : fileLocation ? 'fileLocation' : undefined;
-    if(!resourceType) throw new Error("A component can only be part of an application or a file location");
+    const resourceType = await getComponentResourceType(user, body.resourceId);
+    if(!resourceType) throw new Error("A component can only be part of an application, a file location or a database");
     if(!ALLOWED_KINDS[resourceType].includes(kind)) {
-        throw new Error(`A ${resourceType === 'application' ? 'application' : 'file location'} cannot have a ${kind}`);
+        throw new Error(`${RESOURCE_NAMES[resourceType]} cannot have a ${kind}`);
     }
 
     const component = await new Component({
@@ -142,6 +159,12 @@ export async function deleteComponent(user: UserJwtPayload, componentId: string)
         await InformationField.updateMany(sourcedHere, { $set: { source: null } });
         await InformationObject.updateMany(sourcedHere, { $set: { source: null } });
     }
+    // Scripts that read from or wrote to a table stay connected to its database. Information is stored in a table like
+    // in a resource, so its relations go with it
+    if(component.kind === 'table') {
+        await keepConnectionsWithoutPart(user, component.resourceId.toString(), { resourceId: componentId });
+        await removeResourceRelations(user, [componentId]);
+    }
     return { componentId, viewNodeId: viewNode?._id };
 }
 
@@ -153,8 +176,8 @@ export async function deleteComponent(user: UserJwtPayload, componentId: string)
 
 // The database of every table
 async function getTableDatabases(user: UserJwtPayload) {
-    const tables = await Table.find({ environmentId: user.environmentId });
-    return new Map(tables.map((table) => [table._id.toString(), table.databaseId.toString()]));
+    const tables = await findTables(user.environmentId);
+    return new Map(tables.map((table) => [table._id.toString(), table.resourceId.toString()]));
 }
 
 // The resource the script is connected to through this end. A file end already has its file location as its resource
@@ -351,19 +374,27 @@ function getEndPull(list: string, type: 'Field' | 'Object', id: string) {
     return {};
 }
 
-// The list a piece of information goes in. A script has inputs and outputs, a file only contains information
+// The list a piece of information goes in. A script has inputs and outputs, a file only contains information, a table
+// only contains fields (its columns)
 async function getInformationList(user: UserJwtPayload, componentId: string, slot: InformationSlot | undefined, type: 'Field' | 'Object') {
     const component = await getComponent(user, componentId);
-    const usedSlot = slot ?? (component.kind === 'file' ? 'contains' : undefined);
+    const usedSlot = slot ?? (component.kind !== 'script' ? 'contains' : undefined);
     if(!usedSlot || !INFORMATION_SLOTS.includes(usedSlot)) throw new Error("Say whether the information is an input or an output");
-    if(component.kind === 'file' && usedSlot !== 'contains') throw new Error("A file only contains information");
+    if(component.kind !== 'script' && usedSlot !== 'contains') throw new Error(`A ${component.kind} only contains information`);
+    if(component.kind === 'table' && type === 'Object') throw new Error("A table only has fields: add the fields of the object as columns");
     if(component.kind === 'script' && usedSlot === 'contains') throw new Error("A script has input and output information");
 
     if(usedSlot === 'contains') return `information${type}Ids` as const;
     return `${usedSlot}Information${type}Ids` as const;
 }
 
-export async function addComponentInformationField(user: UserJwtPayload, componentId: string, information: { fieldName: string } | { informationFieldId: string }, slot?: InformationSlot) {
+// A field that comes from somewhere else (sourceResourceId) also gets the relation from there to the component; for now
+// only for a table: a column that is filled from another resource
+type ComponentFieldToAdd =
+    | { fieldName: string }
+    | { informationFieldId: string, sourceResourceId?: string, connectionId?: string | null };
+
+export async function addComponentInformationField(user: UserJwtPayload, componentId: string, information: ComponentFieldToAdd, slot?: InformationSlot) {
     const list = await getInformationList(user, componentId, slot, 'Field');
     let informationFieldId;
     if("fieldName" in information) {
@@ -372,6 +403,17 @@ export async function addComponentInformationField(user: UserJwtPayload, compone
     }
     else {
         informationFieldId = information.informationFieldId;
+        if(information.sourceResourceId) {
+            const component = await getComponent(user, componentId);
+            if(component.kind !== 'table') throw new Error("Only a table takes in a field from another resource");
+            await createRelation(user, {
+                kind: 'field',
+                informationId: informationFieldId,
+                sourceResourceId: information.sourceResourceId,
+                targetResourceId: componentId,
+                connectionId: information.connectionId ?? null
+            });
+        }
     }
 
     const component = await Component.findOneAndUpdate(

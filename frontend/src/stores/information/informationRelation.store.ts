@@ -4,7 +4,7 @@ import { ref } from "vue";
 import api from "../../helpers/axios";
 import type { ResourceType } from "../../types/resource.type";
 import { useConnectionStore } from "../connection.store";
-import { useTableStore } from "../resources/table.store";
+import { useComponentStore } from "../resources/component.store";
 import { useApplicationService } from "../../services/resources/application.service";
 import { useExternalService } from "../../services/resources/external.service";
 
@@ -68,7 +68,8 @@ export const useInformationRelationStore = defineStore('informationRelation', ()
             fetchInformationRelations(),
             useConnectionStore().fetchConnections(),
             useApplicationService().fetchApplications(),
-            useTableStore().fetchTables(),
+            // The columns of a table
+            useComponentStore().fetchComponents(),
             useExternalService().fetchExternals()
         ]);
     }

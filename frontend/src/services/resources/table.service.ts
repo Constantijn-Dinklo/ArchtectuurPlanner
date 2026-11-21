@@ -1,28 +1,21 @@
-import { useViewStore } from "../../stores/canvas/view.store";
 import { useTableStore } from "../../stores/resources/table.store";
-import { useComponentStore } from "../../stores/resources/component.store";
 
 
 export function useTableService() {
     const tableStore = useTableStore();
-    const viewStore = useViewStore();
 
+    // A table is a component of its database: it gets its node on the canvas like any component
     async function createTable(name: string, databaseId: string) {
-        const currentViewId = viewStore.currentViewId;
-        const res = await tableStore.createTable(name, databaseId, currentViewId);
-        viewStore.addViewNode(res.viewNode);
-        return res.table.id as string;
+        return tableStore.createTable(name, databaseId);
     }
 
     async function renameTable(tableId: string, name: string) {
         await tableStore.renameTable(tableId, name);
     }
 
+    // Scripts that used the table stay connected to its database
     async function deleteTable(tableId: string) {
-        const res = await tableStore.deleteTable(tableId);
-        viewStore.removeViewNode(res.viewNodeId);
-        // Scripts that used the table stay connected to its database
-        await useComponentStore().fetchComponents();
+        await tableStore.deleteTable(tableId);
     }
 
     return { createTable, renameTable, deleteTable }

@@ -8,7 +8,6 @@ import ResourceFieldRelation from "../models/information/resourceFieldRelation.m
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import Application from "../models/resources/application.model";
 import External from "../models/resources/external.model";
-import Table from "../models/resources/table.model";
 
 type Kind = 'field' | 'object';
 
@@ -42,7 +41,8 @@ export async function getInformationUsage(user: UserJwtPayload, kind: Kind, info
         `inputs.${idsKey}`,
         `outputs.${idsKey}`
     ));
-    usage.push(...components.map((component) => `${component.kind === 'script' ? 'Script' : 'File'} ${component.name}`));
+    const COMPONENT_NAMES = { script: 'Script', file: 'File', table: 'Table' };
+    usage.push(...components.map((component) => `${COMPONENT_NAMES[component.kind]} ${component.name}`));
 
     const endpoints = await Endpoint.find(has(idsKey));
     usage.push(...endpoints.map((endpoint) => `Endpoint ${endpoint.name}`));
@@ -51,9 +51,6 @@ export async function getInformationUsage(user: UserJwtPayload, kind: Kind, info
     usage.push(...apis.map((api) => `API ${api.url}`));
 
     if(kind === 'field') {
-        const tables = await Table.find(has('columns.informationFieldId'));
-        usage.push(...tables.map((table) => `Table ${table.name}`));
-
         const objects = await InformationObject.find(has('informationFieldIds'));
         usage.push(...objects.map((object) => `Object ${object.objectName}`));
     }

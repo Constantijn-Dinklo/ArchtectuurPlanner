@@ -2,16 +2,19 @@
     import { vCollapsible } from '../../directives/collapsible';
     import { computed, ref } from 'vue';
     import { Select } from 'primevue';
-    import { useSelectedNodeProjection } from '../../projections/selectedNode.projection';
-    import { useTableStore, type Table } from '../../stores/resources/table.store';
+    import { useTableStore } from '../../stores/resources/table.store';
     import { useResourceService } from '../../services/resources/resource.service';
     import { useTableService } from '../../services/resources/table.service';
 import type { AccessibleInformationField } from '../../types/informationField.type';
     import EndpointsSection from './EndpointsSection.vue';
 
+    // A table is a component of its database, with its own details: its columns
+    const props = defineProps<{
+        tableId: string;
+    }>();
+
     const resourceService = useResourceService();
 
-    const selectedNodeProjection = useSelectedNodeProjection();
     const tableStore = useTableStore();
     const tableService = useTableService();
 
@@ -33,9 +36,7 @@ import type { AccessibleInformationField } from '../../types/informationField.ty
     const newColumnName = ref('');
     const inputColumn = ref<AccessibleInformationField | undefined>();
 
-    const table = computed(
-        () => selectedNodeProjection.nodeInfo.value?.node as Table | undefined
-    );
+    const table = computed(() => tableStore.tables.find(candidate => candidate.id === props.tableId));
 
     // Fields that are part of an object are shown with the object, e.g. "customerId (Order)"
     const accessibleInformationFields = computed(() =>
@@ -75,7 +76,7 @@ import type { AccessibleInformationField } from '../../types/informationField.ty
         <header class="detail-header">
             <span class="detail-header-icon table"><i class="pi pi-table" /></span>
             <div class="detail-header-text">
-                <span class="detail-type-label">Table</span>
+                <span class="detail-type-label">Table · part of {{ resourceService.getResource(table.databaseId)?.name ?? '?' }}</span>
                 <h2>{{ table.name }}</h2>
             </div>
 

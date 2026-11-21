@@ -3,7 +3,7 @@ import { NextFunction, Response } from "express";
 import { AuthenticatedRequest, getUser, UserJwtPayload } from "../middelware";
 import External from "../models/resources/external.model";
 import Application from "../models/resources/application.model";
-import Table from "../models/resources/table.model";
+import { findTables } from "./table.service";
 import InformationObject from "../models/information/informationObject.models";
 import Api from "../models/api.model";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
@@ -112,7 +112,7 @@ async function getRelationsFromExternals(environmentId: string, externals: Exter
 
     const targetIds = [...new Set(links.map((link) => link.target.id))];
     const applications = await Application.find({ environmentId, _id: { $in: targetIds } });
-    const tables = await Table.find({ environmentId, $or: [{ _id: { $in: targetIds } }, { databaseId: { $in: targetIds } }] });
+    const tables = await findTables(environmentId, { ids: targetIds, databaseIds: targetIds });
 
     const providedObjectIds = externals.flatMap((external) => external.providedInformationObjects.map((ref) => ref.informationObjectId));
     const providedObjects = await InformationObject.find({ environmentId, _id: { $in: providedObjectIds } });
@@ -148,11 +148,11 @@ async function getRelationsFromExternals(environmentId: string, externals: Exter
             ...providedObjectIdsOfExternal.flatMap((objectId) => objectFieldIds.get(objectId) ?? [])
         ]);
         const connectedTables = tables.filter((table) =>
-            table._id.toString() === link.target.id || table.databaseId?.toString() === link.target.id
+            table._id.toString() === link.target.id || table.resourceId.toString() === link.target.id
         );
         for(const table of connectedTables) {
-            for(const column of table.columns) {
-                const informationId = column.informationFieldId.toString();
+            for(const column of table.informationFieldIds) {
+                const informationId = column.toString();
                 if(fieldIdsInReach.has(informationId)) {
                     desired.push({ ...from, kind: 'field', informationId, targetId: table._id.toString(), targetType: 'table' });
                 }

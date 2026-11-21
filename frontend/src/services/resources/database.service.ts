@@ -1,6 +1,7 @@
 import { useViewStore } from "../../stores/canvas/view.store";
 import { useDatabaseStore } from "../../stores/resources/database.store";
 import { useTableStore, type Table } from "../../stores/resources/table.store";
+import { useComponentStore } from "../../stores/resources/component.store";
 
 export function useDatabaseService() {
     const databaseStore = useDatabaseStore();
@@ -24,7 +25,8 @@ export function useDatabaseService() {
         for (const viewNodeId of res.deletedTableViewNodeIds ?? []) {
             viewStore.removeViewNode(viewNodeId);
         }
-        tableStore.tables = tableStore.tables.filter(table => !(res.deletedTableIds ?? []).includes(table.id));
+        // Its tables are components of it and went with it
+        await useComponentStore().fetchComponents();
     }
 
     function getDatabaseTables(databaseId: string): Table[]{

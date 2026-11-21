@@ -642,6 +642,8 @@ export function useInformationChainService() {
         }
 
         for (const component of componentStore.components) {
+            // A table holds its columns like a resource does, above
+            if (component.kind === 'table') continue;
             const slots: InformationSlot[] = component.kind === 'script' ? ['input', 'output'] : ['contains'];
             for (const slot of slots) {
                 const ids = getInformationSlotIds(component, slot);

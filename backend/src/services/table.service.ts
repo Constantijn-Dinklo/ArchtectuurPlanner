@@ -1,139 +1,33 @@
 import { UserJwtPayload } from "../middelware";
-import ViewNode from "../models/canvas/viewNode.model";
-import { createInformationField, ResourceFieldInformation } from "./resourceField.service";
-import InformationField from "../models/information/informationField.model";
+import { Types } from "mongoose";
+import Component from "../models/component.model";
 import InformationObject from "../models/information/informationObject.models";
-import { IResourceFieldExpanded, resolveResourceField } from "../models/information/resourceField.model";
-import Table from "../models/resources/table.model";
-import { createRelation } from "./informationRelation.service";
 
-export async function createTable(user: UserJwtPayload, name: string, databaseId: string, viewId: string) {
-    try {
-        const tableBody = {
-            environmentId: user.environmentId,
-            databaseId: databaseId,
-            name: name,
-            columns: []
-        }
-        const table = new Table(tableBody);
-        await table.save();
+// A table is a component of its database. These are the questions other services ask about tables
 
-        const nodeBody = {
-            environmentId: user.environmentId,
-            viewId: viewId,
-            entityId: table._id,
-            entityType: 'table',
-            position: {
-                x: Math.random() * 400,
-                y: Math.random() * 400
-            }
-        }
-        const viewNode = new ViewNode(nodeBody);
-        await viewNode.save();
-
-        return {
-            table,
-            viewNode
-        };
-    }
-    catch(err: any) {
-        throw new Error(err.message);
-    }
+// The tables of the environment, optionally only these ids or the tables of these databases
+export async function findTables(environmentId: string | Types.ObjectId, filter: { ids?: string[], databaseIds?: string[] } = {}) {
+    const or = [
+        ...(filter.ids ? [{ _id: { $in: filter.ids } }] : []),
+        ...(filter.databaseIds ? [{ resourceId: { $in: filter.databaseIds } }] : [])
+    ];
+    return Component.find({ environmentId, kind: 'table', ...(or.length ? { $or: or } : {}) });
 }
 
-export async function addTableColumn(user: UserJwtPayload, tableId: string, resourceFieldInformation: ResourceFieldInformation) {
-    
-    let informationFieldId = undefined;
-    let position = 0;
-    if("fieldName" in resourceFieldInformation){
-        const newInformationField = await createInformationField(user, resourceFieldInformation.fieldName);
-        informationFieldId = newInformationField._id;
-    }
-    else {
-        // source -> table
-        await createRelation(user, {
-            kind: 'field',
-            informationId: resourceFieldInformation.informationFieldId,
-            sourceResourceId: resourceFieldInformation.sourceResourceId,
-            targetResourceId: tableId,
-            connectionId: resourceFieldInformation.connectionId
-        });
-
-        informationFieldId = resourceFieldInformation.informationFieldId;
-        position = 1;
-    }
-    
-    const updatedTable = await Table.findOneAndUpdate( 
-        {
-            _id: tableId,
-            environmentId: user.environmentId
-        },
-        {
-            $push: {
-                columns: {
-                    informationFieldId: informationFieldId,
-                    position: 0
-                }
-            }
-        },
-        { returnDocument: 'after'}
-    ).populate<{ columns: IResourceFieldExpanded[] }>('columns.informationFieldId');
-    if(!updatedTable) { 
-        return {
-            status: 400,
-            success: false,
-            message: "Table not found"
-        }
-    }
-    
-    
-    const resultTable = resolveTableColumns(updatedTable);
-    return resultTable;
+// The database a table is part of, or undefined when the id is not a table
+export async function getTableDatabaseId(user: Pick<UserJwtPayload, 'environmentId'>, tableId: string) {
+    const table = await Component.findOne({ _id: tableId, environmentId: user.environmentId, kind: 'table' });
+    return table?.resourceId.toString();
 }
 
 // The table gets a column for the information; a table only has fields, so an object gives a column for each of its fields
-export async function addTableInformation(user: UserJwtPayload, tableId: string, kind: 'field' | 'object', informationId: string) {
+export async function addTableInformation(user: Pick<UserJwtPayload, 'environmentId'>, tableId: string, kind: 'field' | 'object', informationId: string) {
     const fieldIds = kind === 'field'
         ? [informationId]
         : ((await InformationObject.findOne({ _id: informationId, environmentId: user.environmentId }))?.informationFieldIds ?? []).map((id) => id.toString());
-    for(const fieldId of fieldIds) {
-        await Table.updateOne(
-            { _id: tableId, environmentId: user.environmentId, 'columns.informationFieldId': { $ne: fieldId } },
-            { $push: { columns: { informationFieldId: fieldId, position: 0 } } }
-        );
-    }
-}
-
-export async function removeTableColumn(user: UserJwtPayload, tableId: string, informationFieldId: string) {
-    const updatedTable = await Table.findOneAndUpdate(
-        {
-            _id: tableId,
-            environmentId: user.environmentId
-        },
-        {
-            $pull: {
-                columns: {
-                    informationFieldId: informationFieldId,
-                }
-            }
-        },
-        { returnDocument: 'after'}
-    ).populate<{ columns: IResourceFieldExpanded[] }>('columns.informationFieldId');
-    if(!updatedTable) {
-        return {
-            status: 400,
-            success: false,
-            message: "Table not found"
-        }
-    }
-    
-    const resultTable = resolveTableColumns(updatedTable);
-    return resultTable;
-}
-
-function resolveTableColumns(table: any) {
-    return {
-        ...table.toJSON(),
-        columns: table.columns.map(resolveResourceField)
-    }
+    if(!fieldIds.length) return;
+    await Component.updateOne(
+        { _id: tableId, environmentId: user.environmentId, kind: 'table' },
+        { $addToSet: { informationFieldIds: { $each: fieldIds } } }
+    );
 }

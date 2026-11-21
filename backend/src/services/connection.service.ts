@@ -2,10 +2,10 @@ import { UserJwtPayload } from "../middelware";
 import Api from "../models/api.model";
 import Component from "../models/component.model";
 import Connection, { CONNECTION_MODELS, IConnection } from "../models/connection.model";
-import Table from "../models/resources/table.model";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import { getResourceType } from "./externalRelation.service";
+import { getTableDatabaseId } from "./table.service";
 import {
     CONNECTION_KINDS,
     Connection as ConnectionType,
@@ -69,8 +69,8 @@ export async function getPartConnections(user: User, partId: string) {
 // A part and the parts it is inside of: a table is inside its database. A connection end holds a relation end when
 // it is one of these
 export async function getHolderIds(user: User, partId: string) {
-    const table = await Table.findOne({ _id: partId, environmentId: user.environmentId });
-    return table ? [partId, table.databaseId.toString()] : [partId];
+    const databaseId = await getTableDatabaseId(user, partId);
+    return databaseId ? [partId, databaseId] : [partId];
 }
 
 // The connections that can carry information from the source to the target: their ends are those parts, or hold them

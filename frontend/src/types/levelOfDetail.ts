@@ -11,8 +11,9 @@ type ResourceRenderRule = {
     showEndpoints?: boolean
 }
 
-// What can be a node on the canvas: a resource, or a component inside a resource (a script, a file)
-export type CanvasEntityType = ResourceType | 'component'
+// What can be a node on the canvas: a resource, or a component inside a resource (a script, a file, a table). A table
+// is a component, so its visibility is that of the components
+export type CanvasEntityType = Exclude<ResourceType, 'table'> | 'component'
 
 type LevelOfDetailConfig = Partial<Record<CanvasEntityType, ResourceRenderRule>>
 
@@ -40,11 +41,6 @@ export const LevelOfDetailConfig: Record<LevelOfDetail, LevelOfDetailConfig> = {
             visible: true,
             expandable: true,
             expanded: true,
-        },
-        table: {
-            visible: false,
-            expandable: false,
-            expanded: false
         },
         external: {
             visible: true,
@@ -78,11 +74,6 @@ export const LevelOfDetailConfig: Record<LevelOfDetail, LevelOfDetailConfig> = {
             expandable: true,
             expanded: true,
         },
-        table: {
-            visible: true,
-            expandable: false,
-            expanded: false
-        },
         external: {
             visible: true,
             expandable: true,
@@ -115,11 +106,6 @@ export const LevelOfDetailConfig: Record<LevelOfDetail, LevelOfDetailConfig> = {
             visible: false,
             expandable: true,
             expanded: true,
-        },
-        table: {
-            visible: true,
-            expandable: false,
-            expanded: false
         },
         external: {
             visible: true,

@@ -1,5 +1,5 @@
 import { removeResourceRelations } from "./externalRelation.service";
-import Table from "../models/resources/table.model";
+import { findTables } from "./table.service";
 import { UserJwtPayload } from "../middelware";
 import ViewNode from "../models/canvas/viewNode.model";
 import Database from "../models/resources/database.model";
@@ -62,13 +62,12 @@ export async function deleteDatabase(user: UserJwtPayload, resourceId: string) {
                 message: 'The Resource was not deleted correctly.',
             }
         }
-        // The tables of the database are removed with it, including their nodes on the canvas and their relations
-        const tables = await Table.find({ environmentId: user.environmentId, databaseId: resourceId });
+        // The tables of the database are components of it: they are removed with it, including their nodes on the
+        // canvas, and so are their relations
+        const tables = await findTables(user.environmentId, { databaseIds: [resourceId] });
         const tableIds = tables.map((table) => table._id.toString());
         const tableViewNodes = await ViewNode.find({ environmentId: user.environmentId, entityId: { $in: tableIds } });
 
-        await ViewNode.deleteMany({ environmentId: user.environmentId, entityId: { $in: tableIds } });
-        await Table.deleteMany({ environmentId: user.environmentId, databaseId: resourceId });
         await removeResourceRelations(user, [resourceId, ...tableIds]);
 
         return {
