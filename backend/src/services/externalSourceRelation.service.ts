@@ -17,7 +17,8 @@ import { Connection } from "../types/connection.type";
 // show it. Relations are only added, never taken away, except when they cannot be right:
 // - from an external element: what it provides reaches every resource it is connected to that takes it in. An
 //   application or script takes in its input fields and objects; a table its columns, also when the external element provides
-//   the field inside an object; a connection to a database reaches all of its tables
+//   the field inside an object; a file what it contains; a connection to a database or file location reaches all of
+//   its tables or files
 // - to an external element through an api connection: everything the api carries, from the owner of the api
 // - a relation from an external element for information it no longer provides is removed
 // A relation is only added when there is none yet between the two for that information, however it was made.
@@ -30,7 +31,7 @@ interface DesiredRelation {
     sourceId: string;
     sourceType: 'application' | 'external';
     targetId: string;
-    targetType: 'application' | 'script' | 'table' | 'external';
+    targetType: 'application' | 'script' | 'table' | 'file' | 'external';
     connectionId: string;
 }
 
@@ -113,6 +114,7 @@ async function getRelationsFromExternals(environmentId: string, externals: Exter
     const applications = await Application.find({ environmentId, _id: { $in: targetIds } });
     const scripts = await Component.find({ environmentId, kind: 'script', _id: { $in: targetIds } });
     const tables = await findTables(environmentId, { ids: targetIds, databaseIds: targetIds });
+    const files = await Component.find({ environmentId, kind: 'file', $or: [{ _id: { $in: targetIds } }, { resourceId: { $in: targetIds } }] });
 
     const providedObjectIds = externals.flatMap((external) => external.providedInformationObjects.map((ref) => ref.informationObjectId));
     const providedObjects = await InformationObject.find({ environmentId, _id: { $in: providedObjectIds } });
@@ -149,6 +151,18 @@ async function getRelationsFromExternals(environmentId: string, externals: Exter
             script.inputInformationObjectIds.map((id) => id.toString()).filter((id) => providedObjectIdsOfExternal.includes(id))
                 .forEach((informationId) => desired.push({ ...from, kind: 'object', informationId, targetId: link.target.id, targetType: 'script' }));
             continue;
+        }
+
+        // A file, or the files of a file location
+        const connectedFiles = files.filter((file) =>
+            file._id.toString() === link.target.id || file.resourceId.toString() === link.target.id
+        );
+        for(const file of connectedFiles) {
+            const targetId = file._id.toString();
+            file.informationFieldIds.map((id) => id.toString()).filter((id) => providedFieldIds.includes(id))
+                .forEach((informationId) => desired.push({ ...from, kind: 'field', informationId, targetId, targetType: 'file' }));
+            file.informationObjectIds.map((id) => id.toString()).filter((id) => providedObjectIdsOfExternal.includes(id))
+                .forEach((informationId) => desired.push({ ...from, kind: 'object', informationId, targetId, targetType: 'file' }));
         }
 
         // A table, or the tables of a database

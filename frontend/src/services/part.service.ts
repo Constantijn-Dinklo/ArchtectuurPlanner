@@ -1,9 +1,10 @@
 import { useComponentStore } from "../stores/resources/component.store";
 import { useResourceService } from "./resources/resource.service";
-import { getComponentIcon } from "../types/component.types";
+import { getComponentIcon, KINDS_CONNECTED_THROUGH_RESOURCE } from "../types/component.types";
 import { RESOURCE_ICONS } from "../types/resource.type";
 
-// A part is anything a connection or relation can end at: a resource, or a component inside one (a script, a table)
+// A part is anything a connection or relation can end at: a resource, or a component inside one (a script, a table,
+// a file)
 export interface PartInfo {
     id: string;
     name: string;
@@ -33,10 +34,22 @@ export function usePartService() {
         return `${part.name} (on ${resourceService.getResource(part.hostId)?.name ?? '?'})`;
     }
 
+    // The resource a table or file is reached through (its database or file location), or undefined for any other part
+    function getContainerId(id: string) {
+        const component = componentStore.getComponent(id);
+        return component && KINDS_CONNECTED_THROUGH_RESOURCE.includes(component.kind) ? component.resourceId : undefined;
+    }
+
+    // A part and the part it is inside of. A connection end holds a relation end when it is one of these
+    function getHolderIds(id: string) {
+        const containerId = getContainerId(id);
+        return containerId ? [id, containerId] : [id];
+    }
+
     // The scripts, which can be connected like an application
     function getScripts() {
         return componentStore.components.filter(component => component.kind === 'script');
     }
 
-    return { getPart, getPartLabel, getScripts };
+    return { getPart, getPartLabel, getContainerId, getHolderIds, getScripts };
 }

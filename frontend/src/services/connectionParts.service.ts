@@ -52,7 +52,6 @@ export function useConnectionParts() {
     function isUsed(ends: ConnectionEnd[], target: ConnectionEndTarget) {
         return ends.some(end =>
             end.resourceId === target.resourceId &&
-            (end.componentId ?? null) === (target.componentId ?? null) &&
             (end.apiId ?? null) === (target.apiId ?? null)
         );
     }
@@ -60,7 +59,7 @@ export function useConnectionParts() {
     function toOptions(ends: ConnectionEnd[], targets: { target: ConnectionEndTarget, label: string }[]): PartOption[] {
         return targets
             .map(({ target, label }) => ({
-                key: `${target.resourceId}:${target.componentId ?? ''}:${target.apiId ?? ''}`,
+                key: `${target.resourceId}:${target.apiId ?? ''}`,
                 target,
                 label,
                 disabled: isUsed(ends, target)
@@ -75,7 +74,7 @@ export function useConnectionParts() {
             removeTitle: 'Remove this table',
             pickers: [{
                 placeholder: '+ Choose a table…',
-                options: toOptions(ends, tableStore.getTables(databaseId).map(table => ({ target: { resourceId: table.id, componentId: null }, label: table.name }))),
+                options: toOptions(ends, tableStore.getTables(databaseId).map(table => ({ target: { resourceId: table.id }, label: table.name }))),
                 emptyMessage: 'No tables yet',
                 filterPlaceholder: 'Search table'
             }],
@@ -85,7 +84,7 @@ export function useConnectionParts() {
                 withFileType: false,
                 create: async (name) => {
                     const tableId = await tableService.createTable(name, databaseId);
-                    return tableId ? { resourceId: tableId, componentId: null } : undefined;
+                    return tableId ? { resourceId: tableId } : undefined;
                 }
             }
         };
@@ -99,7 +98,7 @@ export function useConnectionParts() {
             removeTitle: 'Remove this file',
             pickers: [{
                 placeholder: '+ Choose a file…',
-                options: toOptions(ends, locationFiles.map(file => ({ target: { resourceId: fileLocationId, componentId: file.id }, label: file.name }))),
+                options: toOptions(ends, locationFiles.map(file => ({ target: { resourceId: file.id }, label: file.name }))),
                 emptyMessage: 'No files yet',
                 filterPlaceholder: 'Search file'
             }],
@@ -109,7 +108,7 @@ export function useConnectionParts() {
                 withFileType: true,
                 create: async (name, fileType) => {
                     const file = await componentStore.createComponent(fileLocationId, 'file', name, fileType);
-                    return file ? { resourceId: fileLocationId, componentId: file.id } : undefined;
+                    return file ? { resourceId: file.id } : undefined;
                 }
             }
         };
@@ -121,7 +120,7 @@ export function useConnectionParts() {
     function connectionTypes(resourceId: string, senderId: string, ends: ConnectionEnd[]): PartSpec {
         const toTargets = (options: MethodOption[]) => options.map(option => ({
             key: option.key,
-            target: { resourceId, componentId: null, connectionKind: option.kind, apiId: option.apiId },
+            target: { resourceId, connectionKind: option.kind, apiId: option.apiId },
             label: option.label
         }));
         const isOwnApi = senderId === resourceId;

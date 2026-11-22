@@ -6,6 +6,10 @@ import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 export const COMPONENT_KINDS = ['script', 'file', 'table'] as const;
 export type ComponentKind = typeof COMPONENT_KINDS[number];
 
+// A table and a file are reached through the resource they are part of: a connection goes to their database or file
+// location, and a relation through it can end at the table or file. A script is a connection end of its own
+export const KINDS_CONNECTED_THROUGH_RESOURCE: ComponentKind[] = ['table', 'file'];
+
 export const FILE_TYPES = ['excel', 'csv', 'word', 'pdf', 'other'] as const;
 
 // Where information sits in a component: a script takes it in (input) and produces it (output), a file or table

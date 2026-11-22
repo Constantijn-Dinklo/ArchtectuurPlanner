@@ -154,11 +154,9 @@ export async function deleteComponent(user: UserJwtPayload, componentId: string)
         await InformationField.updateMany(sourcedHere, { $set: { source: null } });
         await InformationObject.updateMany(sourcedHere, { $set: { source: null } });
     }
-    // A script and a table are ends of connections and relations, which go with them. What is connected to the database
-    // of a table stays connected to the database
-    if(component.kind === 'script' || component.kind === 'table') {
-        await removeResourceRelations(user, [componentId]);
-    }
+    // A component is the end of relations (and a script of connections), which go with it. What is connected to the
+    // database of a table or the file location of a file stays connected to it
+    await removeResourceRelations(user, [componentId]);
     return { componentId, viewNodeId: viewNode?._id };
 }
 

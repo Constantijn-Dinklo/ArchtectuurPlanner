@@ -18,6 +18,11 @@ export function getComponentDisplay(component: Pick<Component, 'kind'>) {
     return COMPONENT_DISPLAYS[component.kind];
 }
 
+// A table and a file are reached through the resource they are part of: a connection goes to their database or file
+// location, and a relation through it can end at the table or file. A script is a connection end of its own.
+// The same as the backend (KINDS_CONNECTED_THROUGH_RESOURCE in component.model.ts)
+export const KINDS_CONNECTED_THROUGH_RESOURCE: ComponentKind[] = ['table', 'file'];
+
 export type FileType = 'excel' | 'csv' | 'word' | 'pdf' | 'other';
 
 export const FILE_TYPES: { fileType: FileType, label: string, icon: string }[] = [
@@ -66,7 +71,7 @@ export interface CanvasComponentRow {
     inputs?: CanvasComponentInformation;
     outputs?: CanvasComponentInformation;
 
-    // Script: what it reads from and writes to. File: nothing yet, until files are relation ends
+    // Script: what it reads from and writes to. File: what writes to it and what reads from it
     incoming: CanvasComponentLink[];
     outgoing: CanvasComponentLink[];
     objectNames: string[];

@@ -3,7 +3,8 @@
     import { vCollapsible } from '../../directives/collapsible';
     import { useApiStore } from '../../stores/api.store';
     import { useConnectionStore } from '../../stores/connection.store';
-    import { useInformationRelationStore } from '../../stores/information/informationRelation.store';
+    import { useInformationRelationStore, type ResourceRelation } from '../../stores/information/informationRelation.store';
+    import { useCanvasEndService } from '../../services/canvasEnd.service';
     import { useInformationFieldStore } from '../../stores/information/informationField.store';
     import { useInformationObjectStore } from '../../stores/information/informationObject.store';
     import { CONNECTION_KINDS, getConnectionKindInfo, type Connection, type ConnectionKind } from '../../types/connection.types';
@@ -29,6 +30,7 @@
     const apiStore = useApiStore();
     const connectionStore = useConnectionStore();
     const informationRelationStore = useInformationRelationStore();
+    const { getVisibleEndId } = useCanvasEndService();
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
 
@@ -41,12 +43,15 @@
     }));
 
     // <-- What goes through a connection: the relations that name it -->
+    // Only the relations drawn on this edge: a connection to a file location is drawn to each file it writes
     function getPassedAlong(connectionId: string) {
+        const isOnEdge = (relation: ResourceRelation) => relation.connectionId === connectionId &&
+            getVisibleEndId(relation.sourceResourceId) === props.sourceId && getVisibleEndId(relation.targetResourceId) === props.targetId;
         const objectNames = informationRelationStore.objectRelations
-            .filter(relation => relation.connectionId === connectionId)
+            .filter(isOnEdge)
             .map(relation => informationObjectStore.getInformationObject(relation.informationObjectId)?.objectName ?? 'Unknown object');
         const fieldNames = informationRelationStore.fieldRelations
-            .filter(relation => relation.connectionId === connectionId)
+            .filter(isOnEdge)
             .map(relation => informationFieldStore.getInformationField(relation.informationFieldId)?.fieldName ?? 'Unknown field');
         return { objectNames: [...new Set(objectNames)], fieldNames: [...new Set(fieldNames)] };
     }

@@ -3,7 +3,6 @@
     import { Select } from 'primevue';
     import { vCollapsible } from '../../directives/collapsible';
     import { useApiStore } from '../../stores/api.store';
-    import { useComponentStore } from '../../stores/resources/component.store';
     import { useTableStore } from '../../stores/resources/table.store';
     import { useConnectionStore } from '../../stores/connection.store';
     import { useResourceService } from '../../services/resources/resource.service';
@@ -11,9 +10,8 @@
     import { useInformationSourceService } from '../../services/informationSource.service';
     import type { PartCreator, PartOption, PartSpec } from '../../services/connectionParts.service';
     import { getConnectionKindInfo } from '../../types/connection.types';
-    import { FILE_TYPES, getComponentIcon, type FileType } from '../../types/component.types';
+    import { FILE_TYPES, type FileType } from '../../types/component.types';
     import type { ConnectionEnd, ConnectionEndTarget, InformationFieldToAdd, InformationObjectToAdd, InformationOption } from '../../types/connectionEnd.types';
-    import { RESOURCE_ICONS } from '../../types/resource.type';
     import ExpandableDetailRow from './ExpandableDetailRow.vue';
     import InformationEditor from './InformationEditor.vue';
 
@@ -61,7 +59,6 @@
     }>();
 
     const apiStore = useApiStore();
-    const componentStore = useComponentStore();
     const tableStore = useTableStore();
     const connectionStore = useConnectionStore();
     const resourceService = useResourceService();
@@ -88,10 +85,9 @@
         spec: PartSpec;
     }
 
-    // The resource a part belongs to: a table to its database
+    // The resource a part belongs to: a table to its database, a file to its file location
     function getRowId(end: ConnectionEnd) {
-        const resource = resourceService.getResource(end.resourceId);
-        return resource?.type === 'table' ? resource.databaseId : end.resourceId;
+        return partService.getContainerId(end.resourceId) ?? end.resourceId;
     }
 
     // How a part is shown, or undefined for an end of the resource itself
@@ -104,12 +100,11 @@
         }
         if (connection) return { label: informationSourceService.describeConnection(connection), icon: getConnectionKindInfo(connection.kind).icon };
         if (end.apiId) return { label: apiStore.getApi(end.apiId)?.url ?? 'Unknown API', icon: 'pi pi-globe' };
-        if (end.componentId) {
-            const file = componentStore.getComponent(end.componentId);
-            return { label: file?.name ?? 'Unknown file', icon: file ? getComponentIcon(file) : 'pi pi-file' };
+        // A table or file inside the connected resource
+        if (partService.getContainerId(end.resourceId)) {
+            const part = partService.getPart(end.resourceId);
+            return { label: part?.name ?? 'Unknown', icon: part?.icon ?? 'pi pi-box' };
         }
-        const resource = resourceService.getResource(end.resourceId);
-        if (resource?.type === 'table') return { label: resource.name, icon: RESOURCE_ICONS.table };
         return undefined;
     }
 
@@ -277,7 +272,7 @@
             filter-placeholder="Search resource"
             size="small"
             class="detail-prime-select"
-            @change="event => event.value && emit('connect', { resourceId: event.value.id, componentId: null })"
+            @change="event => event.value && emit('connect', { resourceId: event.value.id })"
         />
     </section>
 </template>

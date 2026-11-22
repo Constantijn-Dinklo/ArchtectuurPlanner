@@ -1,7 +1,7 @@
 import { useApiStore } from "../stores/api.store";
 import { useConnectionStore } from "../stores/connection.store";
 import type { ResourceRelation } from "../stores/information/informationRelation.store";
-import { useResourceService } from "./resources/resource.service";
+import { usePartService } from "./part.service";
 import { CONNECTION_KINDS, getConnectionKindInfo, type Connection, type ConnectionKind } from "../types/connection.types";
 
 // One way information can go: an api of the sender, or another kind
@@ -18,13 +18,7 @@ export interface MethodOption {
 export function useInformationSourceService() {
     const apiStore = useApiStore();
     const connectionStore = useConnectionStore();
-    const resourceService = useResourceService();
-
-    // A part and the parts it is inside of: a table is inside its database
-    function getHolderIds(resourceId: string) {
-        const resource = resourceService.getResource(resourceId);
-        return resource?.type === 'table' ? [resourceId, resource.databaseId] : [resourceId];
-    }
+    const { getHolderIds } = usePartService();
 
     // The connections information can go through from the source to the target: their ends are those parts, or hold them
     function getCarryingConnections(sourceId: string, targetId: string): Connection[] {

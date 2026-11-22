@@ -1,3 +1,4 @@
+import { usePartService } from "./part.service";
 import { useInformationFieldStore } from "../stores/information/informationField.store";
 import { useInformationObjectStore } from "../stores/information/informationObject.store";
 import { useInformationRelationStore, type ResourceRelation } from "../stores/information/informationRelation.store";
@@ -143,6 +144,7 @@ export function useInformationChainService() {
     const applicationStore = useApplicationStore();
     const tableStore = useTableStore();
     const externalStore = useExternalStore();
+    const partService = usePartService();
     const componentStore = useComponentStore();
     const apiStore = useApiStore();
     const connectionStore = useConnectionStore();
@@ -247,16 +249,10 @@ export function useInformationChainService() {
         return source.resourceType === 'application' ? { resourceId: source.resourceId, side: 'output' } : { resourceId: source.resourceId };
     }
 
-    // What leaves the source can be stored one level up: a relation goes from a file location or a database, not from
-    // its file or table. An application that is the source can also have the information as an input: without anything
-    // feeding that input it says nothing about the route, so it is left out
+    // An application that is the source can also have the information as an input: without anything feeding that
+    // input it says nothing about the route, so it is left out
     function toSourceFlow(edges: ChainEdge[], sourceStep: ChainStep): ChainEdge[] {
-        const parentId = sourceStep.componentId ? sourceStep.resourceId : getDatabaseId(sourceStep.resourceId);
-        const flow = edges
-            .map(edge => edge.source.resourceId === parentId && !edge.source.componentId && !edge.source.endpointId
-                ? { ...edge, source: sourceStep }
-                : edge)
-            .filter(edge => stepKey(edge.source) !== stepKey(edge.target));
+        const flow = edges.filter(edge => stepKey(edge.source) !== stepKey(edge.target));
         if (sourceStep.side !== 'output') return flow;
 
         const sourceKey = stepKey(sourceStep);
@@ -329,16 +325,12 @@ export function useInformationChainService() {
         ];
     }
 
-    // Tables are connected through their database
-    function getDatabaseId(resourceId: string) {
-        const resource = resourceService.getResource(resourceId);
-        if (resource?.type === 'table') return resource.databaseId;
-        return undefined;
-    }
-
-    // The step of a script: inside its host
-    function getScriptStep(scriptId: string): ChainStep {
-        return { resourceId: componentStore.getComponent(scriptId)?.resourceId ?? scriptId, componentId: scriptId };
+    // The step of a part: a script or file is a step inside its resource. A table is still a step of its own, like a
+    // resource
+    function getPartStep(partId: string): ChainStep {
+        const component = componentStore.getComponent(partId);
+        if (!component || component.kind === 'table') return { resourceId: partId };
+        return { resourceId: component.resourceId, componentId: partId };
     }
 
     // The part a holder is: a script (or file) itself, otherwise the resource
@@ -347,21 +339,17 @@ export function useInformationChainService() {
     }
 
     // A relation inside one application goes from its input to its output.
-    // A relation between two resources goes from the output of the source to the input of the target. A script is
-    // a step of its own, inside its host. Through an api connection the link shows the api
+    // A relation between two resources goes from the output of the source to the input of the target. A script or
+    // file is a step of its own, inside its resource. Through an api connection the link shows the api
     function relationToEdge(relation: ResourceRelation, carriedByObjectId?: string): ChainEdge {
         const isForwarded = relation.sourceResourceId === relation.targetResourceId;
 
-        const source: ChainStep = relation.sourceResourceType === 'script'
-            ? getScriptStep(relation.sourceResourceId)
-            : { resourceId: relation.sourceResourceId };
+        const source = getPartStep(relation.sourceResourceId);
         if (relation.sourceResourceType === 'application') {
             source.side = isForwarded ? 'input' : 'output';
         }
 
-        const target: ChainStep = relation.targetResourceType === 'script'
-            ? getScriptStep(relation.targetResourceId)
-            : { resourceId: relation.targetResourceId };
+        const target = getPartStep(relation.targetResourceId);
         if (relation.targetResourceType === 'application') {
             target.side = isForwarded ? 'output' : 'input';
         }
@@ -641,13 +629,11 @@ export function useInformationChainService() {
     }
 
     // Whether the part has the information to send on: anything but taking it in or using it in an endpoint.
-    // A database has what its tables have, a resource what its scripts produce; a script only what it produces itself
+    // A database has what its tables have, a resource what its scripts and files have; a script or file only what it
+    // has itself
     function partProvides(holders: ChainHolder[], partId: string) {
-        const isScript = componentStore.getComponent(partId)?.kind === 'script';
         return holders.some(holder =>
-            (isScript
-                ? holder.componentId === partId
-                : holder.resourceId === partId || getDatabaseId(holder.resourceId) === partId) &&
+            (holder.componentId === partId || holder.resourceId === partId || partService.getContainerId(holder.resourceId) === partId) &&
             holder.role !== 'input' && holder.role !== 'endpoint'
         );
     }
@@ -657,7 +643,7 @@ export function useInformationChainService() {
     // External elements are only linked by relations when information is sent to them through a connection.
     // What an external element provides reaches the parts it is connected to without a relation: an edge is added
     // from the external element to every connected part that takes the information in (an application or script
-    // input, a table)
+    // input, a table, a file)
     function getExternalEdges(holders: ChainHolder[], relations: ResourceRelation[]): ChainEdge[] {
         const edges: ChainEdge[] = [];
         const providers = holders.filter(holder => holder.role === 'provided');
@@ -668,14 +654,10 @@ export function useInformationChainService() {
 
         for (const receiver of holders) {
             if (receiver.endpointId) continue;
-            if (receiver.role !== 'input' && receiver.role !== 'column') continue;
+            if (receiver.role !== 'input' && receiver.role !== 'column' && receiver.role !== 'contains') continue;
 
             const partId = getHolderPartId(receiver);
-            const databaseId = getDatabaseId(partId);
-            const upstreamIds = new Set([
-                ...resourceService.getUpstreamResourceIds(partId),
-                ...(databaseId ? resourceService.getUpstreamResourceIds(databaseId) : [])
-            ]);
+            const upstreamIds = new Set(partService.getHolderIds(partId).flatMap(id => resourceService.getUpstreamResourceIds(id)));
             for (const provider of providers) {
                 if (!upstreamIds.has(provider.resourceId)) continue;
                 // A relation from the external element already shows how the information gets there
@@ -722,7 +704,7 @@ export function useInformationChainService() {
             breaks.push({ kind: 'noSource', severity: 'warning', message: `No source is set for this ${noun}` });
         }
         else if (!holders.some(holder =>
-            (holder.resourceId === source.id || getDatabaseId(holder.resourceId) === source.id) && holder.role !== 'endpoint'
+            (holder.resourceId === source.id || partService.getContainerId(holder.resourceId) === source.id) && holder.role !== 'endpoint'
         )) {
             breaks.push({ kind: 'sourceNotHeld', severity: 'error', message: `The source, ${source.name}, does not have this ${noun}` });
         }

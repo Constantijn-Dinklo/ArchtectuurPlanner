@@ -2,7 +2,6 @@
     import { computed, ref, watch } from 'vue';
     import { useConnectionStore } from '../../stores/connection.store';
     import { useInformationRelationStore, type ResourceRelation } from '../../stores/information/informationRelation.store';
-    import { useResourceService } from '../../services/resources/resource.service';
     import { usePartService } from '../../services/part.service';
     import { useInformationSourceService } from '../../services/informationSource.service';
     import { byLabel, useConnectionEndOptions } from '../../services/connectionEndOptions.service';
@@ -19,9 +18,8 @@
     //   of the sender, by hand, ...), with what goes through it. Picking it connects the two without a way yet (an
     //   undecided connection, a dashed line), which is not shown as a part: like a database without a table chosen
     // - a database is connected per table, through its database connection
-    // - a file location per file, through a file connection. Until files can be relation ends (phase 2) the information
-    //   goes on the file location itself, so it is not shown yet
-    // - a table that is picked but has no information yet is only kept while the panel shows this resource
+    // - a file location per file, through a file connection
+    // - a table or file that is picked but has no information yet is only kept while the panel shows this resource
     const props = defineProps<{
         resourceId: string;
         direction: 'incoming' | 'outgoing';
@@ -35,7 +33,6 @@
 
     const connectionStore = useConnectionStore();
     const informationRelationStore = useInformationRelationStore();
-    const resourceService = useResourceService();
     const partService = usePartService();
     const informationSourceService = useInformationSourceService();
     const { getEndFieldOptions, getEndObjectOptions } = useConnectionEndOptions();
@@ -63,7 +60,7 @@
 
     const isScript = computed(() => partService.getPart(props.resourceId)?.type === 'script');
 
-    // Tables picked without information yet
+    // Tables and files picked without information yet
     const pending = ref<ConnectionEndTarget[]>([]);
     watch(() => props.resourceId, () => { pending.value = []; });
 
@@ -86,10 +83,9 @@
         // The end of a connection: its own part for an application or external element, otherwise the resource. An
         // undecided connection only shows the resource
         function getConnectionEnd(otherId: string, connection: Connection | undefined) {
-            if (!connection || connection.kind === 'undecided' || !isPerConnection(otherId)) return getEnd({ resourceId: otherId, componentId: null });
+            if (!connection || connection.kind === 'undecided' || !isPerConnection(otherId)) return getEnd({ resourceId: otherId });
             return getEnd({
                 resourceId: otherId,
-                componentId: null,
                 connectionId: connection.id,
                 connectionKind: connection.kind,
                 apiId: connection.kind === 'api' ? connection.apiId : null
@@ -129,7 +125,7 @@
     // Received: what the end can pass on, through its api when it has one. Sent: what this resource can pass on, through
     // its api when it has one; a table only takes fields
     function getSenderEnd(end: ConnectionEnd): ConnectionEnd {
-        return isIncoming.value ? end : { ...end, resourceId: props.resourceId, componentId: null };
+        return isIncoming.value ? end : { ...end, resourceId: props.resourceId };
     }
 
     function getFieldOptions(end: ConnectionEnd) {
@@ -137,7 +133,7 @@
     }
 
     function getObjectOptions(end: ConnectionEnd) {
-        if (!isIncoming.value && resourceService.getResource(end.resourceId)?.type === 'table') return [];
+        if (!isIncoming.value && partService.getPart(end.resourceId)?.type === 'table') return [];
         return byLabel(getEndObjectOptions(getSenderEnd(end)));
     }
 
@@ -184,7 +180,7 @@
         const [sourceId, targetId] = getEnds(target.resourceId);
 
         if (!target.connectionKind) {
-            if (resourceService.getResource(target.resourceId)?.type === 'table') pending.value = [...pending.value, target];
+            if (partService.getContainerId(target.resourceId)) pending.value = [...pending.value, target];
             await connectionStore.connectParts(sourceId, targetId);
             return;
         }
@@ -202,10 +198,7 @@
 
     // connectionId: the other resource. Its connections go, with everything that goes through them
     async function disconnect(connectionId: string) {
-        pending.value = pending.value.filter(target => {
-            const resource = resourceService.getResource(target.resourceId);
-            return !(resource?.type === 'table' && resource.databaseId === connectionId);
-        });
+        pending.value = pending.value.filter(target => partService.getContainerId(target.resourceId) !== connectionId);
         const [sourceId, targetId] = getEnds(connectionId);
         for (const connection of informationSourceService.getCarryingConnections(sourceId, targetId)) {
             await connectionStore.deleteConnection(connection.id);
@@ -222,7 +215,7 @@
         return relations;
     }
 
-    // A connection, with what goes through it, or a table of a database. Like a database without tables, the two stay
+    // A connection, with what goes through it, or a table of a database or file of a file location. Like a database without tables, the two stay
     // connected without a way chosen when the last way goes: the resource itself is removed with its own row
     async function removeEnd(index: number) {
         const end = ends.value[index];

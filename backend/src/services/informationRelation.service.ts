@@ -9,7 +9,7 @@ import { deleteApplicationInputInformationField, deleteApplicationInputInformati
 import { connectParts, deleteConnection, getCarryingConnections, getConnection, getHolderIds } from "./connection.service";
 
 // Every relation is one piece of information moving from a source to a target, through a connection whose ends hold
-// the ends of the relation: the same part, or the database of a table. The one exception: inside one resource (from
+// the ends of the relation: the same part, or the database of a table or file location of a file. The one exception: inside one resource (from
 // its input to its output) there is no connection.
 //
 // Relations added by hand, from what a resource receives from or sends to another resource, also give the receiver
@@ -17,14 +17,15 @@ import { connectParts, deleteConnection, getCarryingConnections, getConnection, 
 // - an application or script takes it in as an input
 // - a table gets a column for it; a table only has fields, so an object gives a column for each of its fields
 // - an external element receives it (its received lists follow from the relations to it)
-// - a file location gets nothing: its information is in its files, and relations do not reach files yet
+// - a file contains it
+// A database or file location is never the end of a relation: its information is in its tables and files.
 // When the last relation that brings information into an application or script is removed, the input goes as well.
-// Columns of a table stay: a table keeps what was stored in it.
+// Columns of a table and the contents of a file stay: they keep what was stored in them.
 
 type Kind = 'field' | 'object';
 type User = Pick<UserJwtPayload, 'environmentId'>;
 
-const END_TYPES = ['application', 'table', 'external', 'fileLocation', 'script'];
+const END_TYPES = ['application', 'table', 'external', 'script', 'file'];
 
 export interface RelationToCreate {
     kind: Kind;
@@ -129,6 +130,12 @@ async function addToReceiver(user: UserJwtPayload, resourceId: string, type: str
         );
     }
     if(type === 'table') await addTableInformation(user, resourceId, kind, informationId);
+    if(type === 'file') {
+        await Component.updateOne(
+            { _id: resourceId, environmentId: user.environmentId, kind: 'file' },
+            { $addToSet: { [kind === 'field' ? 'informationFieldIds' : 'informationObjectIds']: informationId } }
+        );
+    }
     if(type === 'external') await updateReceivedInformation(user, resourceId);
 }
 

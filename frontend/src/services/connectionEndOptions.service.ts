@@ -20,9 +20,10 @@ export function useConnectionEndOptions() {
     const resourceService = useResourceService();
     const sendableInformationService = useSendableInformationService();
 
-    // The files whose contents can be read from this end
+    // The files whose contents can be read from this end: the file, or all files of a file location
     function getFiles(end: ConnectionEndTarget) {
-        if (end.componentId) return [componentStore.getComponent(end.componentId)].filter(file => file !== undefined);
+        const file = componentStore.getComponent(end.resourceId);
+        if (file?.kind === 'file') return [file];
         if (resourceService.getResource(end.resourceId)?.type !== 'fileLocation') return undefined;
         return componentStore.getResourceComponents(end.resourceId).filter(component => component.kind === 'file');
     }

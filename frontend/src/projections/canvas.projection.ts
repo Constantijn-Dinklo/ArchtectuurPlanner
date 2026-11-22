@@ -22,6 +22,7 @@ import type { ResolvedInformationObjectReference } from "../types/informationObj
 import { useResourceResolver } from "../resolvers/resource.resolver";
 import { getWebsiteHref, type ResolvedApplication } from "../types/application.types";
 import type { ResolvedExternal } from "../types/external.types";
+import { useInformationRelationStore } from "../stores/information/informationRelation.store";
 import { useComponentStore } from "../stores/resources/component.store";
 import { getComponentDisplay, getComponentHandleId, getComponentIcon, getInformationSlotIds, type CanvasComponentInformation, type CanvasComponentLink, type CanvasComponentRow, type Component, type InformationSlot } from "../types/component.types";
 import { useCanvasEndService } from "../services/canvasEnd.service";
@@ -76,6 +77,7 @@ export function useCanvasProjection() {
     const serverStore = useServerStore();
     const databaseStore = useDatabaseStore();
     const tableStore = useTableStore();
+    const informationRelationStore = useInformationRelationStore();
     const componentStore = useComponentStore();
     const endpointStore = useEndpointStore();
     const endpointInformationService = useEndpointInformationService();
@@ -85,7 +87,7 @@ export function useCanvasProjection() {
 
     const apiStore = useApiStore();
     const connectionStore = useConnectionStore();
-    const { getVisibleEndId } = useCanvasEndService();
+    const { getDrawnEnds } = useCanvasEndService();
     const partService = usePartService();
 
     const entityIdToNodeMap = computed(() => {
@@ -156,12 +158,15 @@ export function useCanvasProjection() {
         }
 
         // Every connection is an edge in the direction the information flows. All connections between the same two
-        // shown ends share one edge. An end is drawn at the closest level that is visible: a script at its host while
-        // components are hidden, a table always at its database
+        // shown ends share one edge. An end is drawn at the closest level that is visible: a script or file at its
+        // resource while components are hidden, a table always at its database. A connection to a file location is
+        // drawn to each file its relations end at
         for(const connection of connectionStore.connections){
-            const edge = getOrCreateEdge(getVisibleEndId(connection.source.id), getVisibleEndId(connection.target.id));
-            edge?.data.connectionIds.push(connection.id);
-            edge?.data.connectionKinds.push(connection.kind);
+            for(const [sourceId, targetId] of getDrawnEnds(connection)){
+                const edge = getOrCreateEdge(sourceId, targetId);
+                edge?.data.connectionIds.push(connection.id);
+                edge?.data.connectionKinds.push(connection.kind);
+            }
         }
 
 
@@ -212,7 +217,20 @@ export function useCanvasProjection() {
         return viewNodeId ? { nodeId: viewNodeId } : undefined;
     }
 
-    // What a script reads from (the source of a connection to it) or writes to, as a line in its opened row
+    // The connections a component is reached through on this side: those that end at it (a script), and those of the
+    // relations that end at it through its resource (a file)
+    function getComponentConnections(componentId: string, side: 'source' | 'target'): Connection[] {
+        const relationEnd = side === 'source' ? 'sourceResourceId' : 'targetResourceId';
+        const ids = new Set([
+            ...connectionStore.connections.filter((connection) => connection[side].id === componentId).map((connection) => connection.id),
+            ...[...informationRelationStore.fieldRelations, ...informationRelationStore.objectRelations]
+                .filter((relation) => relation[relationEnd] === componentId && relation.connectionId)
+                .map((relation) => relation.connectionId!)
+        ]);
+        return [...ids].map((id) => connectionStore.getConnection(id)).filter((connection) => connection !== undefined);
+    }
+
+    // What a component reads from (the source of a connection to it) or writes to, as a line in its opened row
     function getConnectionLink(connection: Connection, otherId: string): CanvasComponentLink {
         const api = connection.kind === 'api' ? apiStore.getApi(connection.apiId) : undefined;
         const part = partService.getPart(otherId);
@@ -252,9 +270,9 @@ export function useCanvasProjection() {
             .filter((component) => getComponentDisplay(component) === 'row')
             .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name))
             .map((component) => {
-                // What a script reads from and writes to are its connections. A file is not an end of a connection yet
-                const incoming = connectionStore.connections.filter((connection) => connection.target.id === component.id);
-                const outgoing = connectionStore.connections.filter((connection) => connection.source.id === component.id);
+                // What writes to it and what it is read by: for a file the parts that write it or read it
+                const incoming = getComponentConnections(component.id, 'target');
+                const outgoing = getComponentConnections(component.id, 'source');
 
                 return {
                     id: component.id,

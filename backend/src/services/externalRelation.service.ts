@@ -29,8 +29,8 @@ export async function getResourceType(user: UserJwtPayload, resourceId: string):
     for(const [type, model] of models) {
         if(await (model as any).exists(filter)) return type;
     }
-    // A table and a script are components, but they are ends of connections and relations like a resource
-    const component = await Component.findOne({ ...filter, kind: { $in: ['table', 'script'] } });
+    // A table, a script and a file are components, but they are ends of relations like a resource
+    const component = await Component.findOne({ ...filter, kind: { $in: ['table', 'script', 'file'] } });
     return component?.kind;
 }
 

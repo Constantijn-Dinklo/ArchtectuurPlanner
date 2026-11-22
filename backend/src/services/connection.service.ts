@@ -1,11 +1,10 @@
 import { UserJwtPayload } from "../middelware";
 import Api from "../models/api.model";
-import Component from "../models/component.model";
+import Component, { KINDS_CONNECTED_THROUGH_RESOURCE } from "../models/component.model";
 import Connection, { CONNECTION_MODELS, IConnection } from "../models/connection.model";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import { getResourceType } from "./externalRelation.service";
-import { getTableDatabaseId } from "./table.service";
 import {
     CONNECTION_KINDS,
     Connection as ConnectionType,
@@ -66,11 +65,11 @@ export async function getPartConnections(user: User, partId: string) {
     return documents.map(toConnection);
 }
 
-// A part and the parts it is inside of: a table is inside its database. A connection end holds a relation end when
-// it is one of these
+// A part and the part it is inside of: a table is inside its database, a file inside its file location. A connection
+// end holds a relation end when it is one of these
 export async function getHolderIds(user: User, partId: string) {
-    const databaseId = await getTableDatabaseId(user, partId);
-    return databaseId ? [partId, databaseId] : [partId];
+    const component = await Component.findOne({ _id: partId, environmentId: user.environmentId, kind: { $in: KINDS_CONNECTED_THROUGH_RESOURCE } });
+    return component ? [partId, component.resourceId.toString()] : [partId];
 }
 
 // The connections that can carry information from the source to the target: their ends are those parts, or hold them
@@ -189,7 +188,7 @@ export async function updateConnection(user: User, connectionId: string, body: a
 }
 
 // Connects the source to the target in this direction when nothing connects them yet, and returns the connection. A
-// table is connected through its database. The kind is what fits the two: a database connection when a database is
+// table is connected through its database, a file through its file location. The kind is what fits the two: a database connection when a database is
 // involved, a file for a file location, otherwise undecided: the two are connected, but how is still to be chosen
 export async function connectParts(user: User, sourceId: string, targetId: string) {
     const toEnd = async (partId: string): Promise<PartRef> => {

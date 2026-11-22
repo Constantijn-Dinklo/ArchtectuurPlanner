@@ -14,12 +14,6 @@ export async function findTables(environmentId: string | Types.ObjectId, filter:
     return Component.find({ environmentId, kind: 'table', ...(or.length ? { $or: or } : {}) });
 }
 
-// The database a table is part of, or undefined when the id is not a table
-export async function getTableDatabaseId(user: Pick<UserJwtPayload, 'environmentId'>, tableId: string) {
-    const table = await Component.findOne({ _id: tableId, environmentId: user.environmentId, kind: 'table' });
-    return table?.resourceId.toString();
-}
-
 // The table gets a column for the information; a table only has fields, so an object gives a column for each of its fields
 export async function addTableInformation(user: Pick<UserJwtPayload, 'environmentId'>, tableId: string, kind: 'field' | 'object', informationId: string) {
     const fieldIds = kind === 'field'

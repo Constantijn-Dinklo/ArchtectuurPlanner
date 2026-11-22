@@ -6,7 +6,7 @@
     import { useInformationObjectStore } from '../../stores/information/informationObject.store';
     import { useResourceService } from '../../services/resources/resource.service';
     import { byLabel } from '../../services/connectionEndOptions.service';
-    import { useConnectionStore } from '../../stores/connection.store';
+    import { usePartService } from '../../services/part.service';
     import { useInformationRelationStore } from '../../stores/information/informationRelation.store';
     import { FILE_TYPES, getComponentIcon, getInformationSlotIds, type FileType, type InformationSlot } from '../../types/component.types';
     import type { InformationOption } from '../../types/connectionEnd.types';
@@ -22,7 +22,7 @@
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
     const resourceService = useResourceService();
-    const connectionStore = useConnectionStore();
+    const partService = usePartService();
     const informationRelationStore = useInformationRelationStore();
 
     const component = computed(() => componentStore.getComponent(props.componentId));
@@ -53,15 +53,6 @@
         : { fields: [], objects: [] }
     );
 
-    // A file can contain what is written to its file location (or new information put in it). Until files are relation
-    // ends that is all that is known of what reaches the file
-    const containable = computed(() => {
-        const locationId = component.value?.resourceId;
-        return toOptions(
-            informationRelationStore.fieldRelations.filter(relation => relation.targetResourceId === locationId).map(relation => relation.informationFieldId),
-            informationRelationStore.objectRelations.filter(relation => relation.targetResourceId === locationId).map(relation => relation.informationObjectId)
-        );
-    });
 
     interface InformationSection {
         slot: InformationSlot;
@@ -104,11 +95,12 @@
             {
                 slot: 'contains',
                 title: 'Contains',
-                empty: 'Nothing yet. Add the information stored in this file.',
-                fieldOptions: containable.value.fields,
-                objectOptions: containable.value.objects,
-                fieldOptionsEmpty: 'Nothing is written to its file location yet',
-                objectOptionsEmpty: 'Nothing is written to its file location yet',
+                // Like a table: what is written to it is added here, here only new information is made
+                empty: 'Nothing yet. Write to it from an application or script, or add new information stored in it.',
+                fieldOptions: [],
+                objectOptions: [],
+                fieldOptionsEmpty: 'Write to it from an application or script',
+                objectOptionsEmpty: 'Write to it from an application or script',
                 allowNew: true
             }
         ]);
@@ -124,15 +116,22 @@
         return ids.informationFieldIds.length + ids.informationObjectIds.length;
     }
 
-    // The scripts connected to the file location of this file; which of them use this file is not known until files
-    // are relation ends
-    const usedByScripts = computed(() => {
-        const locationId = component.value?.resourceId;
-        const scriptIds = new Set(connectionStore.connections.flatMap(connection =>
-            connection.source.id === locationId ? [connection.target.id] : connection.target.id === locationId ? [connection.source.id] : []
-        ));
-        return componentStore.components.filter(candidate => candidate.kind === 'script' && scriptIds.has(candidate.id));
-    });
+    // The parts that write to this file and that read from it: the other ends of its relations
+    function getOtherEnds(side: 'writers' | 'readers') {
+        const relations = [...informationRelationStore.fieldRelations, ...informationRelationStore.objectRelations];
+        const ids = new Set(side === 'writers'
+            ? relations.filter(relation => relation.targetResourceId === props.componentId).map(relation => relation.sourceResourceId)
+            : relations.filter(relation => relation.sourceResourceId === props.componentId).map(relation => relation.targetResourceId));
+        ids.delete(props.componentId);
+        return [...ids]
+            .map(id => ({ id, label: partService.getPartLabel(id), icon: partService.getPart(id)?.icon ?? 'pi pi-box' }))
+            .sort((a, b) => a.label.localeCompare(b.label));
+    }
+
+    const fileUsers = computed(() => [
+        { key: 'writers', title: 'Written by', empty: 'Nothing writes to this file yet', parts: getOtherEnds('writers') },
+        { key: 'readers', title: 'Read by', empty: 'Nothing reads from this file yet', parts: getOtherEnds('readers') }
+    ]);
 
     function updateProperty(property: 'name' | 'description', value: string) {
         if (!component.value || (property === 'name' && !value.trim())) return;
@@ -250,18 +249,20 @@
             />
         </section>
 
-        <!-- File: the scripts that use it -->
-        <section v-if="component.kind === 'file'" v-collapsible class="detail-section">
-            <div class="detail-section-title">
-                <span>Scripts at its file location</span>
-                <span class="detail-count">{{ usedByScripts.length }}</span>
-            </div>
-            <div v-if="!usedByScripts.length" class="detail-empty">No script reads from or writes to its file location</div>
-            <div v-for="script in usedByScripts" :key="script.id" class="detail-row">
-                <i class="pi pi-code detail-row-icon" />
-                <span class="detail-row-name">{{ script.name }}</span>
-            </div>
-        </section>
+        <!-- File: what writes to it and reads from it, changed under Sends to / Receives from of those parts -->
+        <template v-if="component.kind === 'file'">
+            <section v-for="users in fileUsers" :key="users.key" v-collapsible class="detail-section">
+                <div class="detail-section-title">
+                    <span>{{ users.title }}</span>
+                    <span class="detail-count">{{ users.parts.length }}</span>
+                </div>
+                <div v-if="!users.parts.length" class="detail-empty">{{ users.empty }}</div>
+                <div v-for="part in users.parts" :key="part.id" class="detail-row">
+                    <i :class="part.icon" class="detail-row-icon" />
+                    <span class="detail-row-name">{{ part.label }}</span>
+                </div>
+            </section>
+        </template>
     </div>
 </template>
 
