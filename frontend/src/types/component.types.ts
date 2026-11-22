@@ -1,5 +1,3 @@
-import type { ConnectionEnd, ConnectionEndTarget } from "./connectionEnd.types";
-
 // Levels of the architecture: a host (server) holds resources, a resource holds components.
 // A component is a part of a resource: a script that runs in an application or file location,
 // a file in a file location, or a table in a database. Components never contain other components.
@@ -40,13 +38,6 @@ export function getComponentIcon(component: Pick<Component, 'kind' | 'fileType'>
     return getFileTypeInfo(component.fileType).icon;
 }
 
-// One side of what a script reads from or writes to.
-// The information on an end is always part of the inputs or outputs of the script as well
-export type ComponentEnd = ConnectionEnd;
-
-// Where a script reads from or writes to, before it has any information
-export type ComponentEndTarget = ConnectionEndTarget;
-
 // Where information sits in a component: a script takes it in (input) and produces it (output), a file or table
 // contains it (a table only fields: its columns)
 export type InformationSlot = 'input' | 'output' | 'contains';
@@ -59,40 +50,6 @@ export function getInformationSlotIds(component: Component, slot: InformationSlo
         return { informationFieldIds: component.outputInformationFieldIds, informationObjectIds: component.outputInformationObjectIds };
     }
     return { informationFieldIds: component.informationFieldIds, informationObjectIds: component.informationObjectIds };
-}
-
-// The information a script reads from or writes to the ends that match
-export function getEndsInformation(ends: ComponentEnd[], matches: (end: ComponentEnd) => boolean) {
-    const matching = ends.filter(matches);
-    return {
-        informationFieldIds: [...new Set(matching.flatMap(end => end.informationFieldIds))],
-        informationObjectIds: [...new Set(matching.flatMap(end => end.informationObjectIds))]
-    };
-}
-
-// What a script carries from the sources to the targets. A script reads into its host and writes from its host:
-// - hosted on a target: what it reads from a source
-// - hosted on a source: what it writes to a target
-// - otherwise: what it reads from a source and also writes to a target
-export function getScriptCarriedBetween(script: Component, sourceIds: string[], targetIds: string[]) {
-    const read = getEndsInformation(script.inputs, end => sourceIds.includes(end.resourceId));
-    const written = getEndsInformation(script.outputs, end => targetIds.includes(end.resourceId));
-    if (targetIds.includes(script.resourceId)) return read;
-    if (sourceIds.includes(script.resourceId)) return written;
-    return {
-        informationFieldIds: read.informationFieldIds.filter(id => written.informationFieldIds.includes(id)),
-        informationObjectIds: read.informationObjectIds.filter(id => written.informationObjectIds.includes(id))
-    };
-}
-
-// Whether the script connects a source to a target: it reads from a source into its host on a target, writes from
-// its host on a source to a target, or reads from a source and writes to a target
-export function connectsScript(script: Component, sourceIds: string[], targetIds: string[]) {
-    if (script.kind !== 'script') return false;
-    const readsSource = script.inputs.some(end => sourceIds.includes(end.resourceId));
-    const writesTarget = script.outputs.some(end => targetIds.includes(end.resourceId));
-    return (readsSource && (writesTarget || targetIds.includes(script.resourceId))) ||
-        (writesTarget && sourceIds.includes(script.resourceId));
 }
 
 // A component as a row inside the node of its resource on the canvas. Edges attach to the row through its handles
@@ -109,7 +66,7 @@ export interface CanvasComponentRow {
     inputs?: CanvasComponentInformation;
     outputs?: CanvasComponentInformation;
 
-    // File: the scripts that write to it and read from it, and the information it contains
+    // Script: what it reads from and writes to. File: nothing yet, until files are relation ends
     incoming: CanvasComponentLink[];
     outgoing: CanvasComponentLink[];
     objectNames: string[];
@@ -142,12 +99,8 @@ export interface Component {
     resourceId: string;
     resourceType: 'application' | 'fileLocation' | 'database';
 
-    // Script: what it reads from and writes to
-    inputs: ComponentEnd[];
-    outputs: ComponentEnd[];
-
-    // Script: the information it takes in from what it reads, and the information it produces for what it writes.
-    // What it produces is what it carries to the resources it writes to
+    // Script: the information it takes in and produces, like the inputs and outputs of an application. What it reads
+    // from and writes to are connections, with relations for the information that goes over them
     inputInformationFieldIds: string[];
     inputInformationObjectIds: string[];
     outputInformationFieldIds: string[];

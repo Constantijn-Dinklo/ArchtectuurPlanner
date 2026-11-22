@@ -37,9 +37,7 @@ export async function getInformationUsage(user: UserJwtPayload, kind: Kind, info
     const components = await Component.find(has(
         idsKey,
         `inputInformation${type}Ids`,
-        `outputInformation${type}Ids`,
-        `inputs.${idsKey}`,
-        `outputs.${idsKey}`
+        `outputInformation${type}Ids`
     ));
     const COMPONENT_NAMES = { script: 'Script', file: 'File', table: 'Table' };
     usage.push(...components.map((component) => `${COMPONENT_NAMES[component.kind]} ${component.name}`));

@@ -16,6 +16,8 @@ import type { Application, ResolvedApplication } from "../../types/application.t
 import type { External, ResolvedExternal } from "../../types/external.types";
 import { useExternalStore } from "../../stores/resources/external.store";
 import { useResourceResolver } from "../../resolvers/resource.resolver";
+import { useInformationFieldStore } from "../../stores/information/informationField.store";
+import { useInformationObjectStore } from "../../stores/information/informationObject.store";
 
 export type Resource = Application | Database | FileLocation | Server | Table | External;
 export type ResolvedResource = ResolvedApplication | Database | FileLocation | Server | Table | ResolvedExternal;
@@ -34,6 +36,8 @@ export function useResourceService() {
 
     const connectionStore = useConnectionStore();
     const componentStore = useComponentStore();
+    const informationFieldStore = useInformationFieldStore();
+    const informationObjectStore = useInformationObjectStore();
     
     const resources = computed(() => {
         return [
@@ -87,25 +91,36 @@ export function useResourceService() {
         const connectedResources = connectionStore.connections
             .filter((connection) => connection.target.id === resourceId)
             .map((connection) => connection.source.id);
-        // A script that writes to the resource (or to one of its tables) brings in what it reads
-        const scriptTargetIds = [resourceId, ...databaseService.getDatabaseTables(resourceId).map((table) => table.id)];
-        const scriptComponentResources = componentStore.components
-            .filter((component) => component.kind === 'script' && component.outputs.some((end) => scriptTargetIds.includes(end.resourceId)))
-            .flatMap((component) => component.inputs.map((end) => end.resourceId));
-
-        return [
-            ...new Set([
-                ...connectedResources,
-                ...scriptComponentResources
-            ])
-        ]
+        return [...new Set(connectedResources)];
     }
 
     // includeObjectFields: also return the fields that are part of the output objects of an application,
     // for receivers that store fields individually (databases and their tables)
+    // A script passes on what it produces, like the output of an application
+    function getScriptOutputFields(scriptId: string, includeObjectFields: boolean): AccessibleInformationField[] {
+        const script = componentStore.getComponent(scriptId);
+        if(script?.kind !== 'script') { return []; }
+        const fields = new Map<string, AccessibleInformationField>();
+        const add = (fieldId: string, objectName?: string) => {
+            const informationField = informationFieldStore.getInformationField(fieldId);
+            if(!informationField) return;
+            const field = fields.get(fieldId) ?? { ...informationField, accessibleFromId: scriptId, accessibleFromType: 'script' as const };
+            if(objectName) field.objectNames = [...(field.objectNames ?? []), objectName];
+            fields.set(fieldId, field);
+        };
+        script.outputInformationFieldIds.forEach((fieldId) => add(fieldId));
+        if(includeObjectFields) {
+            for(const objectId of script.outputInformationObjectIds) {
+                const informationObject = informationObjectStore.getInformationObject(objectId);
+                informationObject?.informationFieldIds.forEach((fieldId) => add(fieldId, informationObject.objectName));
+            }
+        }
+        return [...fields.values()];
+    }
+
     function getResourceInformationFields(resourceId: string, includeObjectFields: boolean = false): AccessibleInformationField[] {
         const resource = getResource(resourceId);
-        if(!resource) { return []; }
+        if(!resource) { return getScriptOutputFields(resourceId, includeObjectFields); }
         const resolvedResource = resourceResolver.resolveResource(resource);
         
         switch (resolvedResource.type) {
@@ -180,7 +195,19 @@ export function useResourceService() {
 
     function getResourceInformationObjects(resourceId: string): AccessibleInformationObject[] {
         const resource = getResource(resourceId);
-        if(!resource) { return []; }
+        if(!resource) {
+            // A script passes on the objects it produces
+            const script = componentStore.getComponent(resourceId);
+            if(script?.kind !== 'script') { return []; }
+            return script.outputInformationObjectIds.flatMap((objectId) => {
+                const informationObject = informationObjectStore.getInformationObject(objectId);
+                if(!informationObject) return [];
+                const informationFields = informationObject.informationFieldIds
+                    .map((fieldId) => informationFieldStore.getInformationField(fieldId))
+                    .filter((field) => field !== undefined);
+                return [{ ...informationObject, informationFields, accessibleFromId: resourceId, accessibleFromType: 'script' as const }];
+            });
+        }
         const resolvedResource = resourceResolver.resolveResource(resource);
 
         switch (resolvedResource.type) {

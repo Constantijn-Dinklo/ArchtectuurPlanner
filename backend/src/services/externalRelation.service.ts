@@ -1,7 +1,7 @@
-import { removeComponentEndReferences, removeResourceComponents } from "./component.service";
+import { getResourceComponentIds, removeResourceComponents } from "./component.service";
+import Component from "../models/component.model";
 import Endpoint from "../models/endpoint.model";
 import { deletePartConnections } from "./connection.service";
-import { getTableDatabaseId } from "./table.service";
 import { UserJwtPayload } from "../middelware";
 import External from "../models/resources/external.model";
 import Application from "../models/resources/application.model";
@@ -29,9 +29,9 @@ export async function getResourceType(user: UserJwtPayload, resourceId: string):
     for(const [type, model] of models) {
         if(await (model as any).exists(filter)) return type;
     }
-    // A table is a component of its database, but information can be stored in it like in a resource
-    if(await getTableDatabaseId(user, resourceId)) return 'table';
-    return undefined;
+    // A table and a script are components, but they are ends of connections and relations like a resource
+    const component = await Component.findOne({ ...filter, kind: { $in: ['table', 'script'] } });
+    return component?.kind;
 }
 
 // Rebuilds the received lists of the external element from the relations that point to it
@@ -59,12 +59,12 @@ export async function updateReceivedInformation(user: Pick<UserJwtPayload, 'envi
 // A resource was removed: removes its components and endpoints, and the relations of all its fields and objects,
 // whether the resource was the source or the target. External elements that received information from the resource
 // get their received lists updated.
-export async function removeResourceRelations(user: UserJwtPayload, resourceIds: string[]) {
-    if(!resourceIds.length) return;
+export async function removeResourceRelations(user: UserJwtPayload, removedIds: string[]) {
+    if(!removedIds.length) return;
 
-    // The components of the resources go with them, and scripts no longer read from or write to them
-    await removeResourceComponents(user, resourceIds);
-    await removeComponentEndReferences(user, resourceIds);
+    // The components of the resources go with them, with their connections and relations
+    const resourceIds = [...removedIds, ...await getResourceComponentIds(user, removedIds)];
+    await removeResourceComponents(user, removedIds);
 
     // An endpoint is part of its resource and goes with it
     await Endpoint.deleteMany({ environmentId: user.environmentId, resourceId: { $in: resourceIds } });

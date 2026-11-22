@@ -80,11 +80,11 @@ Phase 1, connections at the level of resources:
 Phase 2, components as ends:
 
 - [x] Make tables components of their database (kind `table`), the way files are components of a file location. A table is always part of a database, holds only fields (its columns, in "contains"), and the separate table model, routes and the `table` level of detail are gone. No migration: the database was emptied. How each kind of component is drawn is set per kind (`COMPONENT_DISPLAYS` in `component.types.ts`): scripts and files are rows, a table is a card inside its database, and a table never has arrows of its own: they always go to its database. The frontend `table.store.ts` only shows the table components as tables
-- [ ] Turn the reads and writes of scripts into connections and relations (source → script, script → target), and remove the script relation sync (`scriptRelation.service.ts`) and the inputs and outputs that scripts keep themselves
+- [x] Turn the reads and writes of scripts into connections and relations (source → script, script → target). A script stays a component of its host and keeps its own inputs and outputs, like an application; its Reads from / Writes to are the Receives from / Sends to section with other wording. Removed: the script relation sync (`scriptRelation.service.ts`), the ends a script kept itself, `scriptId` on relations, and the script-only code in the canvas, the edge details, the warnings and the information chain. The host counts as holding what its scripts take in and produce (worked out, not stored). A script writes to an application through "Other way" (for now `unknown`), not through an API of the target
 - [ ] Let files be relation ends, so it is known which file information is in. This also makes Receives from / Sends to a file location work again
 - [ ] Draw every end at the closest visible level on the canvas
-- [ ] Known gap: information an application receives from or sends to a file location is not shown. The section offers files as parts, but a relation cannot end at a file yet, so the information goes on the file location itself and is not shown. Solved by letting files be relation ends
-- [ ] Known gap: a script that writes to an application or external element writes through an API of that application (the target), while an API connection otherwise always belongs to its source. Before, the information sat directly on the application. Solved by turning the reads and writes of scripts into connections
+- [ ] Known gap: information an application or script receives from or sends to a file location is not shown. The section offers files as parts, but a relation cannot end at a file yet, so the information goes on the file location itself and is not shown. For the same reason a file no longer knows which scripts read or write it: its details show the scripts connected to its file location, and its row on the canvas shows none. Solved by letting files be relation ends
+- [x] ~~Known gap: a script writes to an application through an API of that application~~: solved, a script writes to an application through a connection like any other part
 
 Do both phases before the pilot, so no live data has to be migrated.
 
@@ -92,8 +92,11 @@ Do both phases before the pilot, so no live data has to be migrated.
 
 - [x] Choose one kind of script: the old `script` model (the Scripts tab) is removed, so scripts only exist as components inside an application or file location. Relations that went via an old script keep their information but lose that route (`migrations/removeOldScripts.ts`)
 - [x] Show the API a script reads through in the information chain: the arrow into the script shows the url of the API (`InformationChainBranch.vue`)
-- [ ] Show a yellow warning when it is not known how a script reads (the `unknown` connection kind of the redesign)
+- [x] Show a yellow warning when it is not known how a script reads: the `unknown` connection kind gives the same warning for every part
 - [ ] Decide on the yellow warning for a connection without a table or file: writes only, or reads as well. It currently shows for both
+- [ ] Work out how information flow warns about information that lost where it comes from. Keeping the information is right, but it should get a warning:
+  - A script sends information to an application and the script is deleted: the information stays in the application, but nothing brings it there any more, and the application is not its source either
+  - A script stops writing a field to a table (the write is removed, the script stays): the field stays in the table. Warn only when no other application, script or other part writes that field to the table
 - [ ] Hide or disable editing in the frontend for viewers. Until then a viewer sees edit controls, and their changes fail with "A viewer cannot make changes in this environment"
 - [ ] Remove that anyone can create an organisation: `POST /org/create` is public, and the login page still has a form for it. Close the route, remove the form, and decide how a new organisation and its first admin are made instead (for example by a script)
 

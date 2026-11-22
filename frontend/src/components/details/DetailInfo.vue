@@ -91,7 +91,6 @@
                 :source-id="selectedEdgeProjection.connectionsInfo.value.sourceId"
                 :target-id="selectedEdgeProjection.connectionsInfo.value.targetId"
                 :connection-ids="selectedEdgeProjection.connectionsInfo.value.connections.map(connection => connection.id)"
-                :script-ids="selectedEdgeProjection.connectionsInfo.value.scriptIds"
             />
         </template>
 

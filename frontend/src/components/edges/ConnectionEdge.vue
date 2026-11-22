@@ -20,24 +20,20 @@
     // Something is wrong over this edge: an error instead of a warning
     const hasError = computed(() => props.data?.hasError ?? false);
 
-    // Scripts inside an application or file location
-    const scriptCount = computed(() => props.data?.scriptIds.length ?? 0);
     const kinds = computed(() => props.data?.connectionKinds ?? []);
 
-    const hasConnections = computed(() => kinds.value.length + scriptCount.value > 0);
-
-    // Only connections that are not a system link (an API, a database connection or a script), such as by hand,
-    // a file or unknown: shown with a dashed line
+    // Only connections that are not a system link (an API or a database connection), such as by hand, a file or
+    // unknown: shown with a dashed line
     const isLooseOnly = computed(() =>
-        hasConnections.value && scriptCount.value === 0 && kinds.value.every(kind => kind !== 'api' && kind !== 'database')
+        kinds.value.length > 0 && kinds.value.every(kind => kind !== 'api' && kind !== 'database')
     );
 
     function plural(count: number, single: string, multiple: string) {
         return `${count} ${count === 1 ? single : multiple}`;
     }
 
-    // Counted per kind, e.g. "1 API · 1 DB · 2 by hand · 1 script". A connection of which it is not chosen yet how it
-    // goes only shows as the dashed line
+    // Counted per kind, e.g. "1 API · 1 DB · 2 by hand". A connection of which it is not chosen yet how it goes only
+    // shows as the dashed line
     const label = computed(() => {
         const counts = new Map<string, number>();
         for (const kind of kinds.value.filter(kind => kind !== 'undecided')) {
@@ -45,7 +41,6 @@
             counts.set(kindLabel, (counts.get(kindLabel) ?? 0) + 1);
         }
         const parts = [...counts].map(([kindLabel, count]) => `${count} ${kindLabel}`);
-        if (scriptCount.value) parts.push(plural(scriptCount.value, 'script', 'scripts'));
 
         const text = parts.join(' · ');
         if (hasError.value) return `✕ ${text} · error`;

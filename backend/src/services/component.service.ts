@@ -1,7 +1,5 @@
-import { Types } from "mongoose";
 import { UserJwtPayload } from "../middelware";
-import Api from "../models/api.model";
-import Component, { COMPONENT_KINDS, ComponentKind, ComponentResourceType, FILE_TYPES, IComponent, IComponentEnd, INFORMATION_SLOTS, InformationSlot } from "../models/component.model";
+import Component, { COMPONENT_KINDS, ComponentKind, ComponentResourceType, FILE_TYPES, IComponent, INFORMATION_SLOTS, InformationSlot } from "../models/component.model";
 import ViewNode from "../models/canvas/viewNode.model";
 import Application from "../models/resources/application.model";
 import FileLocation from "../models/resources/fileLocation.model";
@@ -10,10 +8,10 @@ import InformationField from "../models/information/informationField.model";
 import InformationObject from "../models/information/informationObject.models";
 import { createInformationField } from "./resourceField.service";
 import { createInformationObject } from "./resourceObject.service";
-import { addScriptWrittenInput } from "./scriptRelation.service";
+import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
+import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import { createRelation } from "./informationRelation.service";
 import { removeResourceRelations } from "./externalRelation.service";
-import { findTables } from "./table.service";
 
 // Which kinds of component a resource can have: scripts run in applications and file locations, files are stored in
 // file locations, tables are always part of a database
@@ -150,229 +148,21 @@ export async function deleteComponent(user: UserJwtPayload, componentId: string)
     const component = await getComponent(user, componentId);
     const viewNode = await ViewNode.findOneAndDelete({ environmentId: user.environmentId, entityId: componentId });
     await component.deleteOne();
-    // Scripts that read from or wrote to this component (a file) no longer do, but stay connected to its file location
     if(component.kind === 'file') {
-        await keepConnectionsWithoutPart(user, component.resourceId.toString(), { componentId });
-
         // Information that had the file as its source has no source anymore
         const sourcedHere = { environmentId: user.environmentId, 'source.componentId': componentId };
         await InformationField.updateMany(sourcedHere, { $set: { source: null } });
         await InformationObject.updateMany(sourcedHere, { $set: { source: null } });
     }
-    // Scripts that read from or wrote to a table stay connected to its database. Information is stored in a table like
-    // in a resource, so its relations go with it
-    if(component.kind === 'table') {
-        await keepConnectionsWithoutPart(user, component.resourceId.toString(), { resourceId: componentId });
+    // A script and a table are ends of connections and relations, which go with them. What is connected to the database
+    // of a table stays connected to the database
+    if(component.kind === 'script' || component.kind === 'table') {
         await removeResourceRelations(user, [componentId]);
     }
     return { componentId, viewNodeId: viewNode?._id };
 }
 
-// <-- What a script reads from and writes to -->
-
-// A script connects to a resource. To a database or a file location it can connect without a known table or file, or
-// with one or more of them. Every known table or file is an end of its own; the end of the database or file location
-// itself is only there while none is known. Reading from an application or external element works the same way, per api.
-
-// The database of every table
-async function getTableDatabases(user: UserJwtPayload) {
-    const tables = await findTables(user.environmentId);
-    return new Map(tables.map((table) => [table._id.toString(), table.resourceId.toString()]));
-}
-
-// The resource the script is connected to through this end. A file end already has its file location as its resource
-function getConnectionId(end: IComponentEnd, tableDatabases: Map<string, string>) {
-    const resourceId = end.resourceId.toString();
-    return tableDatabases.get(resourceId) ?? resourceId;
-}
-
-function createEnd(resourceId: string, componentId: string | null = null, apiId: string | null = null): IComponentEnd {
-    return {
-        resourceId: new Types.ObjectId(resourceId),
-        componentId: componentId ? new Types.ObjectId(componentId) : null,
-        apiId: apiId ? new Types.ObjectId(apiId) : null,
-        informationFieldIds: [],
-        informationObjectIds: []
-    };
-}
-
-function keepConnection(component: IComponent, side: 'inputs' | 'outputs', connectionId: string, tableDatabases: Map<string, string>) {
-    if(!component[side].some((end) => getConnectionId(end, tableDatabases) === connectionId)) {
-        component[side].push(createEnd(connectionId));
-    }
-}
-
-export async function addComponentEnd(user: UserJwtPayload, componentId: string, side: 'inputs' | 'outputs', end: { resourceId: string, componentId?: string | null, apiId?: string | null }) {
-    const component = await getComponent(user, componentId);
-    if(component.kind !== 'script') throw new Error("Only a script reads from and writes to other resources");
-    if(!end?.resourceId) throw new Error("Select what the script reads from or writes to");
-
-    const endComponentId = end.componentId || null;
-    const endApiId = end.apiId || null;
-    if(endApiId) {
-        if(side !== 'inputs') throw new Error("A script only reads through an API");
-        const api = await Api.findOne({ _id: endApiId, environmentId: user.environmentId, applicationId: end.resourceId });
-        if(!api) throw new Error("This API is not part of the selected resource");
-    }
-
-    const alreadyThere = component[side].some((existing) =>
-        existing.resourceId.toString() === end.resourceId &&
-        (existing.componentId?.toString() ?? null) === endComponentId &&
-        (existing.apiId?.toString() ?? null) === endApiId
-    );
-    if(alreadyThere) return withReferencedInformation(user, component);
-
-    const tableDatabases = await getTableDatabases(user);
-    const newEnd = createEnd(end.resourceId, endComponentId, endApiId);
-    const connectionId = getConnectionId(newEnd, tableDatabases);
-    const isPart = !!endComponentId || !!endApiId || connectionId !== end.resourceId;
-
-    if(!isPart && component[side].some((existing) => getConnectionId(existing, tableDatabases) === connectionId)) {
-        return withReferencedInformation(user, component);
-    }
-    if(isPart) {
-        // Now a table, file or api is known, the connection without one is no longer needed
-        const unknownIndex = component[side].findIndex((existing) =>
-            existing.resourceId.toString() === connectionId && !existing.componentId && !existing.apiId &&
-            !existing.informationFieldIds.length && !existing.informationObjectIds.length
-        );
-        if(unknownIndex !== -1) component[side].splice(unknownIndex, 1);
-    }
-
-    component[side].push(newEnd);
-    await component.save();
-    return withReferencedInformation(user, component);
-}
-
-// The script stays connected to the resource when its last table, file or api is removed
-export async function removeComponentEnd(user: UserJwtPayload, componentId: string, side: 'inputs' | 'outputs', index: number) {
-    const component = await getComponent(user, componentId);
-    const end = component[side][index];
-    if(!end) throw new Error("The script no longer reads from or writes to this");
-
-    const tableDatabases = await getTableDatabases(user);
-    const connectionId = getConnectionId(end, tableDatabases);
-    const isPart = !!end.componentId || !!end.apiId || connectionId !== end.resourceId.toString();
-
-    component[side].splice(index, 1);
-    if(isPart) keepConnection(component, side, connectionId, tableDatabases);
-    await component.save();
-    return withReferencedInformation(user, component);
-}
-
-// Removes the whole connection: the resource and every table or file of it
-export async function removeComponentConnection(user: UserJwtPayload, componentId: string, side: 'inputs' | 'outputs', connectionId: string) {
-    const component = await getComponent(user, componentId);
-    const tableDatabases = await getTableDatabases(user);
-    component[side] = component[side].filter((end) => getConnectionId(end, tableDatabases) !== connectionId);
-    await component.save();
-    return withReferencedInformation(user, component);
-}
-
-// A table, file or api was removed: scripts no longer read from or write to it, but stay connected to its database,
-// file location or application. Only for a part on its own: when the parent is removed as well, the connection goes with it
-export async function keepConnectionsWithoutPart(user: UserJwtPayload, parentId: string, part: { resourceId: string } | { componentId: string } | { apiId: string }) {
-    const isPart = (end: IComponentEnd) => {
-        if('resourceId' in part) return end.resourceId.toString() === part.resourceId;
-        if('apiId' in part) return end.apiId?.toString() === part.apiId;
-        return end.componentId?.toString() === part.componentId;
-    };
-
-    const tableDatabases = await getTableDatabases(user);
-    const scripts = await Component.find({ environmentId: user.environmentId, kind: 'script' });
-    for(const script of scripts) {
-        if(![...script.inputs, ...script.outputs].some(isPart)) continue;
-        for(const side of ['inputs', 'outputs'] as const) {
-            if(!script[side].some(isPart)) continue;
-            script[side] = script[side].filter((end) => !isPart(end));
-            keepConnection(script, side, parentId, tableDatabases);
-        }
-        await script.save();
-    }
-}
-
-// <-- The information a script reads from one end or writes to one end -->
-
-// Reading puts the information in the inputs of the script, writing in its outputs
-const SIDE_SLOTS = { inputs: 'input', outputs: 'output' } as const;
-
-function hasId(ids: Types.ObjectId[], id: string) {
-    return ids.some((existing) => existing.toString() === id.toString());
-}
-
-async function getInformationId(user: UserJwtPayload, type: 'Field' | 'Object', information: any) {
-    if(type === 'Field') {
-        if("fieldName" in information) {
-            if(!information.fieldName?.trim()) throw new Error("A field needs a name");
-            return (await createInformationField(user, information.fieldName.trim()))._id.toString();
-        }
-        return information.informationFieldId as string;
-    }
-    if("objectName" in information) {
-        if(!information.objectName?.trim()) throw new Error("An object needs a name");
-        return (await createInformationObject(user, information.objectName.trim()))._id.toString();
-    }
-    return information.informationObjectId as string;
-}
-
-async function getScriptEnd(user: UserJwtPayload, componentId: string, side: 'inputs' | 'outputs', index: number) {
-    const component = await getComponent(user, componentId);
-    if(component.kind !== 'script') throw new Error("Only a script reads from and writes to other resources");
-    const end = component[side][index];
-    if(!end) throw new Error("The script no longer reads from or writes to this");
-    return { component, end };
-}
-
-// The information also goes in the inputs or outputs of the script
-export async function addComponentEndInformation(user: UserJwtPayload, componentId: string, side: 'inputs' | 'outputs', index: number, type: 'Field' | 'Object', information: any) {
-    const { component, end } = await getScriptEnd(user, componentId, side, index);
-    if(!information) throw new Error("Select the information");
-    const informationId = await getInformationId(user, type, information);
-
-    const endList = end[`information${type}Ids`];
-    if(!hasId(endList, informationId)) endList.push(new Types.ObjectId(informationId));
-    const scriptList = component[`${SIDE_SLOTS[side]}Information${type}Ids`];
-    if(!hasId(scriptList, informationId)) scriptList.push(new Types.ObjectId(informationId));
-
-    await component.save();
-    // What the script writes to gets the information directly: a file contains it, a resource takes it in
-    // (its relation follows in syncScriptRelations)
-    if(side === 'outputs' && end.componentId) {
-        await Component.updateOne(
-            { _id: end.componentId, environmentId: user.environmentId, kind: 'file' },
-            { $addToSet: { [`information${type}Ids`]: new Types.ObjectId(informationId) } }
-        );
-    }
-    else if(side === 'outputs') {
-        await addScriptWrittenInput(user, end.resourceId.toString(), type === 'Field' ? 'field' : 'object', informationId);
-    }
-    return withReferencedInformation(user, component);
-}
-
-// The information stays in the inputs or outputs of the script while another end on that side still has it
-export async function removeComponentEndInformation(user: UserJwtPayload, componentId: string, side: 'inputs' | 'outputs', index: number, type: 'Field' | 'Object', informationId: string) {
-    const { component, end } = await getScriptEnd(user, componentId, side, index);
-    const key = `information${type}Ids` as const;
-    end[key] = end[key].filter((id) => id.toString() !== informationId);
-
-    const stillUsed = component[side].some((other) => hasId(other[key], informationId));
-    if(!stillUsed) {
-        const scriptKey = `${SIDE_SLOTS[side]}Information${type}Ids` as const;
-        component[scriptKey] = component[scriptKey].filter((id) => id.toString() !== informationId);
-    }
-
-    await component.save();
-    return withReferencedInformation(user, component);
-}
-
 // <-- The information a script takes in and produces, or a file contains -->
-
-// The ends of a script on the side of a slot: removing an input or output also removes it from what is read or written
-function getEndPull(list: string, type: 'Field' | 'Object', id: string) {
-    if(list.startsWith('input')) return { [`inputs.$[].information${type}Ids`]: id };
-    if(list.startsWith('output')) return { [`outputs.$[].information${type}Ids`]: id };
-    return {};
-}
 
 // The list a piece of information goes in. A script has inputs and outputs, a file only contains information, a table
 // only contains fields (its columns)
@@ -428,9 +218,10 @@ export async function removeComponentInformationField(user: UserJwtPayload, comp
     const list = await getInformationList(user, componentId, slot, 'Field');
     const component = await Component.findOneAndUpdate(
         { _id: componentId, environmentId: user.environmentId },
-        { $pull: { [list]: informationFieldId, ...getEndPull(list, 'Field', informationFieldId) } },
+        { $pull: { [list]: informationFieldId } },
         { returnDocument: 'after' }
     );
+    await removeSlotRelations(user, componentId, list, 'Field', informationFieldId);
     return withReferencedInformation(user, component);
 }
 
@@ -457,37 +248,36 @@ export async function removeComponentInformationObject(user: UserJwtPayload, com
     const list = await getInformationList(user, componentId, slot, 'Object');
     const component = await Component.findOneAndUpdate(
         { _id: componentId, environmentId: user.environmentId },
-        { $pull: { [list]: informationObjectId, ...getEndPull(list, 'Object', informationObjectId) } },
+        { $pull: { [list]: informationObjectId } },
         { returnDocument: 'after' }
     );
+    await removeSlotRelations(user, componentId, list, 'Object', informationObjectId);
     return withReferencedInformation(user, component);
+}
+
+// Like an application: a script that no longer takes the information in no longer receives it, and one that no
+// longer produces it no longer sends it on. The connections stay
+async function removeSlotRelations(user: UserJwtPayload, componentId: string, list: string, type: 'Field' | 'Object', informationId: string) {
+    const end = list.startsWith('input') ? 'targetResourceId' : list.startsWith('output') ? 'sourceResourceId' : undefined;
+    if(!end) return;
+    const Model = (type === 'Field' ? ResourceFieldRelation : ResourceObjectRelation) as typeof ResourceFieldRelation;
+    await Model.deleteMany({ environmentId: user.environmentId, [`information${type}Id`]: informationId, [end]: componentId });
 }
 
 // <-- Cleanup when resources are removed -->
 
-// Removes what scripts read from or wrote to when those resources or components no longer exist
-export async function removeComponentEndReferences(user: UserJwtPayload, resourceIds: string[], componentIds: string[] = []) {
-    const removed = [
-        ...resourceIds.map((resourceId) => ({ resourceId: new Types.ObjectId(resourceId) })),
-        ...componentIds.map((componentId) => ({ componentId: new Types.ObjectId(componentId) }))
-    ];
-    if(!removed.length) return;
-
-    for(const end of removed) {
-        await Component.updateMany(
-            { environmentId: user.environmentId },
-            { $pull: { inputs: end, outputs: end } }
-        );
-    }
+// The ids of the components of the resources
+export async function getResourceComponentIds(user: UserJwtPayload, resourceIds: string[]) {
+    const components = await Component.find({ environmentId: user.environmentId, resourceId: { $in: resourceIds } });
+    return components.map((component) => component._id.toString());
 }
 
-// The components of a removed resource are removed with it, including their nodes on the canvas
+// The components of a removed resource are removed with it, including their nodes on the canvas. Their connections and
+// relations are removed with those of the resource
 export async function removeResourceComponents(user: UserJwtPayload, resourceIds: string[]) {
-    const components = await Component.find({ environmentId: user.environmentId, resourceId: { $in: resourceIds } });
-    const componentIds = components.map((component) => component._id.toString());
+    const componentIds = await getResourceComponentIds(user, resourceIds);
     if(!componentIds.length) return;
 
     await ViewNode.deleteMany({ environmentId: user.environmentId, entityId: { $in: componentIds } });
     await Component.deleteMany({ environmentId: user.environmentId, resourceId: { $in: resourceIds } });
-    await removeComponentEndReferences(user, [], componentIds);
 }

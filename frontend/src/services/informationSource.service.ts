@@ -1,7 +1,6 @@
 import { useApiStore } from "../stores/api.store";
 import { useConnectionStore } from "../stores/connection.store";
 import type { ResourceRelation } from "../stores/information/informationRelation.store";
-import { useComponentStore } from "../stores/resources/component.store";
 import { useResourceService } from "./resources/resource.service";
 import { CONNECTION_KINDS, getConnectionKindInfo, type Connection, type ConnectionKind } from "../types/connection.types";
 
@@ -19,7 +18,6 @@ export interface MethodOption {
 export function useInformationSourceService() {
     const apiStore = useApiStore();
     const connectionStore = useConnectionStore();
-    const componentStore = useComponentStore();
     const resourceService = useResourceService();
 
     // A part and the parts it is inside of: a table is inside its database
@@ -45,13 +43,8 @@ export function useInformationSourceService() {
         return connection.description ? `${kind}: ${connection.description}` : kind;
     }
 
-    // What a relation goes through, as text: its connection, or the script it goes through
+    // What a relation goes through, as text: its connection
     function describeRelationRoute(relation: ResourceRelation) {
-        if (relation.scriptId) {
-            const script = componentStore.getComponent(relation.scriptId);
-            const host = script ? resourceService.getResource(script.resourceId)?.name : undefined;
-            return `Script ${script?.name ?? '?'}${host ? ` (on ${host})` : ''}`;
-        }
         const connection = connectionStore.getConnection(relation.connectionId);
         return connection ? describeConnection(connection) : undefined;
     }

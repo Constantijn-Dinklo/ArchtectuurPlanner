@@ -15,7 +15,6 @@ export interface CanvasEdge {
         connectionIds: string[];
         connectionKinds: ConnectionKind[];
         // Scripts (inside an application or file location) over this edge
-        scriptIds: string[];
 
         sourceResourceId: string;
         targetResourceId: string;

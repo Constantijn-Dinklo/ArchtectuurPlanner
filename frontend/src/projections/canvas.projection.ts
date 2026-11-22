@@ -21,10 +21,12 @@ import type { ResolvedInformationFieldReference } from "../types/informationFiel
 import type { ResolvedInformationObjectReference } from "../types/informationObject.type";
 import { useResourceResolver } from "../resolvers/resource.resolver";
 import { getWebsiteHref, type ResolvedApplication } from "../types/application.types";
-import { RESOURCE_ICONS } from "../types/resource.type";
 import type { ResolvedExternal } from "../types/external.types";
 import { useComponentStore } from "../stores/resources/component.store";
-import { getComponentDisplay, getComponentHandleId, getComponentIcon, getInformationSlotIds, type CanvasComponentInformation, type CanvasComponentLink, type CanvasComponentRow, type Component, type ComponentEnd, type InformationSlot } from "../types/component.types";
+import { getComponentDisplay, getComponentHandleId, getComponentIcon, getInformationSlotIds, type CanvasComponentInformation, type CanvasComponentLink, type CanvasComponentRow, type Component, type InformationSlot } from "../types/component.types";
+import { useCanvasEndService } from "../services/canvasEnd.service";
+import { usePartService } from "../services/part.service";
+import type { Connection } from "../types/connection.types";
 
 
 
@@ -83,6 +85,8 @@ export function useCanvasProjection() {
 
     const apiStore = useApiStore();
     const connectionStore = useConnectionStore();
+    const { getVisibleEndId } = useCanvasEndService();
+    const partService = usePartService();
 
     const entityIdToNodeMap = computed(() => {
         const map = new Map<string, ViewNode>();
@@ -118,7 +122,6 @@ export function useCanvasProjection() {
                 data: {
                     connectionIds: [],
                     connectionKinds: [],
-                    scriptIds: [],
                     sourceResourceId,
                     targetResourceId,
                     warnings: [],
@@ -135,8 +138,8 @@ export function useCanvasProjection() {
             const target = getAnchor(targetResourceId, 'in');
 
             if (!sourceViewNodeId || !targetViewNodeId || !source || !target) return;
-            // A script that reads from or writes to its own resource (or a file next to it) stays inside the node:
-            // it is listed in the opened row instead of drawn as a loop
+            // A script that reads from or writes to its own resource stays inside the node: it is listed in the
+            // opened row instead of drawn as a loop
             if (source.nodeId === target.nodeId) return;
 
             // The id is made of the view nodes of what is connected (for a component its own view node, even though
@@ -153,33 +156,14 @@ export function useCanvasProjection() {
         }
 
         // Every connection is an edge in the direction the information flows. All connections between the same two
-        // shown ends share one edge. An end is drawn at the closest level that is visible (a table at its database)
+        // shown ends share one edge. An end is drawn at the closest level that is visible: a script at its host while
+        // components are hidden, a table always at its database
         for(const connection of connectionStore.connections){
-            const edge = getOrCreateEdge(
-                getVisibleEndId({ resourceId: connection.source.id, componentId: null }),
-                getVisibleEndId({ resourceId: connection.target.id, componentId: null })
-            );
+            const edge = getOrCreateEdge(getVisibleEndId(connection.source.id), getVisibleEndId(connection.target.id));
             edge?.data.connectionIds.push(connection.id);
             edge?.data.connectionKinds.push(connection.kind);
         }
 
-
-        // Scripts. From the database level on a component is a row inside its resource with handles of its
-        // own: a script gets an edge from everything it reads and to everything it writes (input -> script -> output).
-        // At the application level the rows are hidden, so the edges go to and from the resource the script runs in:
-        // the script depends on its resource (input -> resource -> output)
-        const componentsVisible = isResourceTypeVisible(UIStore.levelOfDetail, 'component');
-        for(const component of componentStore.components) {
-            if(component.kind !== 'script') continue;
-
-            const scriptEndId = componentsVisible ? component.id : component.resourceId;
-            for(const input of getDrawnEnds(component.inputs)) {
-                getOrCreateEdge(getVisibleEndId(input), scriptEndId)?.data.scriptIds.push(component.id);
-            }
-            for(const output of getDrawnEnds(component.outputs)) {
-                getOrCreateEdge(scriptEndId, getVisibleEndId(output))?.data.scriptIds.push(component.id);
-            }
-        }
 
         // The same warnings are shown in the connection details when the edge is selected
         for(const edge of edges.values()) {
@@ -216,43 +200,6 @@ export function useCanvasProjection() {
         });
     }
 
-    // The ends of a script that get an edge. A database or file location only gets its own edge while no table or file
-    // of it is known; otherwise the edges go to those (when collapsed they end up at the database or file location anyway).
-    // The apis of a resource have no place of their own on the canvas, so reading through several of them is one edge
-    function getDrawnEnds(ends: ComponentEnd[]): ComponentEnd[] {
-        const parentIds = new Set(ends.flatMap((end) => {
-            if(end.componentId) return [end.resourceId];
-            const resource = resourceService.getResource(end.resourceId);
-            return resource?.type === 'table' ? [resource.databaseId] : [];
-        }));
-        const drawnResourceIds = new Set<string>();
-        return ends.filter((end) => {
-            if(end.componentId) return true;
-            if(parentIds.has(end.resourceId) || drawnResourceIds.has(end.resourceId)) return false;
-            drawnResourceIds.add(end.resourceId);
-            return true;
-        });
-    }
-
-    // Whether edges can go to the component itself: only when it is drawn as a row with handles of its own
-    function hasOwnEdges(componentId: string) {
-        const component = componentStore.getComponent(componentId);
-        return !!component && getComponentDisplay(component) === 'row' && isResourceTypeVisible(UIStore.levelOfDetail, 'component');
-    }
-
-    // Where an end of a script or connection is shown on the canvas: a file in a file location when components are
-    // visible, otherwise its file location. A table never has edges of its own: they always go to its database
-    function getVisibleEndId(end: Pick<ComponentEnd, 'resourceId' | 'componentId'>): string {
-        if(end.componentId && hasOwnEdges(end.componentId)) {
-            return end.componentId;
-        }
-        const resource = resourceService.getResource(end.resourceId);
-        if(resource?.type === 'table') {
-            return resource.databaseId;
-        }
-        return end.resourceId;
-    }
-
     // Where an end of an edge is drawn: the node of a resource, or for a component the row inside the node of its
     // resource, with the handle on the side the edge comes in or goes out
     function getAnchor(entityId: string, side: 'in' | 'out'): CanvasAnchor | undefined {
@@ -265,38 +212,14 @@ export function useCanvasProjection() {
         return viewNodeId ? { nodeId: viewNodeId } : undefined;
     }
 
-    // What a script reads from or writes to, as a line in its opened row
-    function getEndLink(end: ComponentEnd): CanvasComponentLink {
-        const resource = resourceService.getResource(end.resourceId);
-        if(end.apiId) {
-            return {
-                key: `api:${end.apiId}`,
-                name: `${apiStore.getApi(end.apiId)?.url ?? 'Unknown API'}${resource ? ` (${resource.name})` : ''}`,
-                icon: 'pi pi-globe'
-            };
-        }
-        if(end.componentId) {
-            const component = componentStore.getComponent(end.componentId);
-            return {
-                key: `component:${end.componentId}`,
-                name: `${component?.name ?? 'Unknown'}${resource ? ` (${resource.name})` : ''}`,
-                icon: component ? getComponentIcon(component) : 'pi pi-file'
-            };
-        }
-        const databaseName = resource?.type === 'table' ? resourceService.getResource(resource.databaseId)?.name : undefined;
+    // What a script reads from (the source of a connection to it) or writes to, as a line in its opened row
+    function getConnectionLink(connection: Connection, otherId: string): CanvasComponentLink {
+        const api = connection.kind === 'api' ? apiStore.getApi(connection.apiId) : undefined;
+        const part = partService.getPart(otherId);
         return {
-            key: `resource:${end.resourceId}`,
-            name: `${databaseName ? `${databaseName}.` : ''}${resource?.name ?? 'Unknown'}`,
-            icon: resource ? RESOURCE_ICONS[resource.type] : 'pi pi-box'
-        };
-    }
-
-    function getScriptLink(script: Component): CanvasComponentLink {
-        const host = resourceService.getResource(script.resourceId);
-        return {
-            key: `component:${script.id}`,
-            name: `${script.name}${host ? ` (${host.name})` : ''}`,
-            icon: getComponentIcon(script)
+            key: `connection:${connection.id}`,
+            name: api ? `${api.url} (${part?.name ?? '?'})` : partService.getPartLabel(otherId),
+            icon: api ? 'pi pi-globe' : part?.icon ?? 'pi pi-box'
         };
     }
 
@@ -329,11 +252,9 @@ export function useCanvasProjection() {
             .filter((component) => getComponentDisplay(component) === 'row')
             .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name))
             .map((component) => {
-                // A file is written by the scripts that have it as output, and read by the scripts that have it as input
-                const writers = componentStore.components.filter((script) =>
-                    script.kind === 'script' && script.outputs.some((end) => end.componentId === component.id));
-                const readers = componentStore.components.filter((script) =>
-                    script.kind === 'script' && script.inputs.some((end) => end.componentId === component.id));
+                // What a script reads from and writes to are its connections. A file is not an end of a connection yet
+                const incoming = connectionStore.connections.filter((connection) => connection.target.id === component.id);
+                const outgoing = connectionStore.connections.filter((connection) => connection.source.id === component.id);
 
                 return {
                     id: component.id,
@@ -344,8 +265,8 @@ export function useCanvasProjection() {
                     searchMatch: componentMatchesSearch(component),
                     inputs: component.kind === 'script' ? getRowInformation(component, 'input') : undefined,
                     outputs: component.kind === 'script' ? getRowInformation(component, 'output') : undefined,
-                    incoming: component.kind === 'script' ? component.inputs.map(getEndLink) : writers.map(getScriptLink),
-                    outgoing: component.kind === 'script' ? component.outputs.map(getEndLink) : readers.map(getScriptLink),
+                    incoming: incoming.map((connection) => getConnectionLink(connection, connection.source.id)),
+                    outgoing: outgoing.map((connection) => getConnectionLink(connection, connection.target.id)),
                     objectNames: component.informationObjectIds
                         .map((objectId) => informationObjectStore.getInformationObject(objectId)?.objectName)
                         .filter((name) => name !== undefined),

@@ -3,7 +3,6 @@
     import { vCollapsible } from '../../directives/collapsible';
     import { useApiStore, type Api } from '../../stores/api.store';
     import { useConnectionStore } from '../../stores/connection.store';
-    import { useComponentStore } from '../../stores/resources/component.store';
     import { useSendableInformationService } from '../../services/sendableInformation.service';
     import CarriedInformationEditor from './CarriedInformationEditor.vue';
 
@@ -15,15 +14,13 @@
 
     const apiStore = useApiStore();
     const connectionStore = useConnectionStore();
-    const componentStore = useComponentStore();
     const sendableInformationService = useSendableInformationService();
 
     const apis = computed(() => apiStore.getApplicationApis(props.resourceId));
 
-    // An api url that no api connection or script uses is shown in a warning colour
+    // An api url that no api connection uses is shown in a warning colour
     function isApiUsed(apiId: string) {
-        return connectionStore.connections.some(connection => connection.kind === 'api' && connection.apiId === apiId)
-            || componentStore.isApiRead(apiId);
+        return connectionStore.connections.some(connection => connection.kind === 'api' && connection.apiId === apiId);
     }
 
     const unusedApiCount = computed(() => apis.value.filter(api => !isApiUsed(api.id)).length);

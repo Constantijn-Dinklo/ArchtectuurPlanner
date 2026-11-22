@@ -7,7 +7,7 @@
   import { useConnectionStore } from '../stores/connection.store';
   import { useApiStore } from '../stores/api.store';
   import { useResourceService } from '../services/resources/resource.service';
-  import { RESOURCE_ICONS } from '../types/resource.type';
+  import { usePartService } from '../services/part.service';
   import { CONNECTION_KINDS, getConnectionKindInfo, type Connection, type ConnectionKind, type PartType } from '../types/connection.types';
 
   // Every connection between two resources, in one table. A connection always has both ends, so a new one is made
@@ -15,6 +15,7 @@
   const connectionStore = useConnectionStore();
   const apiStore = useApiStore();
   const resourceService = useResourceService();
+  const partService = usePartService();
 
   onMounted(() => connectionStore.fetchConnections());
 
@@ -25,13 +26,13 @@
       .sort((a, b) => a.label.localeCompare(b.label))
   );
 
+  // A resource, or a script: "Nightly import (on Webshop)"
   function getName(partId: string) {
-    return resourceService.getResource(partId)?.name ?? '?';
+    return partService.getPartLabel(partId);
   }
 
   function getIcon(partId: string) {
-    const resource = resourceService.getResource(partId);
-    return resource ? RESOURCE_ICONS[resource.type] : 'pi pi-box';
+    return partService.getPart(partId)?.icon ?? 'pi pi-box';
   }
 
   // <-- A new connection -->

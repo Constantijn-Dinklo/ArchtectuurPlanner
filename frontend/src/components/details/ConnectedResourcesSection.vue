@@ -7,6 +7,7 @@
     import { useTableStore } from '../../stores/resources/table.store';
     import { useConnectionStore } from '../../stores/connection.store';
     import { useResourceService } from '../../services/resources/resource.service';
+    import { usePartService } from '../../services/part.service';
     import { useInformationSourceService } from '../../services/informationSource.service';
     import type { PartCreator, PartOption, PartSpec } from '../../services/connectionParts.service';
     import { getConnectionKindInfo } from '../../types/connection.types';
@@ -64,6 +65,7 @@
     const tableStore = useTableStore();
     const connectionStore = useConnectionStore();
     const resourceService = useResourceService();
+    const partService = usePartService();
     const informationSourceService = useInformationSourceService();
 
     // Tables are not always loaded on the higher levels of the canvas
@@ -121,11 +123,11 @@
         });
 
         return [...partsById].map(([id, parts]) => {
-            const resource = resourceService.getResource(id);
+            const part = partService.getPart(id);
             return {
                 id,
-                label: resource?.name ?? 'Unknown resource',
-                icon: resource ? RESOURCE_ICONS[resource.type] : 'pi pi-box',
+                label: part ? partService.getPartLabel(id) : 'Unknown resource',
+                icon: part?.icon ?? 'pi pi-box',
                 parts,
                 spec: props.getPartSpec(id, parts.map(part => part.end))
             };
@@ -140,11 +142,14 @@
         return connected.parts.reduce((count, part) => count + informationCount(part.end), 0);
     }
 
-    // <-- Connecting to a resource -->
+    // <-- Connecting to a resource, or a script -->
     const resourceOptions = computed(() =>
-        resourceService.getByType(['application', 'external', 'database', 'fileLocation'])
-            .filter(resource => resource.id !== props.excludeResourceId)
-            .map(resource => ({ id: resource.id, label: resource.name }))
+        [
+            ...resourceService.getByType(['application', 'external', 'database', 'fileLocation'])
+                .map(resource => ({ id: resource.id, label: resource.name })),
+            ...partService.getScripts().map(script => ({ id: script.id, label: partService.getPartLabel(script.id) }))
+        ]
+            .filter(option => option.id !== props.excludeResourceId)
             .sort((a, b) => a.label.localeCompare(b.label))
     );
 

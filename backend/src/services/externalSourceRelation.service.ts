@@ -9,14 +9,14 @@ import Api from "../models/api.model";
 import ResourceFieldRelation from "../models/information/resourceFieldRelation.model";
 import ResourceObjectRelation from "../models/information/resourceObjectRelation.model";
 import { updateReceivedInformation } from "./externalRelation.service";
-import { syncScriptRelations } from "./scriptRelation.service";
+import Component from "../models/component.model";
 import { getPartConnections } from "./connection.service";
 import { Connection } from "../types/connection.type";
 
 // External elements are black boxes, so what they provide and receive is filled in here as far as the connections
 // show it. Relations are only added, never taken away, except when they cannot be right:
 // - from an external element: what it provides reaches every resource it is connected to that takes it in. An
-//   application takes in its input fields and objects; a table its columns, also when the external element provides
+//   application or script takes in its input fields and objects; a table its columns, also when the external element provides
 //   the field inside an object; a connection to a database reaches all of its tables
 // - to an external element through an api connection: everything the api carries, from the owner of the api
 // - a relation from an external element for information it no longer provides is removed
@@ -30,7 +30,7 @@ interface DesiredRelation {
     sourceId: string;
     sourceType: 'application' | 'external';
     targetId: string;
-    targetType: 'application' | 'table' | 'external';
+    targetType: 'application' | 'script' | 'table' | 'external';
     connectionId: string;
 }
 
@@ -70,8 +70,7 @@ export async function syncExternalSourceRelations(user: Pick<UserJwtPayload, 'en
             sourceResourceType: relation.sourceType,
             targetResourceId: relation.targetId,
             targetResourceType: relation.targetType,
-            connectionId: relation.connectionId,
-            scriptId: null
+            connectionId: relation.connectionId
         };
         if(relation.kind === 'field') await ResourceFieldRelation.create({ ...fields, informationFieldId: relation.informationId });
         else await ResourceObjectRelation.create({ ...fields, informationObjectId: relation.informationId });
@@ -112,6 +111,7 @@ async function getRelationsFromExternals(environmentId: string, externals: Exter
 
     const targetIds = [...new Set(links.map((link) => link.target.id))];
     const applications = await Application.find({ environmentId, _id: { $in: targetIds } });
+    const scripts = await Component.find({ environmentId, kind: 'script', _id: { $in: targetIds } });
     const tables = await findTables(environmentId, { ids: targetIds, databaseIds: targetIds });
 
     const providedObjectIds = externals.flatMap((external) => external.providedInformationObjects.map((ref) => ref.informationObjectId));
@@ -139,6 +139,15 @@ async function getRelationsFromExternals(environmentId: string, externals: Exter
                     desired.push({ ...from, kind: 'object', informationId, targetId: link.target.id, targetType: 'application' });
                 }
             }
+            continue;
+        }
+
+        const script = scripts.find((script) => script._id.toString() === link.target.id);
+        if(script) {
+            script.inputInformationFieldIds.map((id) => id.toString()).filter((id) => providedFieldIds.includes(id))
+                .forEach((informationId) => desired.push({ ...from, kind: 'field', informationId, targetId: link.target.id, targetType: 'script' }));
+            script.inputInformationObjectIds.map((id) => id.toString()).filter((id) => providedObjectIdsOfExternal.includes(id))
+                .forEach((informationId) => desired.push({ ...from, kind: 'object', informationId, targetId: link.target.id, targetType: 'script' }));
             continue;
         }
 
@@ -207,8 +216,8 @@ async function getPresentKeys(environmentId: string, candidates: DesiredRelation
 }
 
 // For the routes that change what external elements provide, what resources take in or carry, or how they are
-// connected: after a successful change the relations of scripts and external elements are brought up to date,
-// before the response is sent
+// connected: after a successful change the relations of external elements are brought up to date, before the
+// response is sent
 export function keepExternalSourceRelationsInSync(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     if(req.method === 'GET') return next();
 
@@ -216,9 +225,7 @@ export function keepExternalSourceRelationsInSync(req: AuthenticatedRequest, res
     res.json = ((body: any) => {
         if(res.statusCode >= 400) return json(body);
 
-        // What scripts read and write is kept in sync here as well
-        syncScriptRelations(getUser(req))
-            .then(() => syncExternalSourceRelations(getUser(req)))
+        syncExternalSourceRelations(getUser(req))
             .catch((err) => console.error('Syncing the relations of external elements failed:', err.message))
             .finally(() => json(body));
         return res;

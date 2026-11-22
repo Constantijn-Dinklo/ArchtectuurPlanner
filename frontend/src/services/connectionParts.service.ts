@@ -1,4 +1,3 @@
-import { useApiStore } from "../stores/api.store";
 import { useComponentStore } from "../stores/resources/component.store";
 import { useTableStore } from "../stores/resources/table.store";
 import { useResourceService } from "./resources/resource.service";
@@ -44,7 +43,6 @@ export interface PartSpec {
 
 // The parts a resource can have, so a section only has to say which kind it wants. The ends are the parts there are
 export function useConnectionParts() {
-    const apiStore = useApiStore();
     const componentStore = useComponentStore();
     const tableStore = useTableStore();
     const tableService = useTableService();
@@ -117,29 +115,6 @@ export function useConnectionParts() {
         };
     }
 
-    // The apis of an application or external element
-    function apis(applicationId: string, ends: ConnectionEnd[]): PartSpec {
-        return {
-            emptyText: 'No API chosen yet',
-            removeTitle: 'Remove this API',
-            pickers: [{
-                placeholder: '+ Choose an API…',
-                options: toOptions(ends, apiStore.getApplicationApis(applicationId).map(api => ({ target: { resourceId: applicationId, componentId: null, apiId: api.id }, label: api.url }))),
-                emptyMessage: 'No APIs yet',
-                filterPlaceholder: 'Search API'
-            }],
-            creator: {
-                placeholder: '+ New API',
-                title: 'Add API',
-                withFileType: false,
-                create: async (name) => {
-                    const api = await apiStore.commitApi(applicationId, name);
-                    return api ? { resourceId: applicationId, componentId: null, apiId: api.id } : undefined;
-                }
-            }
-        };
-    }
-
     // The ways information goes to or from another resource, each a connection of its own: an api of the sender (the
     // most common way, so it has its own dropdown), or another way. An api is one way, so it is used once; another kind
     // can be used more often (two ways by hand)
@@ -170,8 +145,8 @@ export function useConnectionParts() {
         };
     }
 
-    // The parts of a resource of any type: a database has tables, a file location files, and an application or external
-    // element what the section chooses (its apis, or the ways information goes)
+    // The parts of a resource of any type: a database has tables, a file location files, and an application, external
+    // element or script what the section chooses (the ways information goes)
     function forResource(resourceId: string, ends: ConnectionEnd[], applicationParts: () => PartSpec): PartSpec {
         const type = resourceService.getResource(resourceId)?.type;
         if (type === 'database') return tables(resourceId, ends);
@@ -179,5 +154,5 @@ export function useConnectionParts() {
         return applicationParts();
     }
 
-    return { tables, files, apis, connectionTypes, forResource };
+    return { tables, files, connectionTypes, forResource };
 }

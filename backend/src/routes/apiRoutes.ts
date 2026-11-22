@@ -3,7 +3,6 @@ import Api from "../models/api.model";
 import { AuthenticatedRequest, getUser } from "../middelware";
 import { getApiConnections } from "../services/connection.service";
 import { addApiInformationField, addApiInformationObject, removeApiInformationField, removeApiInformationObject } from "../services/api.service";
-import { keepConnectionsWithoutPart } from "../services/component.service";
 import { pickFields } from "./pickFields";
 
 const router: Router = express.Router();
@@ -134,9 +133,6 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
             },
             { returnDocument: 'after'}
         );
-        if(deleted?.applicationId) {
-            await keepConnectionsWithoutPart(user, deleted.applicationId.toString(), { apiId: deleted._id.toString() });
-        }
         res.json(deleted);
     }
     catch(err: any) {

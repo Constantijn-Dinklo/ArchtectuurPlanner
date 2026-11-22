@@ -12,8 +12,6 @@ export interface IResourceObjectRelation {
     // The connection the information travels through from the source to the target.
     // Only a relation inside one resource (from its input to its output) has none
     connectionId: Types.ObjectId | null;
-    // Until scripts are connection ends themselves: the script the information goes through instead of a connection
-    scriptId: Types.ObjectId | null;
 }
 
 export const ResourceObjectRelationSchema = new Schema<IResourceObjectRelation>(
@@ -50,11 +48,6 @@ export const ResourceObjectRelationSchema = new Schema<IResourceObjectRelation>(
             ref: 'Connection',
             default: null,
             index: true
-        },
-        scriptId: {
-            type: Schema.Types.ObjectId,
-            ref: 'Component',
-            default: null
         },
     },
     {

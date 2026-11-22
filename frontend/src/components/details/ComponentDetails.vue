@@ -5,12 +5,12 @@
     import { useInformationFieldStore } from '../../stores/information/informationField.store';
     import { useInformationObjectStore } from '../../stores/information/informationObject.store';
     import { useResourceService } from '../../services/resources/resource.service';
-    import { byLabel, useConnectionEndOptions } from '../../services/connectionEndOptions.service';
-    import { useConnectionParts } from '../../services/connectionParts.service';
-    import type { ConnectionEnd } from '../../types/connectionEnd.types';
-    import { FILE_TYPES, getComponentIcon, getInformationSlotIds, type ComponentEnd, type FileType, type InformationSlot } from '../../types/component.types';
+    import { byLabel } from '../../services/connectionEndOptions.service';
+    import { useConnectionStore } from '../../stores/connection.store';
+    import { useInformationRelationStore } from '../../stores/information/informationRelation.store';
+    import { FILE_TYPES, getComponentIcon, getInformationSlotIds, type FileType, type InformationSlot } from '../../types/component.types';
     import type { InformationOption } from '../../types/connectionEnd.types';
-    import ConnectedResourcesSection from './ConnectedResourcesSection.vue';
+    import InformationRelationsSection from './InformationRelationsSection.vue';
     import InformationEditor from './InformationEditor.vue';
 
     // The details of a component: a script (what it reads and writes, what it takes in and produces) or a file (what it contains)
@@ -22,29 +22,11 @@
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
     const resourceService = useResourceService();
-    const { getEndFieldOptions, getEndObjectOptions } = useConnectionEndOptions();
-    const connectionParts = useConnectionParts();
-
-    // A script reads from and writes to a table, a file, or an api of an application or external element
-    function getPartSpec(resourceId: string, ends: ConnectionEnd[]) {
-        return connectionParts.forResource(resourceId, ends, () => connectionParts.apis(resourceId, ends));
-    }
+    const connectionStore = useConnectionStore();
+    const informationRelationStore = useInformationRelationStore();
 
     const component = computed(() => componentStore.getComponent(props.componentId));
     const host = computed(() => component.value ? resourceService.getResource(component.value.resourceId) : undefined);
-
-    // <-- The information a script takes in: what the things it reads from can pass on -->
-    const readableFields = computed(() => {
-        const fields = new Map<string, InformationOption>();
-        component.value?.inputs.forEach(input => getEndFieldOptions(input, fields));
-        return byLabel(fields);
-    });
-
-    const readableObjects = computed(() => {
-        const objects = new Map<string, InformationOption>();
-        component.value?.inputs.forEach(input => getEndObjectOptions(input, objects));
-        return byLabel(objects);
-    });
 
     // <-- What a script produces and a file contains: only what actually gets there, or new information -->
 
@@ -71,44 +53,15 @@
         : { fields: [], objects: [] }
     );
 
-    // A file can only contain what scripts write to it (or new information put in it)
+    // A file can contain what is written to its file location (or new information put in it). Until files are relation
+    // ends that is all that is known of what reaches the file
     const containable = computed(() => {
-        const writes = componentStore.components
-            .filter(candidate => candidate.kind === 'script')
-            .flatMap(script => script.outputs.filter(end => end.componentId === props.componentId));
-        return toOptions(writes.flatMap(end => end.informationFieldIds), writes.flatMap(end => end.informationObjectIds));
+        const locationId = component.value?.resourceId;
+        return toOptions(
+            informationRelationStore.fieldRelations.filter(relation => relation.targetResourceId === locationId).map(relation => relation.informationFieldId),
+            informationRelationStore.objectRelations.filter(relation => relation.targetResourceId === locationId).map(relation => relation.informationObjectId)
+        );
     });
-
-    // <-- Script: what it reads from and writes to -->
-
-    // A script reads what the end can pass on, and writes what it takes in.
-    // New information can only be written: a script only reads what already exists, but can make something new
-    const connectionSections = computed(() => [
-        {
-            side: 'inputs' as const,
-            title: 'Reads from',
-            addPlaceholder: '+ Reads from…',
-            emptyText: 'Nothing read yet',
-            informationEmptyText: 'Nothing read from this yet',
-            getFieldOptions: (end: ComponentEnd) => byLabel(getEndFieldOptions(end)),
-            getObjectOptions: (end: ComponentEnd) => byLabel(getEndObjectOptions(end)),
-            fieldOptionsEmpty: 'This has no fields to read',
-            objectOptionsEmpty: 'This has no objects to read',
-            allowNewInformation: false
-        },
-        {
-            side: 'outputs' as const,
-            title: 'Writes to',
-            addPlaceholder: '+ Writes to…',
-            emptyText: 'Nothing written yet',
-            informationEmptyText: 'Nothing written to this yet',
-            getFieldOptions: () => producible.value.fields,
-            getObjectOptions: () => producible.value.objects,
-            fieldOptionsEmpty: 'The script takes in no fields yet',
-            objectOptionsEmpty: 'The script takes in no objects yet',
-            allowNewInformation: true
-        }
-    ]);
 
     interface InformationSection {
         slot: InformationSlot;
@@ -128,17 +81,18 @@
             {
                 slot: 'input',
                 title: 'Inputs',
-                empty: 'Nothing taken in yet. Add what the script uses from what it reads.',
-                fieldOptions: readableFields.value,
-                objectOptions: readableObjects.value,
-                fieldOptionsEmpty: 'Add what the script reads from first',
-                objectOptionsEmpty: 'What the script reads from has no objects',
-                allowNew: false
+                // Like an application: what it reads is chosen under Reads from, here only new information is made
+                empty: 'Nothing taken in yet. Choose what the script reads under Reads from.',
+                fieldOptions: [],
+                objectOptions: [],
+                fieldOptionsEmpty: 'Choose what the script reads under Reads from',
+                objectOptionsEmpty: 'Choose what the script reads under Reads from',
+                allowNew: true
             },
             {
                 slot: 'output',
                 title: 'Outputs',
-                empty: 'Nothing produced yet. Add what the script delivers to what it writes to.',
+                empty: 'Nothing produced yet. Add what the script delivers, then choose where it goes under Writes to.',
                 fieldOptions: producible.value.fields,
                 objectOptions: producible.value.objects,
                 fieldOptionsEmpty: 'The script takes in no fields yet',
@@ -153,8 +107,8 @@
                 empty: 'Nothing yet. Add the information stored in this file.',
                 fieldOptions: containable.value.fields,
                 objectOptions: containable.value.objects,
-                fieldOptionsEmpty: 'No script writes fields to this file',
-                objectOptionsEmpty: 'No script writes objects to this file',
+                fieldOptionsEmpty: 'Nothing is written to its file location yet',
+                objectOptionsEmpty: 'Nothing is written to its file location yet',
                 allowNew: true
             }
         ]);
@@ -170,13 +124,15 @@
         return ids.informationFieldIds.length + ids.informationObjectIds.length;
     }
 
-    // The scripts that read from or write to this file
-    const usedByScripts = computed(() =>
-        componentStore.components.filter(candidate =>
-            candidate.kind === 'script' &&
-            [...candidate.inputs, ...candidate.outputs].some(end => end.componentId === props.componentId)
-        )
-    );
+    // The scripts connected to the file location of this file; which of them use this file is not known until files
+    // are relation ends
+    const usedByScripts = computed(() => {
+        const locationId = component.value?.resourceId;
+        const scriptIds = new Set(connectionStore.connections.flatMap(connection =>
+            connection.source.id === locationId ? [connection.target.id] : connection.target.id === locationId ? [connection.source.id] : []
+        ));
+        return componentStore.components.filter(candidate => candidate.kind === 'script' && scriptIds.has(candidate.id));
+    });
 
     function updateProperty(property: 'name' | 'description', value: string) {
         if (!component.value || (property === 'name' && !value.trim())) return;
@@ -261,28 +217,8 @@
 
         <!-- Script: what it reads from and writes to -->
         <template v-if="component.kind === 'script'">
-            <ConnectedResourcesSection
-                v-for="section in connectionSections"
-                :key="section.side"
-                :title="section.title"
-                :add-placeholder="section.addPlaceholder"
-                :empty-text="section.emptyText"
-                :information-empty-text="section.informationEmptyText"
-                :ends="component[section.side]"
-                :get-field-options="section.getFieldOptions"
-                :get-object-options="section.getObjectOptions"
-                :field-options-empty="section.fieldOptionsEmpty"
-                :object-options-empty="section.objectOptionsEmpty"
-                :allow-new-information="section.allowNewInformation"
-                :get-part-spec="getPartSpec"
-                @connect="target => componentStore.addEnd(component!.id, section.side, target)"
-                @disconnect="connectionId => componentStore.removeConnection(component!.id, section.side, connectionId)"
-                @remove-end="index => componentStore.removeEnd(component!.id, section.side, index)"
-                @add-field="(index, information) => componentStore.addEndInformationField(component!.id, section.side, index, information)"
-                @remove-field="(index, id) => componentStore.removeEndInformationField(component!.id, section.side, index, id)"
-                @add-object="(index, information) => componentStore.addEndInformationObject(component!.id, section.side, index, information)"
-                @remove-object="(index, id) => componentStore.removeEndInformationObject(component!.id, section.side, index, id)"
-            />
+            <InformationRelationsSection :resource-id="component.id" direction="incoming" />
+            <InformationRelationsSection :resource-id="component.id" direction="outgoing" />
         </template>
 
         <!-- The information the script takes in and produces, or the file contains -->
@@ -317,10 +253,10 @@
         <!-- File: the scripts that use it -->
         <section v-if="component.kind === 'file'" v-collapsible class="detail-section">
             <div class="detail-section-title">
-                <span>Used by scripts</span>
+                <span>Scripts at its file location</span>
                 <span class="detail-count">{{ usedByScripts.length }}</span>
             </div>
-            <div v-if="!usedByScripts.length" class="detail-empty">No script reads from or writes to this file</div>
+            <div v-if="!usedByScripts.length" class="detail-empty">No script reads from or writes to its file location</div>
             <div v-for="script in usedByScripts" :key="script.id" class="detail-row">
                 <i class="pi pi-code detail-row-icon" />
                 <span class="detail-row-name">{{ script.name }}</span>

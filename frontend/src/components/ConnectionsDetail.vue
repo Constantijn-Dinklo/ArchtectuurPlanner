@@ -1,7 +1,7 @@
 <script setup lang="ts">
     import { computed } from 'vue';
     import { vCollapsible } from '../directives/collapsible';
-    import { useResourceService } from '../services/resources/resource.service';
+    import { usePartService } from '../services/part.service';
     import { useInformationSourceService } from '../services/informationSource.service';
     import { getConnectionKindInfo, type Connection } from '../types/connection.types';
 
@@ -11,11 +11,12 @@
         connections: Connection[];
     }>();
 
-    const resourceService = useResourceService();
+    const partService = usePartService();
     const informationSourceService = useInformationSourceService();
 
+    // A resource, or a script: "Nightly import (on Webshop)"
     function getName(partId: string) {
-        return resourceService.getResource(partId)?.name ?? '?';
+        return partService.getPartLabel(partId);
     }
 
     // A database or file location is read and written through a connection per direction. Both are shown as one row:

@@ -18,47 +18,6 @@ export type FileType = typeof FILE_TYPES[number];
 export const COMPONENT_RESOURCE_TYPES = ['application', 'fileLocation', 'database'] as const;
 export type ComponentResourceType = typeof COMPONENT_RESOURCE_TYPES[number];
 
-// One side of what a script reads from or writes to: a resource or a table (the id of the table itself),
-// a component inside a resource, like a file in a file location, or an api of an application or external element.
-// The information is what the script reads from this end or writes to it; it is always part of the inputs or outputs of the script as well
-export interface IComponentEnd {
-    resourceId: Types.ObjectId;
-    componentId: Types.ObjectId | null;
-    // Only when reading: the api of the resource the script reads through
-    apiId: Types.ObjectId | null;
-    informationFieldIds: Types.ObjectId[];
-    informationObjectIds: Types.ObjectId[];
-}
-
-const ComponentEndSchema = new Schema<IComponentEnd>(
-    {
-        resourceId: {
-            type: Schema.Types.ObjectId,
-            required: true
-        },
-        componentId: {
-            type: Schema.Types.ObjectId,
-            default: null
-        },
-        apiId: {
-            type: Schema.Types.ObjectId,
-            ref: 'Api',
-            default: null
-        },
-        informationFieldIds: {
-            type: [Schema.Types.ObjectId],
-            ref: 'InformationField',
-            default: []
-        },
-        informationObjectIds: {
-            type: [Schema.Types.ObjectId],
-            ref: 'InformationObject',
-            default: []
-        }
-    },
-    { _id: false }
-);
-
 export interface IComponent extends Document {
     environmentId: Types.ObjectId;
     kind: ComponentKind;
@@ -69,12 +28,8 @@ export interface IComponent extends Document {
     resourceId: Types.ObjectId;
     resourceType: ComponentResourceType;
 
-    // Script: what it reads from and writes to
-    inputs: IComponentEnd[];
-    outputs: IComponentEnd[];
-
-    // Script: the information it takes in from what it reads, and the information it produces for what it writes.
-    // What it produces is what it carries to the resources it writes to
+    // Script: the information it takes in and produces, like the inputs and outputs of an application. What it reads
+    // from and writes to are connections, and the information that goes over them relations, as for an application
     inputInformationFieldIds: Types.ObjectId[];
     inputInformationObjectIds: Types.ObjectId[];
     outputInformationFieldIds: Types.ObjectId[];
@@ -117,14 +72,6 @@ const ComponentSchema = new Schema<IComponent>({
         type: Schema.Types.String,
         enum: COMPONENT_RESOURCE_TYPES,
         required: true
-    },
-    inputs: {
-        type: [ComponentEndSchema],
-        default: []
-    },
-    outputs: {
-        type: [ComponentEndSchema],
-        default: []
     },
     inputInformationFieldIds: {
         type: [Schema.Types.ObjectId],

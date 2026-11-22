@@ -24,7 +24,15 @@ export function useSendableInformationService() {
 
     function getSendableFields(resourceId: string): SendableField[] {
         const resource = resourceService.getResource(resourceId);
-        if (!resource) return [];
+        // A script passes on what it produces, like the output of an application
+        if (!resource) {
+            return resourceService.getResourceInformationFields(resourceId, true).map(field => ({
+                id: field.id,
+                fieldName: field.fieldName,
+                objectNames: field.objectNames ?? [],
+                label: field.objectNames?.length ? `${field.fieldName} (${field.objectNames.join(', ')})` : field.fieldName
+            }));
+        }
 
         const resolvedResource = resourceResolver.resolveResource(resource);
         const fields = new Map<string, SendableField>();

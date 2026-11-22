@@ -135,11 +135,11 @@ async function checkConnection(user: User, input: ConnectionInput) {
         throw new Error("A database connection has a database on one of its ends");
     }
 
-    // With a database or file location the way is always known; only between applications and external elements it
-    // can still be open
-    const OPEN_TYPES: PartType[] = ['application', 'external'];
+    // With a database or file location the way is always known; only between applications, external elements and
+    // scripts it can still be open
+    const OPEN_TYPES: PartType[] = ['application', 'external', 'script'];
     if(input.kind === 'undecided' && ![input.source.type, input.target.type].every((type) => OPEN_TYPES.includes(type))) {
-        throw new Error("Only a connection between applications or external elements can be left undecided");
+        throw new Error("Only a connection between applications, external elements or scripts can be left undecided");
     }
 }
 

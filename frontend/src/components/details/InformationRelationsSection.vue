@@ -3,6 +3,7 @@
     import { useConnectionStore } from '../../stores/connection.store';
     import { useInformationRelationStore, type ResourceRelation } from '../../stores/information/informationRelation.store';
     import { useResourceService } from '../../services/resources/resource.service';
+    import { usePartService } from '../../services/part.service';
     import { useInformationSourceService } from '../../services/informationSource.service';
     import { byLabel, useConnectionEndOptions } from '../../services/connectionEndOptions.service';
     import { Select } from 'primevue';
@@ -11,16 +12,15 @@
     import type { Connection, ConnectionInput, ConnectionKind, PartType } from '../../types/connection.types';
     import ConnectedResourcesSection from './ConnectedResourcesSection.vue';
 
-    // What a resource receives from other resources (incoming) or sends to them (outgoing), in the same way as what a
-    // script reads from and writes to. The rows are the resources it is connected to, with the information of the
-    // relations between them, so the 'Sends to' of one resource and the 'Receives from' of the other always agree.
-    // - an application or external element has a part per connection: how the information gets there (an api of the
-    //   sender, by hand, ...), with what goes through it. Picking the resource connects the two without a way yet (an
+    // What an application or script receives from other parts (incoming) or sends to them (outgoing). For a script it
+    // is called Reads from and Writes to, but it works the same. The rows are the parts it is connected to, with the
+    // information of the relations between them, so the 'Sends to' of one and the 'Receives from' of the other agree.
+    // - an application, external element or script has a part per connection: how the information gets there (an api
+    //   of the sender, by hand, ...), with what goes through it. Picking it connects the two without a way yet (an
     //   undecided connection, a dashed line), which is not shown as a part: like a database without a table chosen
     // - a database is connected per table, through its database connection
     // - a file location per file, through a file connection. Until files can be relation ends (phase 2) the information
     //   goes on the file location itself, so it is not shown yet
-    // - relations through a script belong to the script, so they are not shown here
     // - a table that is picked but has no information yet is only kept while the panel shows this resource
     const props = defineProps<{
         resourceId: string;
@@ -36,6 +36,7 @@
     const connectionStore = useConnectionStore();
     const informationRelationStore = useInformationRelationStore();
     const resourceService = useResourceService();
+    const partService = usePartService();
     const informationSourceService = useInformationSourceService();
     const { getEndFieldOptions, getEndObjectOptions } = useConnectionEndOptions();
     const connectionParts = useConnectionParts();
@@ -54,11 +55,13 @@
         return sourceId === props.resourceId ? targetId : undefined;
     }
 
-    // Applications and external elements are connected per connection
-    function isPerConnection(resourceId: string) {
-        const type = resourceService.getResource(resourceId)?.type;
-        return type === 'application' || type === 'external';
+    // Applications, external elements and scripts are connected per connection
+    function isPerConnection(partId: string) {
+        const type = partService.getPart(partId)?.type;
+        return type === 'application' || type === 'external' || type === 'script';
     }
+
+    const isScript = computed(() => partService.getPart(props.resourceId)?.type === 'script');
 
     // Tables picked without information yet
     const pending = ref<ConnectionEndTarget[]>([]);
@@ -95,7 +98,7 @@
 
         function addRelation(relation: ResourceRelation, kind: 'field' | 'object', informationId: string) {
             const otherId = getOtherId(relation.sourceResourceId, relation.targetResourceId);
-            if (!otherId || relation.scriptId) return;
+            if (!otherId) return;
             const end = getConnectionEnd(otherId, connectionStore.getConnection(relation.connectionId));
             const ids = kind === 'field' ? end.informationFieldIds : end.informationObjectIds;
             const relationIds = kind === 'field' ? end.fieldRelationIds : end.objectRelationIds;
@@ -138,28 +141,34 @@
         return byLabel(getEndObjectOptions(getSenderEnd(end)));
     }
 
-    const texts = computed(() => isIncoming.value
-        ? {
-            title: 'Receives from',
-            addPlaceholder: '+ Receives from…',
-            emptyText: 'Nothing received yet',
-            informationEmptyText: 'Nothing received through this yet',
-            fieldOptionsEmpty: 'This sends no fields',
-            objectOptionsEmpty: 'This sends no objects'
+    // A script reads and writes, an application receives and sends
+    const texts = computed(() => {
+        if (isIncoming.value) {
+            const verb = isScript.value ? 'Reads from' : 'Receives from';
+            return {
+                title: verb,
+                addPlaceholder: `+ ${verb}…`,
+                emptyText: isScript.value ? 'Nothing read yet' : 'Nothing received yet',
+                informationEmptyText: isScript.value ? 'Nothing read through this yet' : 'Nothing received through this yet',
+                fieldOptionsEmpty: 'This sends no fields',
+                objectOptionsEmpty: 'This sends no objects'
+            };
         }
-        : {
-            title: 'Sends to',
-            addPlaceholder: '+ Sends to…',
-            emptyText: 'Nothing sent yet',
-            informationEmptyText: 'Nothing sent through this yet',
+        const verb = isScript.value ? 'Writes to' : 'Sends to';
+        return {
+            title: verb,
+            addPlaceholder: `+ ${verb}…`,
+            emptyText: isScript.value ? 'Nothing written yet' : 'Nothing sent yet',
+            informationEmptyText: isScript.value ? 'Nothing written through this yet' : 'Nothing sent through this yet',
             fieldOptionsEmpty: 'No output fields to send this way',
             objectOptionsEmpty: 'No output objects to send this way, or this only takes fields'
-        });
+        };
+    });
 
     // <-- Changes -->
 
-    function toPart(resourceId: string) {
-        return { id: resourceId, type: resourceService.getResource(resourceId)?.type as PartType };
+    function toPart(partId: string) {
+        return { id: partId, type: partService.getPart(partId)?.type as PartType };
     }
 
     // The connections between this resource and the other one, in this direction

@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 
 import api from "../../helpers/axios";
-import type { ResourceType } from "../../types/resource.type";
+import type { PartType } from "../../types/connection.types";
 import { useConnectionStore } from "../connection.store";
 import { useComponentStore } from "../resources/component.store";
 import { useApplicationService } from "../../services/resources/application.service";
@@ -13,13 +13,12 @@ import { useExternalService } from "../../services/resources/external.service";
 export interface ResourceRelation {
     id: string;
     sourceResourceId: string;
-    sourceResourceType: ResourceType;
+    sourceResourceType: PartType;
     targetResourceId: string;
-    targetResourceType: ResourceType;
+    targetResourceType: PartType;
 
     connectionId: string | null;
     // Until scripts are connection ends themselves: the script the information goes through instead of a connection
-    scriptId: string | null;
 }
 
 export interface ResourceFieldRelation extends ResourceRelation {

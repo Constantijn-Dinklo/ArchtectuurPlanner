@@ -6,9 +6,6 @@
     import { useInformationRelationStore } from '../../stores/information/informationRelation.store';
     import { useInformationFieldStore } from '../../stores/information/informationField.store';
     import { useInformationObjectStore } from '../../stores/information/informationObject.store';
-    import { useResourceService } from '../../services/resources/resource.service';
-    import { useComponentStore } from '../../stores/resources/component.store';
-    import { getEndsInformation, type ComponentEnd } from '../../types/component.types';
     import { CONNECTION_KINDS, getConnectionKindInfo, type Connection, type ConnectionKind } from '../../types/connection.types';
     import CarriedInformationEditor from './CarriedInformationEditor.vue';
 
@@ -18,17 +15,15 @@
         sourceId: string;
         targetId: string;
         connectionIds: string[];
-        scriptIds?: string[];
     }>();
 
-    // A card: a connection, or a script that reads from the source or writes to the target
+    // A card: a connection
     interface EdgeCard {
         key: string;
         icon: string;
         label: string;
         detail?: string;
-        connection?: Connection;
-        scriptId?: string;
+        connection: Connection;
     }
 
     const apiStore = useApiStore();
@@ -36,23 +31,14 @@
     const informationRelationStore = useInformationRelationStore();
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
-    const resourceService = useResourceService();
-    const componentStore = useComponentStore();
 
-    const cards = computed<EdgeCard[]>(() => [
-        ...props.connectionIds.flatMap((id): EdgeCard[] => {
-            const connection = connectionStore.getConnection(id);
-            if (!connection) return [];
-            const kind = getConnectionKindInfo(connection.kind);
-            const detail = connection.kind === 'api' ? apiStore.getApi(connection.apiId)?.url : connection.description;
-            return [{ key: `connection:${id}`, icon: kind.icon, label: kind.label, detail: detail || undefined, connection }];
-        }),
-        ...(props.scriptIds ?? []).map(id => {
-            const script = componentStore.getComponent(id);
-            const host = script ? resourceService.getResource(script.resourceId)?.name : undefined;
-            return { key: `script:${id}`, icon: 'pi pi-code', label: 'Script', detail: `${script?.name ?? '?'}${host ? ` (on ${host})` : ''}`, scriptId: id };
-        })
-    ]);
+    const cards = computed<EdgeCard[]>(() => props.connectionIds.flatMap((id): EdgeCard[] => {
+        const connection = connectionStore.getConnection(id);
+        if (!connection) return [];
+        const kind = getConnectionKindInfo(connection.kind);
+        const detail = connection.kind === 'api' ? apiStore.getApi(connection.apiId)?.url : connection.description;
+        return [{ key: `connection:${id}`, icon: kind.icon, label: kind.label, detail: detail || undefined, connection }];
+    }));
 
     // <-- What goes through a connection: the relations that name it -->
     function getPassedAlong(connectionId: string) {
@@ -108,41 +94,9 @@
         connectionStore.deleteConnection(connection.id);
     }
 
-    // <-- Scripts carry what they read from the source of the edge and write to its target.
-    // When the edge only goes to or from the script, what it reads from the source or writes to the target -->
-
-    // A table is reached through its database
-    function isOnSide(resourceId: string, sideId: string) {
-        if (resourceId === sideId) return true;
-        const resource = resourceService.getResource(resourceId);
-        return resource?.type === 'table' && resource.databaseId === sideId;
-    }
-
-    function getScriptCarried(scriptId: string) {
-        const script = componentStore.getComponent(scriptId);
-        if (!script) return { informationFieldIds: [], informationObjectIds: [] };
-        const isEnd = (end: ComponentEnd, sideId: string) => end.componentId === sideId || isOnSide(end.resourceId, sideId);
-
-        const readsSource = script.inputs.some(end => isEnd(end, props.sourceId));
-        const writesTarget = script.outputs.some(end => isEnd(end, props.targetId));
-        const read = getEndsInformation(script.inputs, end => isEnd(end, props.sourceId));
-        const written = getEndsInformation(script.outputs, end => isEnd(end, props.targetId));
-        if (readsSource && writesTarget) {
-            return {
-                informationFieldIds: read.informationFieldIds.filter(id => written.informationFieldIds.includes(id)),
-                informationObjectIds: read.informationObjectIds.filter(id => written.informationObjectIds.includes(id))
-            };
-        }
-        return readsSource ? read : written;
-    }
-
     // Whether any information is known to go through it
     function hasInformation(card: EdgeCard) {
-        if (card.scriptId) {
-            const carried = getScriptCarried(card.scriptId);
-            return (carried.informationFieldIds.length + carried.informationObjectIds.length) > 0;
-        }
-        const passedAlong = getPassedAlong(card.connection!.id);
+        const passedAlong = getPassedAlong(card.connection.id);
         return passedAlong.objectNames.length + passedAlong.fieldNames.length > 0;
     }
 
@@ -182,7 +136,7 @@
             <button
                 type="button"
                 class="edge-connection-header"
-                :class="{ unknown: card.connection?.kind === 'unknown' }"
+                :class="{ unknown: card.connection.kind === 'unknown' }"
                 @click="toggleCard(card)"
             >
                 <i
@@ -274,7 +228,7 @@
                         <span v-if="!hasInformation(card)" class="detail-empty">Nothing goes through it yet</span>
                     </div>
                     <div class="passed-along-hint">
-                        What the receiving resource takes in through this connection. Change it under Receives from or Sends to of the application.
+                        What the receiving part takes in through this connection. Change it under Receives from or Sends to of the application, or Reads from or Writes to of the script.
                     </div>
 
                     <!-- What an api sends belongs to the api, so it is the same for every connection through it -->
@@ -302,29 +256,6 @@
                     </button>
                 </template>
 
-                <!-- Scripts carry what they read from and write to the resources of the edge; it is edited in the script's details -->
-                <template v-else-if="card.scriptId">
-                    <div class="passed-along">
-                        <span
-                            v-for="objectId in getScriptCarried(card.scriptId).informationObjectIds"
-                            :key="`object:${objectId}`"
-                            class="passed-chip object"
-                        >
-                            ▱ {{ informationObjectStore.getInformationObject(objectId)?.objectName ?? 'Unknown object' }}
-                        </span>
-                        <span
-                            v-for="fieldId in getScriptCarried(card.scriptId).informationFieldIds"
-                            :key="`field:${fieldId}`"
-                            class="passed-chip"
-                        >
-                            {{ informationFieldStore.getInformationField(fieldId)?.fieldName ?? 'Unknown field' }}
-                        </span>
-                        <span v-if="!hasInformation(card)" class="detail-empty">Nothing carried yet</span>
-                    </div>
-                    <div class="passed-along-hint">
-                        This is what the script reads from and writes to here. Open the script (from the database level on) and expand what it reads from or writes to, to change it.
-                    </div>
-                </template>
             </div>
         </div>
     </section>

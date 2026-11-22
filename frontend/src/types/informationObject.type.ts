@@ -1,5 +1,5 @@
 import type { InformationField, InformationFieldReference, InformationSource, SourceMethod } from "./informationField.type";
-import type { ResourceType } from "./resource.type";
+import type { PartType } from "./connection.types";
 
 export type AddInformationObjectRequest =
     | {
@@ -8,7 +8,7 @@ export type AddInformationObjectRequest =
     | {
           informationObjectId: string;
           sourceResourceId: string;
-          sourceResourceType: ResourceType;
+          sourceResourceType: PartType;
           // The connection the information comes through; none inside one resource
           connectionId?: string | null;
       };
@@ -28,7 +28,7 @@ export interface ResolvedInformationObject
 
 export interface AccessibleInformationObject extends ResolvedInformationObject {
     accessibleFromId: string;
-    accessibleFromType: ResourceType;
+    accessibleFromType: PartType;
 }
 
 export interface InformationObjectReference {

@@ -23,9 +23,8 @@
     const label = computed(() => informationSourceService.describeRelationRoute(props.relation));
 
     // A script decides itself what it carries, so its relations cannot move
-    const candidates = computed(() => props.relation.scriptId
-        ? []
-        : informationSourceService.getCarryingConnections(props.relation.sourceResourceId, props.relation.targetResourceId)
+    const candidates = computed(() =>
+        informationSourceService.getCarryingConnections(props.relation.sourceResourceId, props.relation.targetResourceId)
     );
 
     function choose(connectionId: string) {

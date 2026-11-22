@@ -5,7 +5,6 @@ import { useInformationFieldStore } from "../stores/information/informationField
 import { useApiStore } from "../stores/api.store";
 import { useConnectionStore } from "../stores/connection.store";
 import { useResourceService } from "./resources/resource.service";
-import { useComponentStore } from "../stores/resources/component.store";
 import { useInformationSourceService } from "./informationSource.service";
 
 // A problem with the information transfer between two resources, with what to do about it
@@ -27,7 +26,6 @@ export function useInformationTransferService() {
     const apiStore = useApiStore();
     const connectionStore = useConnectionStore();
     const resourceService = useResourceService();
-    const componentStore = useComponentStore();
     const informationSourceService = useInformationSourceService();
 
     // Whether the api of the relation's connection sends the information; true when it does not go through an api
@@ -77,35 +75,11 @@ export function useInformationTransferService() {
         ];
     }
 
-    // A script is connected to a database or file location without a table or file being chosen. An edge only goes to
-    // the script itself from the database level on (before that it goes to its host), so this only shows on that level
-    function getMissingPartWarning(sourceId: string, targetId: string): ConnectionWarning | undefined {
-        const reader = componentStore.getComponent(targetId);
-        const writer = componentStore.getComponent(sourceId);
-        const script = reader ?? writer;
-        const resource = resourceService.getResource(reader ? sourceId : targetId);
-        if (script?.kind !== 'script' || (resource?.type !== 'database' && resource?.type !== 'fileLocation')) return undefined;
-
-        const ends = reader ? script.inputs : script.outputs;
-        if (!ends.some(end => end.resourceId === resource.id && !end.componentId)) return undefined;
-
-        const noun = resource.type === 'database' ? 'table' : 'file';
-        return {
-            severity: 'warning',
-            title: `No ${noun} chosen`,
-            items: [`${script.name} ${reader ? 'reads from' : 'writes to'} ${resource.name}`],
-            hint: `Open ${script.name} and choose the ${noun} under ${reader ? 'Reads from' : 'Writes to'}.`
-        };
-    }
-
     // All warnings for what goes from the source to the target, used by the canvas edge and the connection details.
     // A table counts for its database
     function getConnectionWarnings(sourceId: string, targetId: string): ConnectionWarning[] {
         const warnings: ConnectionWarning[] = [];
         const sourceName = resourceService.getResource(sourceId)?.name ?? 'the source';
-
-        const missingPartWarning = getMissingPartWarning(sourceId, targetId);
-        if (missingPartWarning) warnings.push(missingPartWarning);
 
         const isBetween = (relation: ResourceRelation) =>
             informationSourceService.getHolderIds(relation.sourceResourceId).includes(sourceId) &&

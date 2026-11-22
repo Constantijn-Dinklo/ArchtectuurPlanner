@@ -7,10 +7,11 @@ import { useTableStore } from "../stores/resources/table.store";
 import { useExternalStore } from "../stores/resources/external.store";
 import { useComponentStore } from "../stores/resources/component.store";
 import { useApiStore } from "../stores/api.store";
+import { useConnectionStore } from "../stores/connection.store";
 import { useResourceService } from "./resources/resource.service";
 import { useEndpointInformationService } from "./endpointInformation.service";
 import { useInformationEndpointService } from "./informationEndpoint.service";
-import { getComponentIcon, getInformationSlotIds, type Component, type ComponentEnd, type InformationSlot } from "../types/component.types";
+import { getComponentIcon, getInformationSlotIds, type InformationSlot } from "../types/component.types";
 import type { InformationSource } from "../types/informationField.type";
 import { RESOURCE_ICONS } from "../types/resource.type";
 
@@ -33,7 +34,7 @@ export interface ChainEdge {
     carriedByObjectIds: string[];
     // The source has to reach this step, but it is not known how yet
     unconnected?: boolean;
-    // A script reads the information from the source through these apis of the source
+    // The information goes through these apis of the source
     apiIds?: string[];
 }
 
@@ -51,7 +52,7 @@ export interface ChainLinkView {
     objectNames: string[];
     // It is not known yet how the information gets to the next step
     unconnected: boolean;
-    // The urls of the apis a script reads the information through
+    // The urls of the apis the information goes through
     apiUrls: string[];
 }
 
@@ -131,8 +132,9 @@ export function stepKey(step: ChainStep) {
     return `${step.resourceId}:${step.side ?? ''}`;
 }
 
-// The chain of a piece of information through the architecture: the relations it travels through (with the scripts
-// and endpoints on the way), every place that holds it, and the places where the chain is broken
+// The chain of a piece of information through the architecture: the relations it travels through (a script is a step
+// like any other: CRM -> script -> table), the endpoints on the way, every place that holds it, and the places where
+// the chain is broken
 export function useInformationChainService() {
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
@@ -143,6 +145,7 @@ export function useInformationChainService() {
     const externalStore = useExternalStore();
     const componentStore = useComponentStore();
     const apiStore = useApiStore();
+    const connectionStore = useConnectionStore();
     const resourceService = useResourceService();
     const endpointInformationService = useEndpointInformationService();
     const informationEndpointService = useInformationEndpointService();
@@ -163,13 +166,12 @@ export function useInformationChainService() {
         const sourceId = source?.resourceId ?? null;
         const holders = getHolders(kind, id, containingObjectIds);
         const relations = getRelations(kind, id, containingObjectIds);
-        const endHas = getEndHas(kind, id);
-        const externalEdges = [...getExternalEdges(holders, relations, endHas), ...getScriptEdges(holders, endHas)];
+        const externalEdges = getExternalEdges(holders, relations);
         const edges = [
             ...(kind === 'field' ? getFieldEdges(id, containingObjectIds) : getObjectEdges(id)),
             ...externalEdges
         ];
-        const holderBreaks = getBreaks(kind, id, sourceId, containingObjectIds, relations, externalEdges, holders, endHas);
+        const holderBreaks = getBreaks(kind, id, sourceId, containingObjectIds, relations, externalEdges, holders);
 
         const steps = new Map<string, ChainStep>();
         edges.forEach(edge => {
@@ -310,10 +312,10 @@ export function useInformationChainService() {
         return [
             ...informationRelationStore.fieldRelations
                 .filter(relation => relation.informationFieldId === informationFieldId)
-                .flatMap(relation => relationToEdges(relation, getEndHas('field', informationFieldId))),
+                .map(relation => relationToEdge(relation)),
             ...informationRelationStore.objectRelations
                 .filter(relation => containingObjectIds.includes(relation.informationObjectId))
-                .flatMap(relation => relationToEdges(relation, getEndHas('object', relation.informationObjectId), relation.informationObjectId)),
+                .map(relation => relationToEdge(relation, relation.informationObjectId)),
             ...getFieldEndpointEdges(informationFieldId, containingObjectIds)
         ];
     }
@@ -322,25 +324,9 @@ export function useInformationChainService() {
         return [
             ...informationRelationStore.objectRelations
                 .filter(relation => relation.informationObjectId === informationObjectId)
-                .flatMap(relation => relationToEdges(relation, getEndHas('object', informationObjectId))),
+                .map(relation => relationToEdge(relation)),
             ...getObjectEndpointEdges(informationObjectId)
         ];
-    }
-
-    // Whether a script reads the information from one end or writes it to one end, a field also inside such an object
-    function getEndHas(kind: InformationKind, id: string): (end: ComponentEnd) => boolean {
-        if (kind === 'object') return end => end.informationObjectIds.includes(id);
-        return end => end.informationFieldIds.includes(id) ||
-            end.informationObjectIds.some(objectId =>
-                informationObjectStore.getInformationObject(objectId)?.informationFieldIds.includes(id)
-            );
-    }
-
-    // The apis a script reads the information through from one of these resources
-    function getReadApiIds(script: Component, resourceIds: string[], endHas: (end: ComponentEnd) => boolean) {
-        return [...new Set(script.inputs
-            .filter(end => resourceIds.includes(end.resourceId) && end.apiId && endHas(end))
-            .map(end => end.apiId!))];
     }
 
     // Tables are connected through their database
@@ -350,54 +336,42 @@ export function useInformationChainService() {
         return undefined;
     }
 
-    // The script the information goes through on its way from the source to the target of the relation, if any
-    function getRelationScripts(relation: ResourceRelation): Component[] {
-        const script = relation.scriptId ? componentStore.getComponent(relation.scriptId) : undefined;
-        return script ? [script] : [];
+    // The step of a script: inside its host
+    function getScriptStep(scriptId: string): ChainStep {
+        return { resourceId: componentStore.getComponent(scriptId)?.resourceId ?? scriptId, componentId: scriptId };
     }
 
-    // A relation that goes through a script gets the script as a step in between: source -> script -> target
-    function relationToEdges(relation: ResourceRelation, endHas: (end: ComponentEnd) => boolean, carriedByObjectId?: string): ChainEdge[] {
-        const edge = relationToEdge(relation, carriedByObjectId);
-        const scripts = getRelationScripts(relation);
-        if (!scripts.length) return [edge];
-
-        return scripts.flatMap(script => {
-            const scriptStep: ChainStep = { resourceId: script.resourceId, componentId: script.id };
-            const apiIds = getReadApiIds(script, [relation.sourceResourceId], endHas);
-            // A script reads into its host and writes from its host: there the script is the step of the host
-            if (script.resourceId === relation.targetResourceId) {
-                return [{ source: edge.source, target: scriptStep, carriedByObjectIds: edge.carriedByObjectIds, apiIds }];
-            }
-            if (script.resourceId === relation.sourceResourceId) {
-                return [{ source: scriptStep, target: edge.target, carriedByObjectIds: edge.carriedByObjectIds }];
-            }
-            return [
-                { source: edge.source, target: scriptStep, carriedByObjectIds: edge.carriedByObjectIds, apiIds },
-                { source: scriptStep, target: edge.target, carriedByObjectIds: edge.carriedByObjectIds }
-            ];
-        });
+    // The part a holder is: a script (or file) itself, otherwise the resource
+    function getHolderPartId(holder: ChainHolder) {
+        return holder.componentId ?? holder.resourceId;
     }
 
     // A relation inside one application goes from its input to its output.
-    // A relation between two resources goes from the output of the source to the input of the target.
+    // A relation between two resources goes from the output of the source to the input of the target. A script is
+    // a step of its own, inside its host. Through an api connection the link shows the api
     function relationToEdge(relation: ResourceRelation, carriedByObjectId?: string): ChainEdge {
         const isForwarded = relation.sourceResourceId === relation.targetResourceId;
 
-        const source: ChainStep = { resourceId: relation.sourceResourceId };
+        const source: ChainStep = relation.sourceResourceType === 'script'
+            ? getScriptStep(relation.sourceResourceId)
+            : { resourceId: relation.sourceResourceId };
         if (relation.sourceResourceType === 'application') {
             source.side = isForwarded ? 'input' : 'output';
         }
 
-        const target: ChainStep = { resourceId: relation.targetResourceId };
+        const target: ChainStep = relation.targetResourceType === 'script'
+            ? getScriptStep(relation.targetResourceId)
+            : { resourceId: relation.targetResourceId };
         if (relation.targetResourceType === 'application') {
             target.side = isForwarded ? 'output' : 'input';
         }
 
+        const connection = connectionStore.getConnection(relation.connectionId);
         return {
             source,
             target,
-            carriedByObjectIds: carriedByObjectId ? [carriedByObjectId] : []
+            carriedByObjectIds: carriedByObjectId ? [carriedByObjectId] : [],
+            apiIds: connection?.kind === 'api' ? [connection.apiId] : []
         };
     }
 
@@ -666,11 +640,14 @@ export function useInformationChainService() {
         return holders;
     }
 
-    // Whether the resource has the information to send on: anything but taking it in or using it in an endpoint.
-    // A database has what its tables have
-    function resourceProvides(holders: ChainHolder[], resourceId: string) {
+    // Whether the part has the information to send on: anything but taking it in or using it in an endpoint.
+    // A database has what its tables have, a resource what its scripts produce; a script only what it produces itself
+    function partProvides(holders: ChainHolder[], partId: string) {
+        const isScript = componentStore.getComponent(partId)?.kind === 'script';
         return holders.some(holder =>
-            (holder.resourceId === resourceId || getDatabaseId(holder.resourceId) === resourceId) &&
+            (isScript
+                ? holder.componentId === partId
+                : holder.resourceId === partId || getDatabaseId(holder.resourceId) === partId) &&
             holder.role !== 'input' && holder.role !== 'endpoint'
         );
     }
@@ -678,13 +655,12 @@ export function useInformationChainService() {
     // ---- External elements ----
 
     // External elements are only linked by relations when information is sent to them through a connection.
-    // What an external element provides reaches the resources it is connected to without a relation: an edge is
-    // added from the external element to every connected resource that takes the information in (an application
-    // input, a table, a script reading it from the external element). A script that writes the information to an external element sends it there.
-    function getExternalEdges(holders: ChainHolder[], relations: ResourceRelation[], endHas: (end: ComponentEnd) => boolean): ChainEdge[] {
+    // What an external element provides reaches the parts it is connected to without a relation: an edge is added
+    // from the external element to every connected part that takes the information in (an application or script
+    // input, a table)
+    function getExternalEdges(holders: ChainHolder[], relations: ResourceRelation[]): ChainEdge[] {
         const edges: ChainEdge[] = [];
         const providers = holders.filter(holder => holder.role === 'provided');
-        const isExternal = (resourceId: string) => resourceService.getResource(resourceId)?.type === 'external';
 
         // The objects that carry a field from the external element to the receiver; none when both have the field itself
         const carriedBy = (provider: ChainHolder, receiver: ChainHolder) =>
@@ -692,100 +668,28 @@ export function useInformationChainService() {
 
         for (const receiver of holders) {
             if (receiver.endpointId) continue;
-
-            if (receiver.componentId) {
-                if (receiver.role !== 'input') continue;
-                const script = componentStore.getComponent(receiver.componentId);
-                for (const provider of providers) {
-                    if (!script?.inputs.some(end => end.resourceId === provider.resourceId && endHas(end))) continue;
-                    edges.push({
-                        source: { resourceId: provider.resourceId },
-                        target: { resourceId: receiver.resourceId, componentId: receiver.componentId },
-                        carriedByObjectIds: carriedBy(provider, receiver),
-                        apiIds: getReadApiIds(script, [provider.resourceId], endHas)
-                    });
-                }
-                continue;
-            }
-
             if (receiver.role !== 'input' && receiver.role !== 'column') continue;
-            const databaseId = getDatabaseId(receiver.resourceId);
+
+            const partId = getHolderPartId(receiver);
+            const databaseId = getDatabaseId(partId);
             const upstreamIds = new Set([
-                ...resourceService.getUpstreamResourceIds(receiver.resourceId),
+                ...resourceService.getUpstreamResourceIds(partId),
                 ...(databaseId ? resourceService.getUpstreamResourceIds(databaseId) : [])
             ]);
             for (const provider of providers) {
                 if (!upstreamIds.has(provider.resourceId)) continue;
                 // A relation from the external element already shows how the information gets there
                 if (relations.some(relation =>
-                    relation.sourceResourceId === provider.resourceId && relation.targetResourceId === receiver.resourceId
+                    relation.sourceResourceId === provider.resourceId && relation.targetResourceId === partId
                 )) continue;
                 edges.push({
                     source: { resourceId: provider.resourceId },
-                    target: receiver.role === 'input' ? { resourceId: receiver.resourceId, side: 'input' } : { resourceId: receiver.resourceId },
+                    target: holderToStep(receiver),
                     carriedByObjectIds: carriedBy(provider, receiver)
                 });
             }
         }
 
-        for (const holder of holders) {
-            if (!holder.componentId || holder.role !== 'output') continue;
-            const script = componentStore.getComponent(holder.componentId);
-            for (const end of script?.outputs ?? []) {
-                if (!isExternal(end.resourceId) || !endHas(end)) continue;
-                // A relation through the script already shows how the information gets there
-                if (relations.some(relation =>
-                    relation.scriptId === holder.componentId &&
-                    relation.targetResourceId === end.resourceId
-                )) continue;
-                edges.push({
-                    source: { resourceId: holder.resourceId, componentId: holder.componentId },
-                    target: { resourceId: end.resourceId },
-                    carriedByObjectIds: holder.direct ? [] : holder.objectIds
-                });
-            }
-        }
-
-        return edges;
-    }
-
-    // ---- Scripts ----
-
-    // Relations only go between resources, so what a script reads and writes is not in them. A relation through a
-    // script only exists when the script reads the information from one resource and writes it to another.
-    // The reads and writes of the script itself are added as edges: what it reads the information from -> script,
-    // and script -> what it writes it to. External elements are left to getExternalEdges.
-    function getScriptEdges(holders: ChainHolder[], endHas: (end: ComponentEnd) => boolean): ChainEdge[] {
-        const edges: ChainEdge[] = [];
-
-        // A file, or a resource that holds the information itself (not a database: its tables hold the information)
-        function toStep(end: ComponentEnd, side: 'input' | 'output'): ChainStep | undefined {
-            if (end.componentId) {
-                return holders.some(holder => holder.componentId === end.componentId)
-                    ? { resourceId: end.resourceId, componentId: end.componentId }
-                    : undefined;
-            }
-            const resource = resourceService.getResource(end.resourceId);
-            if (!resource || resource.type === 'external') return undefined;
-            if (!holders.some(holder => holder.resourceId === end.resourceId && !holder.componentId && !holder.endpointId)) return undefined;
-            return resource.type === 'application' ? { resourceId: end.resourceId, side } : { resourceId: end.resourceId };
-        }
-
-        const scriptIds = new Set(holders.filter(holder => holder.componentId).map(holder => holder.componentId!));
-        for (const scriptId of scriptIds) {
-            const script = componentStore.getComponent(scriptId);
-            if (script?.kind !== 'script') continue;
-            const scriptStep: ChainStep = { resourceId: script.resourceId, componentId: script.id };
-
-            for (const end of script.inputs.filter(endHas)) {
-                const source = toStep(end, 'output');
-                if (source) edges.push({ source, target: scriptStep, carriedByObjectIds: [], apiIds: end.apiId ? [end.apiId] : [] });
-            }
-            for (const end of script.outputs.filter(endHas)) {
-                const target = toStep(end, 'input');
-                if (target) edges.push({ source: scriptStep, target, carriedByObjectIds: [] });
-            }
-        }
         return edges;
     }
 
@@ -807,8 +711,7 @@ export function useInformationChainService() {
         containingObjectIds: string[],
         relations: ResourceRelation[],
         externalEdges: ChainEdge[],
-        holders: ChainHolder[],
-        endHas: (end: ComponentEnd) => boolean
+        holders: ChainHolder[]
     ): ChainBreak[] {
         const breaks: ChainBreak[] = [];
         const noun = kind === 'field' ? 'field' : 'object';
@@ -824,39 +727,20 @@ export function useInformationChainService() {
             breaks.push({ kind: 'sourceNotHeld', severity: 'error', message: `The source, ${source.name}, does not have this ${noun}` });
         }
 
-        // An application that takes the information in, but nothing sends it there: no relation,
-        // and no connected external element that provides it
+        // An application or script that takes the information in, but nothing sends it there: no relation, and no
+        // connected external element that provides it
         for (const holder of holders) {
-            if (holder.role !== 'input' || holder.componentId || holder.resourceId === sourceId) continue;
+            if (holder.role !== 'input' || holder.resourceId === sourceId && !holder.componentId) continue;
+            const partId = getHolderPartId(holder);
+            const step = holderToStep(holder);
             const receives = relations.some(relation =>
-                relation.targetResourceId === holder.resourceId && relation.sourceResourceId !== holder.resourceId
-            ) || externalEdges.some(edge => edge.target.resourceId === holder.resourceId && !edge.target.componentId);
+                relation.targetResourceId === partId && relation.sourceResourceId !== partId
+            ) || externalEdges.some(edge => stepKey(edge.target) === stepKey(step));
             if (!receives) {
-                const step: ChainStep = { resourceId: holder.resourceId, side: 'input' };
                 breaks.push({
                     kind: 'unknownOrigin',
                     severity: 'warning',
                     message: `${getStepLabel(step)} takes this ${noun} in, but nothing sends it there`,
-                    stepKey: stepKey(step)
-                });
-            }
-        }
-
-        // A script that takes the information in, but does not read it from anything that has it
-        for (const holder of holders) {
-            if (holder.role !== 'input' || !holder.componentId) continue;
-            const script = componentStore.getComponent(holder.componentId);
-            if (!script) continue;
-            const fed = script.inputs.some(end => endHas(end) && (end.componentId
-                ? holders.some(other => other.componentId === end.componentId && other.role !== 'input')
-                : resourceProvides(holders, end.resourceId)
-            ));
-            if (!fed) {
-                const step: ChainStep = { resourceId: holder.resourceId, componentId: holder.componentId };
-                breaks.push({
-                    kind: 'unknownOrigin',
-                    severity: 'warning',
-                    message: `${getStepLabel(step)} takes this ${noun} in, but does not read it from anything that has it`,
                     stepKey: stepKey(step)
                 });
             }
@@ -869,7 +753,7 @@ export function useInformationChainService() {
             const isForwarded = relation.sourceResourceId === relation.targetResourceId;
             const has = isForwarded
                 ? holders.some(holder => holder.resourceId === relation.sourceResourceId && !holder.componentId && holder.role === 'input')
-                : resourceProvides(holders, relation.sourceResourceId);
+                : partProvides(holders, relation.sourceResourceId);
             if (has) continue;
 
             const step = relationToEdge(relation).source;
