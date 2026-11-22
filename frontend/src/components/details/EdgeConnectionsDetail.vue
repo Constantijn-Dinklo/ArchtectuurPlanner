@@ -43,17 +43,45 @@
     }));
 
     // <-- What goes through a connection: the relations that name it -->
-    // Only the relations drawn on this edge: a connection to a file location is drawn to each file it writes
-    function getPassedAlong(connectionId: string) {
+    type RelationRef = { kind: 'field' | 'object', id: string };
+
+    // One piece of information on the edge, with its relations (the same field can go to two files of one location)
+    interface PassedAlong {
+        key: string;
+        kind: 'field' | 'object';
+        label: string;
+        relations: RelationRef[];
+    }
+
+    // Only the relations drawn on this edge: a connection to a file location is drawn to each file it writes. Objects
+    // first
+    function getPassedAlong(connectionId: string): PassedAlong[] {
         const isOnEdge = (relation: ResourceRelation) => relation.connectionId === connectionId &&
             getVisibleEndId(relation.sourceResourceId) === props.sourceId && getVisibleEndId(relation.targetResourceId) === props.targetId;
-        const objectNames = informationRelationStore.objectRelations
-            .filter(isOnEdge)
-            .map(relation => informationObjectStore.getInformationObject(relation.informationObjectId)?.objectName ?? 'Unknown object');
-        const fieldNames = informationRelationStore.fieldRelations
-            .filter(isOnEdge)
-            .map(relation => informationFieldStore.getInformationField(relation.informationFieldId)?.fieldName ?? 'Unknown field');
-        return { objectNames: [...new Set(objectNames)], fieldNames: [...new Set(fieldNames)] };
+        const items = new Map<string, PassedAlong>();
+        const add = (kind: 'field' | 'object', informationId: string, label: string, relationId: string) => {
+            const key = `${kind}:${informationId}`;
+            const item = items.get(key) ?? { key, kind, label, relations: [] };
+            item.relations.push({ kind, id: relationId });
+            items.set(key, item);
+        };
+        informationRelationStore.objectRelations.filter(isOnEdge).forEach(relation => add('object', relation.informationObjectId,
+            informationObjectStore.getInformationObject(relation.informationObjectId)?.objectName ?? 'Unknown object', relation.id));
+        informationRelationStore.fieldRelations.filter(isOnEdge).forEach(relation => add('field', relation.informationFieldId,
+            informationFieldStore.getInformationField(relation.informationFieldId)?.fieldName ?? 'Unknown field', relation.id));
+        return [...items.values()];
+    }
+
+    // Whether this edge is the connection itself: drawn at the connection's own ends (or where those are drawn, e.g. a
+    // script at its host). Otherwise the edge carries part of it, its relations: e.g. an edge to a file, while the
+    // connection goes to the file location
+    function isConnectionEdge(connection: Connection) {
+        return getVisibleEndId(connection.source.id) === props.sourceId && getVisibleEndId(connection.target.id) === props.targetId;
+    }
+
+    // Removing one piece of information: its relations on this edge. The connection stays
+    function removePassedAlong(item: PassedAlong) {
+        informationRelationStore.removeRelations(item.relations);
     }
 
     // <-- How it gets there: the kind. An api connection goes through one api of its source -->
@@ -87,22 +115,24 @@
         if (description !== connection.description) connectionStore.updateConnection(connection.id, { description });
     }
 
-    // Removing a connection asks for a second click: everything that goes through it is removed as well
+    // Removing asks for a second click. An edge that is the connection removes the connection, with everything that
+    // goes through it. An edge that carries part of it removes only what goes along it: the connection stays
     const confirmingRemove = ref<string>();
 
-    function onRemoveClick(connection: Connection) {
-        if (confirmingRemove.value !== connection.id) {
-            confirmingRemove.value = connection.id;
+    function onRemoveClick(connection: Connection, what: 'edge' | 'connection') {
+        const key = `${what}:${connection.id}`;
+        if (confirmingRemove.value !== key) {
+            confirmingRemove.value = key;
             return;
         }
         confirmingRemove.value = undefined;
-        connectionStore.deleteConnection(connection.id);
+        if (what === 'edge') informationRelationStore.removeRelations(getPassedAlong(connection.id).flatMap(item => item.relations));
+        else connectionStore.deleteConnection(connection.id);
     }
 
     // Whether any information is known to go through it
     function hasInformation(card: EdgeCard) {
-        const passedAlong = getPassedAlong(card.connection.id);
-        return passedAlong.objectNames.length + passedAlong.fieldNames.length > 0;
+        return getPassedAlong(card.connection.id).length > 0;
     }
 
     // Every card starts collapsed
@@ -217,23 +247,25 @@
                     <!-- What goes through it: the relations that name this connection -->
                     <div class="passed-along">
                         <span
-                            v-for="objectName in getPassedAlong(card.connection.id).objectNames"
-                            :key="`object:${objectName}`"
-                            class="passed-chip object"
-                        >
-                            ▱ {{ objectName }}
-                        </span>
-                        <span
-                            v-for="fieldName in getPassedAlong(card.connection.id).fieldNames"
-                            :key="`field:${fieldName}`"
+                            v-for="item in getPassedAlong(card.connection.id)"
+                            :key="item.key"
                             class="passed-chip"
+                            :class="item.kind"
                         >
-                            {{ fieldName }}
+                            {{ item.kind === 'object' ? `▱ ${item.label}` : item.label }}
+                            <button
+                                type="button"
+                                class="passed-chip-remove"
+                                title="Remove: this no longer goes through the connection"
+                                @click="removePassedAlong(item)"
+                            >
+                                ×
+                            </button>
                         </span>
                         <span v-if="!hasInformation(card)" class="detail-empty">Nothing goes through it yet</span>
                     </div>
                     <div class="passed-along-hint">
-                        What the receiving part takes in through this connection. Change it under Receives from or Sends to of the application, or Reads from or Writes to of the script.
+                        What the receiving part takes in through this connection. Remove it here, or change it under Receives from or Sends to of the application, or Reads from or Writes to of the script.
                     </div>
 
                     <!-- What an api sends belongs to the api, so it is the same for every connection through it -->
@@ -250,14 +282,28 @@
                         />
                     </template>
 
+                    <!-- This arrow is the connection: remove the connection -->
                     <button
+                        v-if="isConnectionEdge(card.connection)"
                         type="button"
                         class="remove-connection-button"
-                        :class="{ confirming: confirmingRemove === card.connection.id }"
-                        @click="onRemoveClick(card.connection)"
+                        :class="{ confirming: confirmingRemove === `connection:${card.connection.id}` }"
+                        @click="onRemoveClick(card.connection, 'connection')"
                     >
                         <i class="pi pi-trash" />
-                        {{ confirmingRemove === card.connection.id ? 'Click again: also removes what goes through it' : 'Remove connection' }}
+                        {{ confirmingRemove === `connection:${card.connection.id}` ? 'Click again: also removes what goes through it' : 'Remove connection' }}
+                    </button>
+                    <!-- This arrow carries part of the connection (e.g. to one file of the file location): remove only
+                         what goes along it -->
+                    <button
+                        v-else
+                        type="button"
+                        class="remove-connection-button"
+                        :class="{ confirming: confirmingRemove === `edge:${card.connection.id}` }"
+                        @click="onRemoveClick(card.connection, 'edge')"
+                    >
+                        <i class="pi pi-times" />
+                        {{ confirmingRemove === `edge:${card.connection.id}` ? 'Click again: the connection stays' : 'Remove what goes along this arrow' }}
                     </button>
                 </template>
 
@@ -407,6 +453,27 @@
 
     background: #ffffff;
     font-size: 11px;
+}
+
+.passed-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.passed-chip-remove {
+    padding: 0;
+    border: none;
+    background: none;
+
+    color: #94a3b8;
+    font: inherit;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.passed-chip-remove:hover {
+    color: #b91c1c;
 }
 
 .passed-chip.object {
