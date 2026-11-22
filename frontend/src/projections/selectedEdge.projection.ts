@@ -16,7 +16,7 @@ export function useSelectedEdgeProjection() {
     const connectionStore = useConnectionStore();
     const resourceService = useResourceService();
     const componentStore = useComponentStore();
-    const { getDrawnEnds } = useCanvasEndService();
+    const { getConnectionPieces } = useCanvasEndService();
     const informationTransferService = useInformationTransferService();
 
     function isEdgeSelected() {
@@ -52,7 +52,7 @@ export function useSelectedEdgeProjection() {
     // components are hidden, a table at its database, a file while it is shown)
     function getSelectedEdgeConnections(inputEntityId: string, outputEntityId: string) {
         return connectionStore.connections.filter((connection) =>
-            getDrawnEnds(connection).some(([sourceId, targetId]) => sourceId === inputEntityId && targetId === outputEntityId)
+            getConnectionPieces(connection).some((piece) => piece.sourceId === inputEntityId && piece.targetId === outputEntityId)
         );
     }
 

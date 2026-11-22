@@ -3,49 +3,68 @@
     import { vCollapsible } from '../../directives/collapsible';
     import { useApiStore } from '../../stores/api.store';
     import { useConnectionStore } from '../../stores/connection.store';
-    import { useInformationRelationStore, type ResourceRelation } from '../../stores/information/informationRelation.store';
-    import { useCanvasEndService } from '../../services/canvasEnd.service';
+    import { useInformationRelationStore } from '../../stores/information/informationRelation.store';
+    import { useCanvasEndService, type ConnectionPiece } from '../../services/canvasEnd.service';
+    import { usePartService } from '../../services/part.service';
     import { useInformationFieldStore } from '../../stores/information/informationField.store';
     import { useInformationObjectStore } from '../../stores/information/informationObject.store';
     import { CONNECTION_KINDS, getConnectionKindInfo, type Connection, type ConnectionKind } from '../../types/connection.types';
     import CarriedInformationEditor from './CarriedInformationEditor.vue';
 
-    // The connections of one edge. All of them go from the same source to the same target, so every connection is a
-    // card that can be opened: how the information gets there (its kind), and what goes through it
+    // The connections of one edge, as cards. A connection is shown per piece: writing to two files of a file location
+    // is two cards, one per file, though it is one connection. A card can be opened: how the information gets there
+    // (its kind), and what goes through it
     const props = defineProps<{
         sourceId: string;
         targetId: string;
         connectionIds: string[];
     }>();
 
-    // A card: a connection
+    // A card: one piece of a connection
     interface EdgeCard {
         key: string;
         icon: string;
         label: string;
         detail?: string;
         connection: Connection;
+        piece: ConnectionPiece;
     }
 
     const apiStore = useApiStore();
     const connectionStore = useConnectionStore();
     const informationRelationStore = useInformationRelationStore();
-    const { getVisibleEndId } = useCanvasEndService();
+    const { getConnectionPieces } = useCanvasEndService();
+    const partService = usePartService();
     const informationFieldStore = useInformationFieldStore();
     const informationObjectStore = useInformationObjectStore();
+
+    // The name of the part of a piece, e.g. the file it writes to
+    function getPartName(piece: ConnectionPiece) {
+        return piece.partId ? partService.getPart(piece.partId)?.name ?? 'Unknown' : undefined;
+    }
 
     const cards = computed<EdgeCard[]>(() => props.connectionIds.flatMap((id): EdgeCard[] => {
         const connection = connectionStore.getConnection(id);
         if (!connection) return [];
         const kind = getConnectionKindInfo(connection.kind);
-        const detail = connection.kind === 'api' ? apiStore.getApi(connection.apiId)?.url : connection.description;
-        return [{ key: `connection:${id}`, icon: kind.icon, label: kind.label, detail: detail || undefined, connection }];
+        const way = connection.kind === 'api' ? apiStore.getApi(connection.apiId)?.url : connection.description;
+        return getConnectionPieces(connection)
+            .filter(piece => piece.sourceId === props.sourceId && piece.targetId === props.targetId)
+            .sort((a, b) => (getPartName(a) ?? '').localeCompare(getPartName(b) ?? ''))
+            .map(piece => ({
+                key: `${id}:${piece.partId ?? ''}`,
+                icon: kind.icon,
+                label: kind.label,
+                detail: [getPartName(piece), way].filter(Boolean).join(' · ') || undefined,
+                connection,
+                piece
+            }));
     }));
 
-    // <-- What goes through a connection: the relations that name it -->
+    // <-- What goes through a piece: its relations -->
     type RelationRef = { kind: 'field' | 'object', id: string };
 
-    // One piece of information on the edge, with its relations (the same field can go to two files of one location)
+    // One piece of information, with its relations
     interface PassedAlong {
         key: string;
         kind: 'field' | 'object';
@@ -53,11 +72,8 @@
         relations: RelationRef[];
     }
 
-    // Only the relations drawn on this edge: a connection to a file location is drawn to each file it writes. Objects
-    // first
-    function getPassedAlong(connectionId: string): PassedAlong[] {
-        const isOnEdge = (relation: ResourceRelation) => relation.connectionId === connectionId &&
-            getVisibleEndId(relation.sourceResourceId) === props.sourceId && getVisibleEndId(relation.targetResourceId) === props.targetId;
+    // Objects first
+    function getPassedAlong(card: EdgeCard): PassedAlong[] {
         const items = new Map<string, PassedAlong>();
         const add = (kind: 'field' | 'object', informationId: string, label: string, relationId: string) => {
             const key = `${kind}:${informationId}`;
@@ -65,23 +81,33 @@
             item.relations.push({ kind, id: relationId });
             items.set(key, item);
         };
-        informationRelationStore.objectRelations.filter(isOnEdge).forEach(relation => add('object', relation.informationObjectId,
-            informationObjectStore.getInformationObject(relation.informationObjectId)?.objectName ?? 'Unknown object', relation.id));
-        informationRelationStore.fieldRelations.filter(isOnEdge).forEach(relation => add('field', relation.informationFieldId,
-            informationFieldStore.getInformationField(relation.informationFieldId)?.fieldName ?? 'Unknown field', relation.id));
+        for (const relation of card.piece.relations) {
+            if ('informationObjectId' in relation) {
+                add('object', relation.informationObjectId,
+                    informationObjectStore.getInformationObject(relation.informationObjectId)?.objectName ?? 'Unknown object', relation.id);
+            }
+        }
+        for (const relation of card.piece.relations) {
+            if ('informationFieldId' in relation) {
+                add('field', relation.informationFieldId,
+                    informationFieldStore.getInformationField(relation.informationFieldId)?.fieldName ?? 'Unknown field', relation.id);
+            }
+        }
         return [...items.values()];
     }
 
-    // Whether this edge is the connection itself: drawn at the connection's own ends (or where those are drawn, e.g. a
-    // script at its host). Otherwise the edge carries part of it, its relations: e.g. an edge to a file, while the
-    // connection goes to the file location
-    function isConnectionEdge(connection: Connection) {
-        return getVisibleEndId(connection.source.id) === props.sourceId && getVisibleEndId(connection.target.id) === props.targetId;
-    }
-
-    // Removing one piece of information: its relations on this edge. The connection stays
+    // Removing one piece of information: its relations. The connection stays
     function removePassedAlong(item: PassedAlong) {
         informationRelationStore.removeRelations(item.relations);
+    }
+
+    // The other pieces of the same connection, e.g. the other files of the file location it writes to: how it goes and
+    // its description are shared with them
+    function getSharedWith(card: EdgeCard) {
+        return getConnectionPieces(card.connection)
+            .filter(piece => piece.partId !== card.piece.partId)
+            .map(piece => getPartName(piece))
+            .filter((name): name is string => !!name);
     }
 
     // <-- How it gets there: the kind. An api connection goes through one api of its source -->
@@ -115,24 +141,32 @@
         if (description !== connection.description) connectionStore.updateConnection(connection.id, { description });
     }
 
-    // Removing asks for a second click. An edge that is the connection removes the connection, with everything that
-    // goes through it. An edge that carries part of it removes only what goes along it: the connection stays
+    // Removing asks for a second click. A card of a part (e.g. a file) removes what goes to or from that part; the
+    // connection goes as well when nothing else goes through it. Any other card removes the connection, with everything
+    // that goes through it
     const confirmingRemove = ref<string>();
 
-    function onRemoveClick(connection: Connection, what: 'edge' | 'connection') {
-        const key = `${what}:${connection.id}`;
-        if (confirmingRemove.value !== key) {
-            confirmingRemove.value = key;
+    async function onRemoveClick(card: EdgeCard) {
+        if (confirmingRemove.value !== card.key) {
+            confirmingRemove.value = card.key;
             return;
         }
         confirmingRemove.value = undefined;
-        if (what === 'edge') informationRelationStore.removeRelations(getPassedAlong(connection.id).flatMap(item => item.relations));
-        else connectionStore.deleteConnection(connection.id);
+        if (!card.piece.partId) {
+            await connectionStore.deleteConnection(card.connection.id);
+            return;
+        }
+        const isLast = getConnectionPieces(card.connection).length === 1;
+        if (isLast) {
+            await connectionStore.deleteConnection(card.connection.id);
+            return;
+        }
+        await informationRelationStore.removeRelations(getPassedAlong(card).flatMap(item => item.relations));
     }
 
     // Whether any information is known to go through it
     function hasInformation(card: EdgeCard) {
-        return getPassedAlong(card.connection.id).length > 0;
+        return card.piece.relations.length > 0;
     }
 
     // Every card starts collapsed
@@ -244,10 +278,15 @@
                         />
                     </label>
 
-                    <!-- What goes through it: the relations that name this connection -->
+                    <!-- How it goes and the description belong to the connection, so they are the same for its other parts -->
+                    <div v-if="getSharedWith(card).length" class="passed-along-hint">
+                        How and the description are shared with: {{ getSharedWith(card).join(', ') }}
+                    </div>
+
+                    <!-- What goes through it: its relations -->
                     <div class="passed-along">
                         <span
-                            v-for="item in getPassedAlong(card.connection.id)"
+                            v-for="item in getPassedAlong(card)"
                             :key="item.key"
                             class="passed-chip"
                             :class="item.kind"
@@ -282,28 +321,15 @@
                         />
                     </template>
 
-                    <!-- This arrow is the connection: remove the connection -->
                     <button
-                        v-if="isConnectionEdge(card.connection)"
                         type="button"
                         class="remove-connection-button"
-                        :class="{ confirming: confirmingRemove === `connection:${card.connection.id}` }"
-                        @click="onRemoveClick(card.connection, 'connection')"
+                        :class="{ confirming: confirmingRemove === card.key }"
+                        @click="onRemoveClick(card)"
                     >
                         <i class="pi pi-trash" />
-                        {{ confirmingRemove === `connection:${card.connection.id}` ? 'Click again: also removes what goes through it' : 'Remove connection' }}
-                    </button>
-                    <!-- This arrow carries part of the connection (e.g. to one file of the file location): remove only
-                         what goes along it -->
-                    <button
-                        v-else
-                        type="button"
-                        class="remove-connection-button"
-                        :class="{ confirming: confirmingRemove === `edge:${card.connection.id}` }"
-                        @click="onRemoveClick(card.connection, 'edge')"
-                    >
-                        <i class="pi pi-times" />
-                        {{ confirmingRemove === `edge:${card.connection.id}` ? 'Click again: the connection stays' : 'Remove what goes along this arrow' }}
+                        <template v-if="confirmingRemove === card.key">Click again: also removes what goes through it</template>
+                        <template v-else>{{ card.piece.partId ? `Remove the connection to ${getPartName(card.piece)}` : 'Remove connection' }}</template>
                     </button>
                 </template>
 

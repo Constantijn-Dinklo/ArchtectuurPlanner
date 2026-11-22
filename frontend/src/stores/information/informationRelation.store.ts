@@ -18,7 +18,6 @@ export interface ResourceRelation {
     targetResourceType: PartType;
 
     connectionId: string | null;
-    // Until scripts are connection ends themselves: the script the information goes through instead of a connection
 }
 
 export interface ResourceFieldRelation extends ResourceRelation {

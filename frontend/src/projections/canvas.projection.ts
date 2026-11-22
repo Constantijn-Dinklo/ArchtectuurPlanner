@@ -87,7 +87,7 @@ export function useCanvasProjection() {
 
     const apiStore = useApiStore();
     const connectionStore = useConnectionStore();
-    const { getDrawnEnds } = useCanvasEndService();
+    const { getConnectionPieces } = useCanvasEndService();
     const partService = usePartService();
 
     const entityIdToNodeMap = computed(() => {
@@ -159,13 +159,14 @@ export function useCanvasProjection() {
 
         // Every connection is an edge in the direction the information flows. All connections between the same two
         // shown ends share one edge. An end is drawn at the closest level that is visible: a script or file at its
-        // resource while components are hidden, a table always at its database. A connection to a file location is
-        // drawn to each file its relations end at
+        // resource while components are hidden, a table always at its database. A connection is shown per piece: writing
+        // to two files of a file location is drawn to each file, and counts as two on the edge of the file location
         for(const connection of connectionStore.connections){
-            for(const [sourceId, targetId] of getDrawnEnds(connection)){
-                const edge = getOrCreateEdge(sourceId, targetId);
-                edge?.data.connectionIds.push(connection.id);
-                edge?.data.connectionKinds.push(connection.kind);
+            for(const piece of getConnectionPieces(connection)){
+                const edge = getOrCreateEdge(piece.sourceId, piece.targetId);
+                if(!edge) continue;
+                if(!edge.data.connectionIds.includes(connection.id)) edge.data.connectionIds.push(connection.id);
+                edge.data.connectionKinds.push(connection.kind);
             }
         }
 
