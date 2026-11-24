@@ -4,8 +4,8 @@ import { useInformationObjectStore } from "../stores/information/informationObje
 import { useInformationFieldStore } from "../stores/information/informationField.store";
 import { useApiStore } from "../stores/api.store";
 import { useConnectionStore } from "../stores/connection.store";
-import { useResourceService } from "./resources/resource.service";
-import { useInformationSourceService } from "./informationSource.service";
+import { usePartService } from "./part.service";
+import { useCanvasEndService } from "./canvasEnd.service";
 
 // A problem with the information transfer between two resources, with what to do about it
 export interface ConnectionWarning {
@@ -25,8 +25,8 @@ export function useInformationTransferService() {
     const informationFieldStore = useInformationFieldStore();
     const apiStore = useApiStore();
     const connectionStore = useConnectionStore();
-    const resourceService = useResourceService();
-    const informationSourceService = useInformationSourceService();
+    const partService = usePartService();
+    const { getVisibleEndId } = useCanvasEndService();
 
     // Whether the api of the relation's connection sends the information; true when it does not go through an api
     function isSentByApi(relation: ResourceRelation, information: { informationFieldId: string } | { informationObjectId: string }) {
@@ -75,15 +75,17 @@ export function useInformationTransferService() {
         ];
     }
 
-    // All warnings for what goes from the source to the target, used by the canvas edge and the connection details.
-    // A table counts for its database
+    // All warnings for what goes along one arrow, from the source to the target, used by the canvas edge and the
+    // connection details
     function getConnectionWarnings(sourceId: string, targetId: string): ConnectionWarning[] {
         const warnings: ConnectionWarning[] = [];
-        const sourceName = resourceService.getResource(sourceId)?.name ?? 'the source';
+        const sourceName = partService.getPart(sourceId)?.name ?? 'the source';
 
+        // The relations drawn on this arrow: their ends are drawn at its ends, by the same rule as the arrow itself
+        // (a script at its application while scripts are hidden, a file at its file location while files are hidden)
         const isBetween = (relation: ResourceRelation) =>
-            informationSourceService.getHolderIds(relation.sourceResourceId).includes(sourceId) &&
-            informationSourceService.getHolderIds(relation.targetResourceId).includes(targetId);
+            getVisibleEndId(relation.sourceResourceId) === sourceId &&
+            getVisibleEndId(relation.targetResourceId) === targetId;
 
         const unsentNames = getNames(unsentFieldRelations.value.filter(isBetween), unsentObjectRelations.value.filter(isBetween));
         if (unsentNames.length) {
