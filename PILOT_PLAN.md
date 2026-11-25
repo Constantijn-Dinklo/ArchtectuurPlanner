@@ -2,101 +2,78 @@
 
 Goal: test ArchitectuurPlanner in a real environment with a small pilot: one organisation, a handful of people, and the real architecture of one domain.
 
-Written on 2026-11-01. Work through the steps in order and tick items off as they are done. Marked *(unchecked)* means the point is a judgement or was not confirmed in the code, so check it first.
+Work through the steps in order and tick items off as they are done. Marked *(unchecked)* means the point is a judgement or was not confirmed in the code, so check it first. What was done before 2026-11-25 (permissions and roles, the connections and relations redesign, scripts, files and tables as ends) is in the git history.
 
-The model: three layers
+## The model
 
-Layer	      What it is	  Examples
-Parts       Everything in the landscape, each inside a parent	
-                          Server → application → script. Database → table. File location → file
-Connection	A directed link between two parts: how things can get from A to B	
-                          Webshop → CRM through API /orders. Database → Webshop, database kind. Webshop → Finance, manual kind
-Relation	  One field or object moving from part A to part B, always through one connection	              customerId: table Customers → Webshop, through that database connection
+Three things make up the landscape:
 
-## Step 1: Permissions and safe updates (done)
+- **Resources**: everything in the landscape, each inside a parent: servers, applications, databases, file locations, external elements, scripts, files, tables, and later endpoints. Some resources **hold information** (fields and objects), some **hold other resources**, and some both
+- **Connections**: a directed link from one resource to another, saying *how* information can get there: through an API, a database connection, a file, by hand, or `unknown`
+- **Relations**: one information field or object going from one resource that holds information to another, always through one connection
 
-- [x] Replace `$set: req.body` with a list of allowed fields, using `pickFields` in `backend/src/routes/pickFields.ts`. A request could overwrite any field, including `environmentId`. Routes:
-  - [x] `backend/src/routes/apiConnectionRoutes.ts`
-  - [x] `backend/src/routes/apiRoutes.ts`
-  - [x] `backend/src/routes/canvas/viewRoutes.ts`
-  - [x] `backend/src/routes/databaseConnectionRoutes.ts` (also checks that operations are `read` or `write`)
-  - [x] `backend/src/routes/resources/databaseRoutes.ts`
-  - [x] `backend/src/routes/resources/serverRoutes.ts`
-  - [x] `backend/src/routes/resources/tableRoutes.ts`
-  - [x] `backend/src/routes/scriptRoutes.ts`
-- [x] User management and roles, as one piece of work. Admin, editor and viewer are stored per environment (`environmentMember.model.ts`), and can be managed in the management area (`ManagementView.vue`)
-  - [x] Show an overview of the users of the organisation and their role per environment (`GET /org/users`, `ManagementView.vue`)
-  - [x] Add an organisation role (`admin` or `member`) on `User`. An organisation admin is admin in every environment of the organisation, and the last admin cannot become a member. Existing users became admin through a one-time migration, removed since
-  - [x] Let an organisation admin change the organisation role of a user (`PATCH /org/users/:id/role`, checked by `requireOrganisationAdmin`)
-  - [x] Let an organisation admin change the role of a member in an environment (`PATCH /org/users/:id/environments/:environmentId/role`)
-  - [x] Let an organisation admin remove a user: the user becomes inactive (`status` on `User`), cannot log in, and can be brought back. Deleting an inactive user marks it `deleted`, which hides it for everyone. Nobody can remove itself, and the last active admin cannot be removed
-  - [x] Enforce the roles in the backend: `requireEnvironment` refuses every request except GET for viewers, and viewers cannot add or remove environment members (`getEnvironmentRole` in `middelware.ts`)
-- [x] Add login rate limiting and security headers: 10 failed logins per 15 minutes per IP address (`backend/src/config/rateLimit.ts`), and `helmet` for the headers of the backend
-- [x] Decide how people get an account: only an organisation admin can add a user, from the management area. `/auth/signup` requires an organisation admin and adds the user as a member of the admin's organisation. The public signup form is gone
-- [x] Remove the login token from the signup response: signup no longer logs anyone in, so it returns no token and sets no cookie
-- [x] Decide how long a login should last: the cookie and the token both last 4 hours, and are renewed while the user is active, at most once per 15 minutes (`backend/src/config/session.ts`). A login ends after 4 hours without any request
+All rules about what a resource can do come from **one type table** (`RESOURCE_TYPES`), not from checks per type in the code.
 
-## Step 2: Settle the model
+### The resource types
 
-### Connections and relations redesign
+| Type | Inside | Holds information | A connection to it ends at |
+|---|---|---|---|
+| Server | nothing | no | never: a server is never an end |
+| Application | a server | `input`, `output` | the application |
+| Script | an application or a file location | `input`, `output` | the script |
+| Database | a server | no | the database (for its tables) |
+| Table | a database | `contains` | its database from outside, the table from inside the database |
+| File location | a server | no | the file location (for its files) |
+| File | a file location | `contains` | its file location from outside, the file from inside the file location |
+| External element | nothing | `provides`, `receives` | the external element |
+| Endpoint (later) | an application | `receives` | no connection: it receives the `output` of its application |
 
-Today two resources are linked in three different ways (`ApiConnection`, `DatabaseConnection`, `OtherConnection`), scripts have their own reads and writes, and the information relations are stored separately with an optional `via`. Nothing makes these agree: information can move without a connection, and a connection can exist without anything going through it. Every feature that touches "a connection" has to handle all of the shapes.
+- **A script holds information itself**, like an application: it takes information in and puts it out. It is always its own end, wherever it is stored. Its application or file location is where it lives, never an end of its connections
+- **A database and a file location hold no information** themselves, but they are where you connect to their tables and files: once, with a connection string, path or login
+- **"Through the parent" only applies from outside the parent.** A script that reads a file in its own file location connects to that file, never to its file location. The same holds for a file reading another file next to it
 
-The new model has three layers:
+### The rules
 
-- **Parts**: everything in the landscape, each inside a parent. A server holds resources, a resource holds components (an application holds scripts, a database holds tables, a file location holds files)
-- **Connection**: a directed link from one part to another, saying *how* things can get there
-- **Relation**: one information field or object moving from one part to another, always through one connection
+- **Containment and connections are two separate graphs.** Being inside something says where a resource lives; connections say where information goes. Connections go between resources wherever they live: inside one file location, between applications on one server, or to a resource on another server, never through a server
+- **Every slot has a direction** (`SLOTS`): `input` and `receives` only receive, `output` and `provides` only send, `contains` does both (a table or file is written to and read from)
+- **A relation goes from a slot that sends to a slot that receives**, through a connection. Its ends are the ends of the connection, or a table or file inside one of them
+- **The one exception is data in the type table** (internal flows): information goes without a connection from `input` to `output` inside an application or script (`internalFlows`), and from the `output` of an application to its own endpoints (`flowFromParent`)
+- **Which resources can be connected** follows from the type table: the source has a slot that sends (or is the parent of one), the target a slot that receives (or is the parent of one). What a connection kind allows (a `database` connection goes to or from a database, `undecided` only between applications and external elements) is a separate table, `CONNECTION_KINDS`
+- **One connection per way and direction**: three APIs between two applications are three connections, and a database that is read and written has two
+- **Where information comes from** is an id on the field or object (`originId`, a resource)
+- **Drawing**: an end is drawn at the closest visible resource, found by walking up the parents (a script at its application while scripts are hidden). A connection is shown per table or file it reaches. A connection of which both ends fall in the same visible resource is counted on that resource instead of drawn as an arrow
 
-Decisions:
+### The type table
 
-- **One `Connection` model** for every pair of parts. Shared fields: `source`, `target`, `kind`, `description`. One collection, with a schema per kind for the fields only that kind has (Mongoose discriminators). For now only `api` has one: `apiId`, the API of the source
-- **Kinds** form one list: `api`, `database`, `file`, `manual`, `email`, `feature`, `unknown`, `undecided`, extendable (queue or event stream, scraping or RPA, ...). There is no separate "other" type with methods any more
-- **`unknown` is a real kind**: it says that something gets there but nobody knows how yet. Showing these gaps is one of the aims of the program, so it gets a clear warning, not an error
-- **One connection per way and direction**: two applications linked by three APIs have three connections, and an API and a manual download are two. A script that writes to a file location is a connection of its own, because the script is its end (phase 2)
-- **Direction instead of operations**: a database that is read and written gets two connections, database → application and application → database, so the rule "a relation goes the same way as its connection" has no exceptions. A file location works the same way
-- **`undecided`** says two applications or external elements are connected, but how is not chosen yet (a dashed line). Nothing can go through it until it is, and choosing fills in that same connection. Only these pairs can be undecided: with a database or file location the way is always known
-- **The backend stores, the frontend groups**: connections are sent as they are. The frontend shows them per resource (Receives from: "Webshop", with its connections as parts), and a read and a write of the same database as one row ("reads & writes") in the connections list. The canvas keeps two arrows: an arrow always leaves its source at the bottom and enters its target at the top
-- **Ends are an id plus a type**, for both connections and relations, for example `{ id, type: 'table' }`. A type can be a resource or a component (`script`, `file`, `table`). Levels above a resource (server, later team) are never stored: they follow from the parents
-- **Every relation has a required `connectionId`**. What a connection carries is the relations that point at it, so connections no longer keep their own list of carried information
-- **The rule**: a relation's end is the same part as its connection's end, or a part inside it. Example: the connection goes from a database to an application (an application has one connection to a database, not one per table), the relation goes from the table to the application, so it is always known which table the information came from
-- **Inside a resource** information can go from an input to an output: this stays a relation, with the same source and target and no connection. For now only in applications, later possibly in other resources too
-- **Scripts are parts, not resources**, but they can be connection and relation ends: CRM → script (api) → table, with the relations along the same route. This reverses the earlier decision (2026-10-30) to keep components out of the relations, without adding a field per level: there is still one end id
-- **Drawing**: an end is drawn at the closest level that is visible. When the level of detail hides scripts, the arrow CRM → script is drawn as CRM → host of the script, and a table's relations are drawn at its database when tables are hidden. Nothing extra is stored for this
-- **A later switch to a typed (relational) database** stays possible: the kinds are TypeScript types that differ by `kind`, the database is only reached through the connection service, and the model maps to one table with checks (or a table per kind with a foreign key)
+The type table stores per type:
 
-Phase 1, connections at the level of resources:
+- `slots`: which information it holds
+- `internalFlows`: which slot goes to which slot inside it without a connection
+- `children`: which types it can hold, stored on the parent (which parents a type can be in is worked out from it). Per child:
+  - `connectedThroughParent`: a connection from outside the parent ends at the parent (a table, a file)
+  - `flowFromParent`: which slot of the parent goes to which slot of the child without a connection (an endpoint receives the `output` of its application). Without it, the child connects like any other resource (a script in an application)
+- how it is drawn: a node, a row, a table card
 
-- [x] Add the `Connection` model (one collection, a schema per kind, ends as `{ id, type }`) and one connection service that is the only place that reads and writes connections: `models/connection.model.ts`, `types/connection.type.ts`, `services/connection.service.ts`, routes on `/connections`
-- [x] Give relations a required `connectionId` instead of `viaConnectionType` and `viaConnectionId`. Allow the one exception: a relation inside a resource (same source and target) has no connection. Every relation is made and checked in `createRelation` (`informationRelation.service.ts`). Until phase 2, a relation through a script has a `scriptId` instead
-- [x] ~~Migrate the old connections~~: not needed, the database was emptied. The old one-time migrations were removed as well, later also `organisationRoles`, so there are none left
-- [x] Move the backend over: the external element sync, the received information of external elements, removing resources, and the information usage. The external element sync now only adds relations (hand-made ones can no longer be told apart), and removes relations of information an external element no longer provides
-- [x] Move the frontend over: one connection table instead of three tabs, the canvas lines (counted per kind), the information source and information chain services, the via choice, and the 'Receives from' and 'Sends to' sections of an application, where picking a resource connects the two (`POST /connections/connect`)
-- [x] Remove the old models, routes and stores of the three connection types
-- [x] Undecided connections: picking an application or external element in Receives from / Sends to connects the two without a way (not shown as a part: "No connection types yet"). The API picker and the "other way" picker add ways: the first fills in the undecided connection, every next one is a connection of its own. Removing the last way keeps the two connected, like a database without tables
-- [x] Make the connected resources section (`ConnectedResourcesSection.vue`) generic, in three levels: a row per connected resource, a row per part (table, file, API or way), and the information of a part. The parent says what the parts of a resource are (`services/connectionParts.service.ts`), so a script's Reads from and an application's Receives from work the same
-- [x] Try phase 1 in the running app: connecting, changing the kind of a connection, receiving and sending, removing a connection with what goes through it, the warnings on the canvas, and the information chain
+## Step 1: One resource model (now)
 
-Phase 2, components as ends:
+- [ ] Merge resources and components into one `Resource` model: a `type`, a `parentId`, and a schema per type for its own fields (Mongoose discriminators, like `Connection`). Add the type table in the backend and the frontend, and move the backend models, routes and services and the frontend stores and services over. This removes the separate component model, `'table'` in `ResourceType`, the table store that shows tables as resources, `KINDS_CONNECTED_THROUGH_RESOURCE`, and `entityIds` on a server (its resources get it as `parentId`)
+- [ ] Add the `SLOTS` table, and check every relation against it, in `createRelation` in the backend and where the frontend offers ends. It replaces what the code now knows in several places (`addToReceiver`, "Reads from offers what a file contains")
+- [ ] Add the `CONNECTION_KINDS` table and check connections against it instead of per kind
+- [ ] Allow connections between resources inside the same parent (file → file, script → file in one file location): from inside, a table or file is connected directly
+- [ ] Draw every end at the closest visible resource by walking up the parents, for the arrows, their pieces per table or file, and their warnings. Count the connections inside one visible resource on that resource
+- [ ] Let information go from an input to an output inside a script, through `internalFlows`
+- [ ] Replace the `InformationSource` model by an `originId` on fields and objects
+- [ ] Make endpoints resources: type `endpoint` with a kind (dashboard, map, download, report). They are where an information chain ends, and receive the `output` of their application through `flowFromParent`
 
-- [x] Make tables components of their database (kind `table`), the way files are components of a file location. A table is always part of a database, holds only fields (its columns, in "contains"), and the separate table model, routes and the `table` level of detail are gone. No migration: the database was emptied. How each kind of component is drawn is set per kind (`COMPONENT_DISPLAYS` in `component.types.ts`): scripts and files are rows, a table is a card inside its database, and a table never has arrows of its own: they always go to its database. The frontend `table.store.ts` only shows the table components as tables
-- [x] Turn the reads and writes of scripts into connections and relations (source → script, script → target). A script stays a component of its host and keeps its own inputs and outputs, like an application; its Reads from / Writes to are the Receives from / Sends to section with other wording. Removed: the script relation sync (`scriptRelation.service.ts`), the ends a script kept itself, `scriptId` on relations, and the script-only code in the canvas, the edge details, the warnings and the information chain. The host counts as holding what its scripts take in and produce (worked out, not stored). A script writes to an application through "Other way" (for now `unknown`), not through an API of the target
-- [x] Let files be relation ends, so it is known which file information is in. A file works like a table: the connection goes to its file location, the relation ends at the file (one rule for both: `KINDS_CONNECTED_THROUGH_RESOURCE`, in the backend `component.model.ts` and the frontend `component.types.ts`). A file location is no longer a relation end itself, like a database: a file has to be chosen. What is written to a file is added to its Contains and stays there when the write is removed; reading from a file offers what it contains. The details of a file show what writes to it and reads from it. A connection end in the sections is now one part id (a table or file is its own end), without a separate `componentId`
-- [ ] Draw every end at the closest visible level on the canvas
-- [x] ~~Known gap: information an application or script receives from or sends to a file location is not shown~~: solved, files are relation ends
-- [x] ~~Known gap: a script writes to an application through an API of that application~~: solved, a script writes to an application through a connection like any other part
+Do this before the pilot, so no live data has to be migrated.
 
-Do both phases before the pilot, so no live data has to be migrated.
+## Step 2: Other model and permission items
 
-### Other model items
-
-- [x] Choose one kind of script: the old `script` model (the Scripts tab) is removed, so scripts only exist as components inside an application or file location. Relations that went via an old script keep their information but lose that route (`migrations/removeOldScripts.ts`)
-- [x] Show the API a script reads through in the information chain: the arrow into the script shows the url of the API (`InformationChainBranch.vue`)
-- [x] Show a yellow warning when it is not known how a script reads: the `unknown` connection kind gives the same warning for every part
 - [ ] Decide on the yellow warning for a connection without a table or file: writes only, or reads as well. It currently shows for both
 - [ ] Work out how information flow warns about information that lost where it comes from. Keeping the information is right, but it should get a warning:
   - A script sends information to an application and the script is deleted: the information stays in the application, but nothing brings it there any more, and the application is not its source either
-  - A script stops writing a field to a table (the write is removed, the script stays): the field stays in the table. Warn only when no other application, script or other part writes that field to the table
+  - A script stops writing a field to a table (the write is removed, the script stays): the field stays in the table. Warn only when nothing else writes that field to the table
+- [ ] Work out what a file location is: for now it groups files, and connections to its files go to it
 - [ ] Hide or disable editing in the frontend for viewers. Until then a viewer sees edit controls, and their changes fail with "A viewer cannot make changes in this environment"
 - [ ] Remove that anyone can create an organisation: `POST /org/create` is public, and the login page still has a form for it. Close the route, remove the form, and decide how a new organisation and its first admin are made instead (for example by a script)
 
@@ -126,14 +103,9 @@ The production database and backups depend on the hosting choice in Step 6.
 
 ## Step 6: Build, settings and staging
 
-The hosting items (same site, hosting setup, staging, and the two hosting settings) wait until there is a domain and a name.
+These wait until there is a domain and a name. The API address, the CORS origin and the secure cookie are already configurable (see `frontend/.env.example` and `backend/.env.example`).
 
-- [x] Make the API address configurable: `VITE_API_URL`, required for a build (see `frontend/.env.example`)
-- [x] Make the allowed CORS origin configurable: `CORS_ORIGINS`, required in production (see `backend/.env.example`)
-- [x] Set the login cookie to `secure: true`, so the backend has to be served over HTTPS
 - [ ] Host frontend and backend on the same site, like `app.example.com` and `api.example.com`: the login cookie stays on `sameSite: 'strict'`, so login does not work across unrelated domains
-- [x] Fix the 10 type errors so `npm run build` can pass. All were unused code
-- [x] Add the missing backend packages to `backend/package.json`: `jsonwebtoken`, `bcrypt` and `cookie-parser` (and their types) were used but not listed, and were only found in `C:\Users\cosdi\node_modules`, outside the project
 - [ ] Add the hosting setup: the repo has no Docker or CI configuration yet
 - [ ] Set the security headers for the frontend at the hosting platform: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `frame-ancestors 'none'` (or `X-Frame-Options: DENY`), and a `Content-Security-Policy` that allows the API address
 - [ ] Set `TRUST_PROXY` on the hosting platform (usually `1`), or all users share one login limit
@@ -173,7 +145,6 @@ An object can gain information as it travels through the system or a process. A 
 
 - Selecting information in Architecture with a source checkbox
 - AutoComplete that stores the ID when choosing information
-- A nested design for tracking information in components, servers and teams
 - Semantic zoom step 4 (capped regions)
 - Generalising connection owners
 - Splitting up large files, such as `ApplicationDetails.vue` (1600 lines)
